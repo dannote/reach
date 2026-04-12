@@ -1,11 +1,11 @@
-defmodule ExPDG.DDGTest do
+defmodule ExPDG.DataDependenceTest do
   use ExUnit.Case, async: true
 
-  alias ExPDG.{IR, DDG}
+  alias ExPDG.{IR, DataDependence}
 
-  defp build_ddg(source) do
+  defp build_data_deps(source) do
     nodes = IR.from_string!(source)
-    ddg = DDG.build(nodes)
+    ddg = DataDependence.build(nodes)
     {nodes, ddg}
   end
 
@@ -22,26 +22,26 @@ defmodule ExPDG.DDGTest do
   describe "variable binding analysis" do
     test "simple assignment" do
       node = hd(IR.from_string!("x = 1"))
-      {defs, _uses} = DDG.analyze_bindings(node)
+      {defs, _uses} = DataDependence.analyze_bindings(node)
       assert :x in defs
     end
 
     test "pattern match defines multiple variables" do
       node = hd(IR.from_string!("{a, b} = foo()"))
-      {defs, _uses} = DDG.analyze_bindings(node)
+      {defs, _uses} = DataDependence.analyze_bindings(node)
       assert :a in defs
       assert :b in defs
     end
 
     test "variable reference is a use" do
       node = hd(IR.from_string!("x"))
-      {_defs, uses} = DDG.analyze_bindings(node)
+      {_defs, uses} = DataDependence.analyze_bindings(node)
       assert :x in uses
     end
 
     test "pin operator is a use, not a definition" do
       node = hd(IR.from_string!("^x"))
-      {defs, uses} = DDG.analyze_bindings(node)
+      {defs, uses} = DataDependence.analyze_bindings(node)
       assert defs == []
       assert :x in uses
     end
@@ -50,12 +50,12 @@ defmodule ExPDG.DDGTest do
   describe "collect_definitions" do
     test "variable" do
       node = hd(IR.from_string!("x"))
-      assert DDG.collect_definitions(node) == [:x]
+      assert DataDependence.collect_definitions(node) == [:x]
     end
 
     test "tuple pattern" do
       node = hd(IR.from_string!("{a, b, c}"))
-      defs = DDG.collect_definitions(node)
+      defs = DataDependence.collect_definitions(node)
       assert :a in defs
       assert :b in defs
       assert :c in defs
@@ -63,7 +63,7 @@ defmodule ExPDG.DDGTest do
 
     test "nested pattern" do
       [node] = IR.from_string!("{a, {b, c}}")
-      defs = DDG.collect_definitions(node)
+      defs = DataDependence.collect_definitions(node)
       assert :a in defs
       assert :b in defs
       assert :c in defs
@@ -71,18 +71,18 @@ defmodule ExPDG.DDGTest do
 
     test "pin in pattern doesn't define" do
       node = hd(IR.from_string!("^x"))
-      assert DDG.collect_definitions(node) == []
+      assert DataDependence.collect_definitions(node) == []
     end
 
     test "literal doesn't define" do
       node = hd(IR.from_string!("42"))
-      assert DDG.collect_definitions(node) == []
+      assert DataDependence.collect_definitions(node) == []
     end
   end
 
   describe "def-use edges" do
     test "x = 1; y = x + 1 creates edge for x" do
-      {_nodes, ddg} = build_ddg("""
+      {_nodes, ddg} = build_data_deps("""
       x = 1
       y = x + 1
       """)
@@ -91,7 +91,7 @@ defmodule ExPDG.DDGTest do
     end
 
     test "pattern match {a, b} = foo() creates edges" do
-      {_nodes, ddg} = build_ddg("""
+      {_nodes, ddg} = build_data_deps("""
       {a, b} = foo()
       a + b
       """)
@@ -101,7 +101,7 @@ defmodule ExPDG.DDGTest do
     end
 
     test "no edge between independent variables" do
-      {_nodes, ddg} = build_ddg("""
+      {_nodes, ddg} = build_data_deps("""
       x = 1
       y = 2
       """)
@@ -114,7 +114,7 @@ defmodule ExPDG.DDGTest do
     end
 
     test "pipe chain value flows through" do
-      {_nodes, ddg} = build_ddg("""
+      {_nodes, ddg} = build_data_deps("""
       x = 1
       x |> foo() |> bar()
       """)
@@ -123,7 +123,7 @@ defmodule ExPDG.DDGTest do
     end
 
     test "function parameter flows to body use" do
-      {_nodes, ddg} = build_ddg("""
+      {_nodes, ddg} = build_data_deps("""
       def add(x, y) do
         x + y
       end

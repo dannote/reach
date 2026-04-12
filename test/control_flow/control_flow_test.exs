@@ -1,13 +1,13 @@
-defmodule ExPDG.CFGTest do
+defmodule ExPDG.ControlFlowTest do
   use ExUnit.Case, async: true
 
-  alias ExPDG.{IR, CFG}
+  alias ExPDG.{IR, ControlFlow}
   alias ExPDG.IR.Node
 
-  defp build_cfg(source) do
+  defp build_control_flow(source) do
     [func_def] = IR.from_string!(source)
     assert %Node{type: :function_def} = func_def
-    cfg = CFG.build(func_def)
+    cfg = ControlFlow.build(func_def)
     {func_def, cfg}
   end
 
@@ -15,35 +15,28 @@ defmodule ExPDG.CFGTest do
     Graph.vertices(cfg) |> MapSet.new()
   end
 
-  defp out_labels(cfg, vertex) do
-    cfg
-    |> Graph.edges(vertex)
-    |> Enum.filter(&(&1.v1 == vertex))
-    |> Enum.map(& &1.label)
-    |> Enum.sort()
-  end
 
   defp has_path?(cfg, from, to) do
     Graph.get_shortest_path(cfg, from, to) != nil
   end
 
   describe "basic structure" do
-    test "CFG has entry and exit vertices" do
-      {_func, cfg} = build_cfg("def foo, do: 1")
+    test "control flow graph has entry and exit vertices" do
+      {_func, cfg} = build_control_flow("def foo, do: 1")
       vertices = vertex_ids(cfg)
       assert :entry in vertices
       assert :exit in vertices
     end
 
     test "entry is reachable" do
-      {_func, cfg} = build_cfg("def foo, do: 1")
+      {_func, cfg} = build_control_flow("def foo, do: 1")
       assert has_path?(cfg, :entry, :exit)
     end
   end
 
   describe "straight-line code" do
-    test "has linear CFG" do
-      {_func, cfg} = build_cfg("""
+    test "has linear control flow" do
+      {_func, cfg} = build_control_flow("""
       def foo(x) do
         a = x + 1
         b = a + 2
@@ -66,8 +59,8 @@ defmodule ExPDG.CFGTest do
   end
 
   describe "if/else (desugared to case)" do
-    test "creates diamond CFG" do
-      {_func, cfg} = build_cfg("""
+    test "creates diamond control flow" do
+      {_func, cfg} = build_control_flow("""
       def foo(x) do
         if x > 0 do
           :positive
@@ -93,8 +86,8 @@ defmodule ExPDG.CFGTest do
   end
 
   describe "case with multiple clauses" do
-    test "creates branching CFG" do
-      {_func, cfg} = build_cfg("""
+    test "creates branching control flow" do
+      {_func, cfg} = build_control_flow("""
       def foo(x) do
         case x do
           :a -> 1
@@ -122,7 +115,7 @@ defmodule ExPDG.CFGTest do
 
   describe "try/catch" do
     test "creates normal and exception paths" do
-      {_func, cfg} = build_cfg("""
+      {_func, cfg} = build_control_flow("""
       def foo(x) do
         try do
           risky(x)
@@ -142,7 +135,7 @@ defmodule ExPDG.CFGTest do
     end
 
     test "try/after connects after block from all paths" do
-      {_func, cfg} = build_cfg("""
+      {_func, cfg} = build_control_flow("""
       def foo(x) do
         try do
           risky(x)
@@ -166,7 +159,7 @@ defmodule ExPDG.CFGTest do
 
   describe "receive" do
     test "with timeout creates timeout branch" do
-      {_func, cfg} = build_cfg("""
+      {_func, cfg} = build_control_flow("""
       def foo do
         receive do
           {:msg, data} -> data
@@ -188,7 +181,7 @@ defmodule ExPDG.CFGTest do
 
   describe "guards" do
     test "guard creates guard_success edge" do
-      {_func, cfg} = build_cfg("""
+      {_func, cfg} = build_control_flow("""
       def foo(x) when is_integer(x) do
         x + 1
       end
@@ -203,7 +196,7 @@ defmodule ExPDG.CFGTest do
   end
 
   describe "multi-clause function" do
-    test "creates dispatch CFG" do
+    test "creates dispatch control flow" do
       nodes = IR.from_string!("""
       defmodule M do
         def foo(:a), do: 1
@@ -220,7 +213,7 @@ defmodule ExPDG.CFGTest do
 
   describe "pipe chain" do
     test "is sequential after desugaring" do
-      {_func, cfg} = build_cfg("""
+      {_func, cfg} = build_control_flow("""
       def foo(x) do
         x |> bar() |> baz()
       end
@@ -241,8 +234,8 @@ defmodule ExPDG.CFGTest do
 
   describe "DOT export" do
     test "produces valid DOT string" do
-      {_func, cfg} = build_cfg("def foo(x), do: x + 1")
-      assert {:ok, dot} = CFG.to_dot(cfg)
+      {_func, cfg} = build_control_flow("def foo(x), do: x + 1")
+      assert {:ok, dot} = ControlFlow.to_dot(cfg)
       assert String.contains?(dot, "digraph")
     end
   end

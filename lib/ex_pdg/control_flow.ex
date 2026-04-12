@@ -1,8 +1,8 @@
-defmodule ExPDG.CFG do
+defmodule ExPDG.ControlFlow do
   @moduledoc """
   Control Flow Graph builder.
 
-  Constructs a CFG from IR nodes where:
+  Constructs a control flow graph from IR nodes where:
   - Vertices are IR node IDs (plus synthetic :entry and :exit)
   - Edges represent control flow transitions with labeled types
   """
@@ -25,7 +25,7 @@ defmodule ExPDG.CFG do
           | :return
 
   @doc """
-  Builds a CFG from a function definition IR node.
+  Builds a control flow graph from a function definition IR node.
 
   Returns a `Graph.t()` with `:entry` and `:exit` as synthetic nodes.
   """
@@ -62,7 +62,7 @@ defmodule ExPDG.CFG do
   end
 
   @doc """
-  Exports the CFG to DOT format for visualization.
+  Exports the control flow graph to DOT format for visualization.
   """
   @spec to_dot(Graph.t()) :: {:ok, String.t()} | {:error, term()}
   defdelegate to_dot(graph), to: Graph

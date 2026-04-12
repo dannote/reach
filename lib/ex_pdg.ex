@@ -8,7 +8,7 @@ defmodule ExPDG do
 
   ## Quick start
 
-      {:ok, ir} = ExPDG.IR.from_string(\"""
+      {:ok, graph} = ExPDG.Graph.from_string(\"""
       def example(x) do
         if x > 0 do
           x + 1
@@ -18,6 +18,6 @@ defmodule ExPDG do
       end
       \""")
 
-      cfg = ExPDG.CFG.build(ir)
+      ExPDG.Graph.backward_slice(graph, node_id)
   """
 end

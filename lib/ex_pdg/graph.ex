@@ -1,23 +1,23 @@
-defmodule ExPDG.PDG do
+defmodule ExPDG.Graph do
   @moduledoc """
   Program Dependence Graph.
 
-  Merges CDG (control dependence) and DDG (data dependence) into a single graph.
+  Merges control dependence and data dependence into a single graph.
   Provides slicing and independence queries.
   """
 
-  alias ExPDG.{IR, CFG, CDG, DDG}
+  alias ExPDG.{IR, ControlFlow, ControlDependence, DataDependence}
   alias ExPDG.IR.Node
 
   @type t :: %__MODULE__{
           graph: Graph.t(),
           ir: [Node.t()],
-          cfg: Graph.t(),
+          control_flow: Graph.t(),
           nodes: %{Node.id() => Node.t()}
         }
 
-  @enforce_keys [:graph, :ir, :cfg, :nodes]
-  defstruct [:graph, :ir, :cfg, :nodes]
+  @enforce_keys [:graph, :ir, :control_flow, :nodes]
+  defstruct [:graph, :ir, :control_flow, :nodes]
 
   @doc """
   Builds a PDG from Elixir source code containing a function definition.
@@ -45,30 +45,27 @@ defmodule ExPDG.PDG do
     all_nodes = IR.all_nodes(ir_nodes)
     node_map = Map.new(all_nodes, fn n -> {n.id, n} end)
 
-    # Build CFG from first function def (or build a simple one for expressions)
-    {cfg, cdg, ddg} =
+    {flow, control_deps, data_deps} =
       case func_defs do
         [func_def | _] ->
-          cfg = CFG.build(func_def)
-          cdg = CDG.build(cfg)
-          ddg = DDG.build(func_def)
-          {cfg, cdg, ddg}
+          flow = ControlFlow.build(func_def)
+          control_deps = ControlDependence.build(flow)
+          data_deps = DataDependence.build(func_def)
+          {flow, control_deps, data_deps}
 
         [] ->
-          # No function def — build DDG only for expressions
-          cfg = Graph.new()
-          cdg = Graph.new()
-          ddg = DDG.build(ir_nodes)
-          {cfg, cdg, ddg}
+          flow = Graph.new()
+          control_deps = Graph.new()
+          data_deps = DataDependence.build(ir_nodes)
+          {flow, control_deps, data_deps}
       end
 
-    # Merge CDG + DDG
-    graph = merge_graphs(cdg, ddg)
+    merged = merge_graphs(control_deps, data_deps)
 
     %__MODULE__{
-      graph: graph,
+      graph: merged,
       ir: ir_nodes,
-      cfg: cfg,
+      control_flow: flow,
       nodes: node_map
     }
   end
@@ -179,35 +176,32 @@ defmodule ExPDG.PDG do
 
   # --- Private ---
 
-  defp merge_graphs(cdg, ddg) do
-    # Start with CDG vertices and edges
+  defp merge_graphs(control_deps, data_deps) do
     graph =
-      Graph.vertices(cdg)
+      Graph.vertices(control_deps)
       |> Enum.reduce(Graph.new(), &Graph.add_vertex(&2, &1))
 
     graph =
-      Graph.edges(cdg)
+      Graph.edges(control_deps)
       |> Enum.reduce(graph, fn e, g ->
         Graph.add_edge(g, e.v1, e.v2, label: e.label)
       end)
 
-    # Add DDG vertices and edges
     graph =
-      Graph.vertices(ddg)
+      Graph.vertices(data_deps)
       |> Enum.reduce(graph, &Graph.add_vertex(&2, &1))
 
-    Graph.edges(ddg)
+    Graph.edges(data_deps)
     |> Enum.reduce(graph, fn e, g ->
       Graph.add_edge(g, e.v1, e.v2, label: e.label)
     end)
   end
 
   defp data_reachable?(graph, from, to) do
-    # Check if there's a path using only data edges
-    data_graph = filter_data_edges(graph)
+    data_only = filter_data_edges(graph)
 
-    if Graph.has_vertex?(data_graph, from) and Graph.has_vertex?(data_graph, to) do
-      Graph.get_shortest_path(data_graph, from, to) != nil
+    if Graph.has_vertex?(data_only, from) and Graph.has_vertex?(data_only, to) do
+      Graph.get_shortest_path(data_only, from, to) != nil
     else
       false
     end

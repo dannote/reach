@@ -1,4 +1,4 @@
-defmodule ExPDG.CDG do
+defmodule ExPDG.ControlDependence do
   @moduledoc """
   Control Dependence Graph builder.
 
@@ -12,9 +12,9 @@ defmodule ExPDG.CDG do
   alias ExPDG.Dominator
 
   @doc """
-  Builds a control dependence graph from a CFG.
+  Builds a control dependence graph from a control flow graph.
 
-  The CFG must have `:entry` and `:exit` vertices.
+  The control flow graph must have `:entry` and `:exit` vertices.
   Returns a `Graph.t()` where edges represent control dependence
   with labels indicating the branch condition.
   """

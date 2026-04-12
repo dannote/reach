@@ -1,4 +1,4 @@
-defmodule ExPDG.DDG do
+defmodule ExPDG.DataDependence do
   @moduledoc """
   Data Dependence Graph builder.
 
@@ -9,7 +9,7 @@ defmodule ExPDG.DDG do
   alias ExPDG.IR.Node
 
   @doc """
-  Builds a data dependence graph from IR nodes and their CFG.
+  Builds a data dependence graph from IR nodes.
 
   Returns a `Graph.t()` where edges represent data flow from definitions to uses.
   """
