@@ -462,6 +462,8 @@ Build a known-pure function database:
 - all of `Enum`, `Map`, `Keyword`, `List`, `String`, `Tuple`, `Kernel` arithmetic/comparison
 - pure functions from `:erlang`, `:lists`, `:maps`, etc.
 - user-annotated functions (`@pure true` or similar)
+- **compiler-inferred types** (v1.18+): if a function's inferred return type
+  has no side-effect-capable types, it's a purity hint
 
 Two expressions with effects conflict if:
 - both write to overlapping state
@@ -787,3 +789,85 @@ For editor integration and CI, rebuild must be fast on incremental changes:
 6. **Integration with Dialyzer:** Can we reuse Dialyzer's type/success typing information for better effect inference? Worth investigating.
 
 7. **libgraph limitations:** No built-in dominator computation or subgraph extraction. Both are expected (Phase 2 implements Lengauer-Tarjan; subgraph extraction is trivial with `Graph.reachable/2` + edge re-addition).
+
+---
+
+## Relationship to Elixir's Set-Theoretic Type System (v1.17–v1.20+)
+
+Elixir is actively gaining a **gradual set-theoretic type system**. As of v1.20-rc, the
+compiler infers types from all constructs — patterns, guards, function bodies, and
+across clauses — without requiring type annotations. This has major implications
+for ExPDG:
+
+### What the type system gives us (free)
+
+The Elixir compiler now infers:
+- Function argument types from patterns and guards
+- Return types from function bodies
+- Map key presence/absence (`%{..., foo: dynamic()}` vs `%{..., foo: not_set()}`)
+- Type refinement across `case` clauses
+- Redundant clause detection
+- Dead code detection
+
+These overlap with several planned ExPDG analyses. Specifically:
+
+| Planned ExPDG feature | Elixir compiler already does? |
+|-----------------------|-------------------------------|
+| Dead code detection (unreachable branches) | **Yes** — redundant clause warnings since v1.18 |
+| Variable type inference | **Yes** — local type inference since v1.17 |
+| Pattern match exhaustiveness | **Partial** — planned for v1.20 RC2 (cross-clause inference) |
+| Effect inference | **No** — not part of the type system |
+| Data flow (taint analysis) | **No** — type system checks shape, not flow paths |
+| Control dependence | **No** — type system doesn't model control deps |
+| Independence queries | **No** — requires PDG, not just types |
+| Cross-function data flow (SDG) | **Partial** — cross-dep inference planned for v1.20 RC3 |
+
+### Strategy: complement, don't compete
+
+ExPDG should **consume the type system's output** where available and focus on
+what the type system doesn't do:
+
+1. **Use inferred types to improve data dependence** — if the compiler knows
+   `x` is `integer()`, we can refine DDG edges (e.g., skip impossible flows).
+   Access inferred types via `Code.Typespec.fetch_specs/1` from compiled beams.
+
+2. **Use type warnings as a pre-filter** — dead code found by the type system
+   doesn't need PDG analysis. ExPDG focuses on semantic dependencies the type
+   system can't see.
+
+3. **Effect/purity analysis is ExPDG's unique value** — the type system has no
+   concept of side effects. ExPDG's effect annotations (`:pure`, `:io`, `:ets_write`,
+   etc.) are complementary.
+
+4. **Independence and slicing are uniquely PDG** — no type system answers
+   "are these two expressions independent?" or "what affects this line?".
+
+### Practical integration points
+
+```elixir
+# Phase 4+: consume compiler-inferred types
+@spec fetch_inferred_types(module()) :: %{(atom(), arity()) => Compiler.types()}
+def fetch_inferred_types(module) do
+  # From beam chunks — available after compilation
+  # These are the types the compiler inferred (not user-declared @spec)
+  case Code.Typespec.fetch_specs(module) do
+    {:ok, specs} -> specs
+    :error -> %{}
+  end
+end
+```
+
+### What NOT to do
+
+- **Don't rebuild type inference** — the Elixir compiler already does it better.
+- **Don't overlap with compiler warnings** — ExPDG checks should target what the
+  compiler can't find (data flow, effects, independence).
+- **Don't depend on v1.20 features for correctness** — ExPDG must work on v1.18+.
+  Type information is a *refinement*, not a requirement.
+
+### Target Elixir version
+
+- **Minimum:** Elixir 1.18 (first release with set-theoretic types + type checking of calls)
+- **Optimal:** Elixir 1.20 (full type inference of all constructs, guard inference)
+- Type-aware features degrade gracefully on older versions (fall back to `@spec` only
+  or no type refinement)
