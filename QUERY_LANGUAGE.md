@@ -302,8 +302,13 @@ end
 
 ## Compilation strategy
 
+**Macro boundary:** macros build the query AST at compile time. The PDG doesn't exist
+until you analyze a file, so query *execution* is runtime against a live `Graph.t()`.
+This mirrors Ecto — `from/2` builds an AST at compile time, `Repo.all/2` executes it
+at runtime.
+
 ```
-check :rule_name do                          ← Elixir macro
+check :rule_name do                          ← Elixir macro (compile time)
   from n in pdg, where: ..., select: ...
 end
     │
@@ -315,7 +320,7 @@ end
   select: :node                                        ← what to return
 }
     │
-    ▼  (runtime — per PDG)
+    ▼  (runtime — per PDG, executed via Graph.t() traversals)
 [%Diagnostic{}, ...]                                   ← results
 ```
 

@@ -397,6 +397,31 @@ OTP state management patterns.
 
 ---
 
+## Graph representation notes
+
+All OTP edge types are stored in `libgraph` `Graph.t()` structs using edge labels.
+Edge labels are tuples encoding the specific OTP edge type and its parameters:
+
+```elixir
+# GenServer state threading
+Graph.add_edge(g, handle_call_node, next_state_node,
+  label: :state_write, weight: 0)
+
+# ETS read/write dependence
+Graph.add_edge(g, write_node, read_node,
+  label: {:ets_dep, table: :my_table}, weight: 0)
+
+# Message flow
+Graph.add_edge(g, send_node, recv_node,
+  label: {:message, pattern: {:work, :_}}, weight: 0)
+```
+
+The query language predicates (`ets_write?/1`, `genserver_state_read?/1`, etc.)
+match on these labels. libgraph's multi-edge support (same vertex pair, different labels)
+allows a single node pair to carry both `:data` and OTP-specific edges.
+
+---
+
 ## Extension point for library-specific models
 
 The core models above are BEAM/OTP only. Library-specific analysis

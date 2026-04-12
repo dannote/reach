@@ -109,7 +109,7 @@ Source (.ex/.erl)
 - Mix project with `mix new ex_pdg`
 - CI with `mix test`, `mix credo`, `mix dialyzer`
 - Property-based testing dependency (StreamData)
-- Graph storage via `:digraph` / `:digraph_utils` (or `libgraph` if immutability preferred)
+- Graph storage via `libgraph` (~> 0.16.0) — immutable, built-in reachability + DOT export
 - Documentation skeleton
 
 ### Key decisions
@@ -124,9 +124,13 @@ every node is an expression or sub-expression.
 - Secondary: Erlang abstract forms via `epp`/`erl_parse`
 - Shared IR that both frontends emit into
 
-#### `:digraph` for mutable graph during construction, export to immutable for queries
-OTP's `:digraph` is fast for building. Convert to `libgraph` or plain maps for
-query/serialization.
+#### libgraph for all graph storage
+[`libgraph`](https://github.com/bitwalker/libgraph) — immutable, persistent graph
+struct. No process/ETS overhead. Edge labels/weights map to PDG edge types.
+Built-in DOT export (`Graph.to_dot/1`), reachability (`Graph.reachable/2`,
+`Graph.reaching/2`), shortest path (Dijkstra, Bellman-Ford, A*).
+Use custom `vertex_identifier: fn %IRNode{id: id} -> id end` to avoid phash2
+collisions and get O(1) lookups by IR node id.
 
 ---
 
@@ -418,8 +422,8 @@ Each edge has:
 - `label`: branch condition or variable name
 - `source` / `target`: IR node ids
 
-Store in `:digraph` during construction. The PDG for a function is a single
-directed graph with two kinds of edges.
+Store in `libgraph`. The PDG for a function is a single `Graph.t()` with two
+kinds of edges (distinguished by label: `:control` or `:data`).
 
 ### 4.2 Independence Query
 
@@ -478,7 +482,7 @@ forward_slice(pdg, n) = reachable(pdg, [n], :forward)
 chop(pdg, a, b) = forward_slice(pdg, a) ∩ backward_slice(pdg, b)
 ```
 
-Use `:digraph_utils.reaching/2` and `:digraph_utils.reachable/2`.
+Use `Graph.reachable/2` (forward) and `Graph.reaching/2` (backward).
 
 ### 4.5 Tests for Phase 4
 
@@ -621,7 +625,7 @@ ExPDG.data_deps(fn_pdg, node)
 
 ### 7.3 Visualization
 
-- DOT export via `:digraph` → Graphviz
+- DOT export via `Graph.to_dot/1` (built into libgraph) — free from Phase 1
 - JSON export for web viewers
 - Mermaid export for documentation
 
@@ -713,8 +717,7 @@ Using StreamData:
 | 1 | Frontend + CFG | 3–4 weeks | Phase 0 |
 | 2 | Dominators + CDG | 2 weeks | Phase 1 |
 | 3 | Reaching defs + DDG | 2–3 weeks | Phase 1 |
-| 4 | PDG assembly + queries + effects | 2 weeks | Phase 2, 3 |
-| 4b | Query macros (Ecto-style) + built-in rules | 3 weeks | Phase 4 |
+| 4 | PDG assembly + queries + effects + query macros | 5 weeks | Phase 2, 3 |
 | 5 | SDG (interprocedural) | 3–4 weeks | Phase 4 |
 | 5b | OTP semantic model (GenServer, Supervisor, ETS, PubSub) | 3 weeks | Phase 5 |
 | 6 | Concurrency + message-passing analysis | 3 weeks | Phase 5b |
@@ -730,8 +733,42 @@ Using StreamData:
 
 **Production-grade (all phases):** ~23 weeks.
 
+### Revision history
+
+- **v0.1** (current): initial plan with `:digraph` as graph backend
+- **v0.2**: switched to `libgraph` throughout; merged Phase 4b into Phase 4;
+  added performance targets and incremental analysis notes
+
 See **QUERY_LANGUAGE.md** for the query macro design.
 See **OTP_MODEL.md** for the OTP semantic model design.
+
+---
+
+## Performance Targets
+
+These constrain graph library choice and algorithm selection. Measure from Phase 1 onward:
+
+| Metric | Target | Notes |
+|--------|--------|-------|
+| CFG for a 100-line function | < 5 ms | IR build + CFG construction |
+| PDG for a 100-line function | < 20 ms | Phases 1–4 combined |
+| SDG for `:gen_server` module | < 200 ms | Interprocedural with summaries |
+| SDG for a medium project (~50 modules) | < 5 s | Incremental: only changed functions |
+| Backward slice query | < 1 ms | Per-node, after PDG built |
+| Full check suite run | < 500 ms | All built-in checks on one PDG |
+
+### Incremental / Caching Strategy
+
+For editor integration and CI, rebuild must be fast on incremental changes:
+
+- **Per-function PDG cache**: each function's PDG is independent and can be
+  cached (serialized to disk or kept in an Agent).
+- **SDG summary edges**: each function's "contract" with the outside world
+  (which params flow to return value, which effects it has). When one function
+  changes, only reconnect its summary edges.
+- **Invalidation**: when a function's AST changes, rebuild its PDG + recompute
+  summary edges. If summary edges didn't change, callers don't need updating.
+- **Persistent cache**: store in `.ex_pdg/cache/` keyed by file + content hash.
 
 ---
 
@@ -739,12 +776,14 @@ See **OTP_MODEL.md** for the OTP semantic model design.
 
 1. **Granularity:** Basic blocks vs individual expressions? Start with expressions (finer), coarsen later if too expensive.
 
-2. **Elixir macros:** Analyze pre- or post-expansion? Post-expansion is easier but loses source mapping. Consider both: analyze expanded, map back to source.
+2. **Elixir macros:** Analyze post-expansion but keep `Macro.prewalk` metadata to map back to source spans. Both directions needed — expanded AST for correctness, source mapping for tooling.
 
 3. **Typespec integration:** Can `@spec` annotations help with effect inference? Yes — a `@spec` with no side-effect types could whitelist purity.
 
-4. **Incremental analysis:** Can we update the PDG when one function changes without rebuilding everything? Yes, if SDG summaries are cached per function.
+4. **Incremental analysis:** Per-function PDG cache + SDG summary edges. When a function changes, rebuild its PDG and reconnect summaries. If summaries didn't change, callers don't need updating.
 
-5. **LiveView / Phoenix specifics:** Are there domain-specific dependence patterns worth modeling? Possibly — assign chains, socket state flow. Future work.
+5. **LiveView / Phoenix specifics:** Are there domain-specific dependence patterns worth modeling? Possibly — assign chains, socket state flow. Extension plugin territory, not core.
 
 6. **Integration with Dialyzer:** Can we reuse Dialyzer's type/success typing information for better effect inference? Worth investigating.
+
+7. **libgraph limitations:** No built-in dominator computation or subgraph extraction. Both are expected (Phase 2 implements Lengauer-Tarjan; subgraph extraction is trivial with `Graph.reachable/2` + edge re-addition).
