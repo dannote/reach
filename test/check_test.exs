@@ -1,6 +1,7 @@
 defmodule ExPDG.CheckTest do
   use ExUnit.Case, async: true
 
+  alias ExPDG.Checks.{DeepDependencyChain, TaintFlow, UnusedDefinition, UselessExpression}
   alias ExPDG.{Diagnostic, Graph, IR}
 
   defp build_graph(source) do
@@ -18,7 +19,7 @@ defmodule ExPDG.CheckTest do
         end
         """)
 
-      diagnostics = ExPDG.Checks.UselessExpression.run(graph, [])
+      diagnostics = UselessExpression.run(graph, [])
       assert is_list(diagnostics)
 
       Enum.each(diagnostics, fn d ->
@@ -36,7 +37,7 @@ defmodule ExPDG.CheckTest do
         end
         """)
 
-      diagnostics = ExPDG.Checks.UnusedDefinition.run(graph, [])
+      diagnostics = UnusedDefinition.run(graph, [])
       assert is_list(diagnostics)
     end
 
@@ -48,7 +49,7 @@ defmodule ExPDG.CheckTest do
         end
         """)
 
-      diagnostics = ExPDG.Checks.TaintFlow.run(graph, [])
+      diagnostics = TaintFlow.run(graph, [])
       assert is_list(diagnostics)
       assert diagnostics == []
     end
@@ -61,7 +62,7 @@ defmodule ExPDG.CheckTest do
         end
         """)
 
-      diagnostics = ExPDG.Checks.DeepDependencyChain.run(graph, [])
+      diagnostics = DeepDependencyChain.run(graph, [])
       assert is_list(diagnostics)
     end
 
@@ -74,10 +75,10 @@ defmodule ExPDG.CheckTest do
         """)
 
       checks = [
-        ExPDG.Checks.UselessExpression,
-        ExPDG.Checks.UnusedDefinition,
-        ExPDG.Checks.TaintFlow,
-        ExPDG.Checks.DeepDependencyChain
+        UselessExpression,
+        UnusedDefinition,
+        TaintFlow,
+        DeepDependencyChain
       ]
 
       diagnostics = ExPDG.Check.run_checks(checks, graph)
@@ -128,7 +129,7 @@ defmodule ExPDG.CheckTest do
         end
         """)
 
-      diagnostics = ExPDG.Checks.UselessExpression.run(graph, [])
+      diagnostics = UselessExpression.run(graph, [])
 
       Enum.each(diagnostics, fn d ->
         assert d.node_id != nil

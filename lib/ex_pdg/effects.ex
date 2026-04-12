@@ -235,20 +235,47 @@ defmodule ExPDG.Effects do
   end
 
   defp classify_call(module, function, arity) do
+    classify_pure(module, function, arity) ||
+      classify_io(module, function) ||
+      classify_messaging(module, function) ||
+      classify_state(module, function) ||
+      classify_exception(module, function) ||
+      classify_nif(module) ||
+      :unknown
+  end
+
+  defp classify_pure(module, function, arity) do
+    if pure_module?(module) or pure_function?(module, function, arity), do: :pure
+  end
+
+  defp classify_io(module, function) do
+    if io_function?(module, function), do: :io
+  end
+
+  defp classify_messaging(module, function) do
     cond do
-      pure_module?(module) -> :pure
-      pure_function?(module, function, arity) -> :pure
-      io_function?(module, function) -> :io
       send_function?(module, function) -> :send
       receive_function?(module, function) -> :receive
+      true -> nil
+    end
+  end
+
+  defp classify_state(module, function) do
+    cond do
       ets_write?(module, function) -> :write
       ets_read?(module, function) -> :read
       process_dict_write?(module, function) -> :write
       process_dict_read?(module, function) -> :read
-      exception_function?(module, function) -> :exception
-      nif_module?(module) -> :nif
-      true -> :unknown
+      true -> nil
     end
+  end
+
+  defp classify_exception(module, function) do
+    if exception_function?(module, function), do: :exception
+  end
+
+  defp classify_nif(module) do
+    if nif_module?(module), do: :nif
   end
 
   # --- Pure function database ---

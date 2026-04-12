@@ -95,35 +95,34 @@ defmodule ExPDG.DataDependence do
   # --- Private ---
 
   defp build_def_use_graph(all_nodes, bindings) do
-    # Build a map from variable name → list of defining node IDs
-    def_map =
-      Enum.reduce(all_nodes, %{}, fn node, acc ->
-        {defs, _uses} = Map.get(bindings, node.id, {[], []})
+    def_map = build_def_map(all_nodes, bindings)
 
-        Enum.reduce(defs, acc, fn var_name, inner_acc ->
-          Map.update(inner_acc, var_name, [node.id], &[node.id | &1])
-        end)
-      end)
-
-    # Build edges: for each use, find the reaching definition
     Enum.reduce(all_nodes, Graph.new(), fn node, graph ->
       {_defs, uses} = Map.get(bindings, node.id, {[], []})
 
       Enum.reduce(uses, graph, fn var_name, g ->
-        # Find all definitions of this variable
-        defining_nodes = Map.get(def_map, var_name, [])
-
-        Enum.reduce(defining_nodes, g, fn def_id, g2 ->
-          if def_id != node.id do
-            g2
-            |> Graph.add_vertex(def_id)
-            |> Graph.add_vertex(node.id)
-            |> Graph.add_edge(def_id, node.id, label: {:data, var_name})
-          else
-            g2
-          end
-        end)
+        def_map
+        |> Map.get(var_name, [])
+        |> Enum.reject(&(&1 == node.id))
+        |> Enum.reduce(g, &add_data_edge(&2, &1, node.id, var_name))
       end)
     end)
+  end
+
+  defp build_def_map(all_nodes, bindings) do
+    Enum.reduce(all_nodes, %{}, fn node, acc ->
+      {defs, _uses} = Map.get(bindings, node.id, {[], []})
+
+      Enum.reduce(defs, acc, fn var_name, inner_acc ->
+        Map.update(inner_acc, var_name, [node.id], &[node.id | &1])
+      end)
+    end)
+  end
+
+  defp add_data_edge(graph, def_id, use_id, var_name) do
+    graph
+    |> Graph.add_vertex(def_id)
+    |> Graph.add_vertex(use_id)
+    |> Graph.add_edge(def_id, use_id, label: {:data, var_name})
   end
 end
