@@ -401,8 +401,14 @@ defmodule Reach do
   @doc """
   Returns true if there's a data-dependence path from `source` to `sink`.
   """
-  def data_flows?(graph, source_id, sink_id) do
-    sink_id in forward_slice(graph, source_id)
+  def data_flows?(%SystemDependence{nodes: node_map} = graph, source_id, sink_id) do
+    source_ids = descendant_ids(node_map, source_id)
+    sink_ids = descendant_ids(node_map, sink_id) |> MapSet.new()
+
+    Enum.any?(source_ids, fn sid ->
+      forward_slice(graph, sid)
+      |> Enum.any?(&MapSet.member?(sink_ids, &1))
+    end)
   end
 
   @doc """
