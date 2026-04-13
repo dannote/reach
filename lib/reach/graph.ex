@@ -8,7 +8,8 @@ defmodule Reach.Graph do
           graph: Graph.t(),
           ir: [Node.t()],
           control_flow: Graph.t(),
-          nodes: %{Node.id() => Node.t()}
+          nodes: %{Node.id() => Node.t()},
+          data_graph: Graph.t() | nil
         }
 
   @enforce_keys [:graph, :ir, :control_flow, :nodes]

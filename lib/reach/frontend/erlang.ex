@@ -19,19 +19,16 @@ defmodule Reach.Frontend.Erlang do
       {:ok, forms} ->
         counter = Counter.new()
 
-        try do
-          nodes =
-            forms
-            |> Enum.reject(fn
-              {:eof, _} -> true
-              {:attribute, _, :file, _} -> true
-              _ -> false
-            end)
-            |> Enum.map(&translate_form(&1, counter, path))
+        nodes =
+          forms
+          |> Enum.reject(fn
+            {:eof, _} -> true
+            {:attribute, _, :file, _} -> true
+            _ -> false
+          end)
+          |> Enum.map(&translate_form(&1, counter, path))
 
-          {:ok, nodes}
-        after
-        end
+        {:ok, nodes}
 
       {:error, _} = err ->
         err

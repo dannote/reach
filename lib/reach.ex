@@ -157,7 +157,8 @@ defmodule Reach do
 
   The source must define complete modules.
   """
-  @spec compiled_to_graph(String.t(), keyword()) :: {:ok, graph()} | {:error, term()}
+  @spec compiled_to_graph(String.t() | [{module(), binary()}], keyword()) ::
+          {:ok, graph()} | {:error, term()}
   def compiled_to_graph(source_or_modules, opts \\ [])
 
   def compiled_to_graph(source, opts) when is_binary(source) do

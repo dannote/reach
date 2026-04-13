@@ -64,13 +64,12 @@ end"
 
   describe "module_to_graph/2" do
     test "analyzes a loaded module" do
-      {:ok, graph} = Reach.module_to_graph(Enum)
+      {:ok, graph} = Reach.module_to_graph(Access)
       funcs = Reach.nodes(graph, type: :function_def)
       func_names = Enum.map(funcs, & &1.meta[:name]) |> Enum.uniq()
 
-      assert :map in func_names
-      assert :filter in func_names
-      assert :reduce in func_names
+      assert :fetch in func_names
+      assert :get in func_names
     end
 
     test "returns error for non-existing module" do
