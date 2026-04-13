@@ -44,7 +44,7 @@ defmodule Reach.Query do
     * `:module` — filter calls by module
     * `:function` — filter calls by function name
   """
-  @spec nodes(Graph.t() | Reach.SystemDependence.t(), keyword()) :: [Node.t()]
+  @spec nodes(term(), keyword()) :: [Node.t()]
   def nodes(graph_or_sdg, opts \\ [])
 
   def nodes(%Graph{nodes: node_map}, opts) do
@@ -60,7 +60,8 @@ defmodule Reach.Query do
   @doc """
   Returns true if there's a data-dependence path from `source` to `sink`.
   """
-  @spec data_flows?(Graph.t(), Node.id(), Node.id()) :: boolean()
+  @spec data_flows?(term(), Node.id(), Node.id()) ::
+          boolean()
   def data_flows?(graph, source_id, sink_id) do
     graph = to_graph(graph)
     sink_id in Graph.forward_slice(graph, source_id)
@@ -69,7 +70,7 @@ defmodule Reach.Query do
   @doc """
   Returns true if `controller` has a control-dependence path to `target`.
   """
-  @spec controls?(Graph.t(), Node.id(), Node.id()) :: boolean()
+  @spec controls?(term(), Node.id(), Node.id()) :: boolean()
   def controls?(graph, controller_id, target_id) do
     graph = to_graph(graph)
 
@@ -80,7 +81,7 @@ defmodule Reach.Query do
   @doc """
   Returns true if there's any dependence path between two nodes.
   """
-  @spec depends?(Graph.t(), Node.id(), Node.id()) :: boolean()
+  @spec depends?(term(), Node.id(), Node.id()) :: boolean()
   def depends?(graph, id_a, id_b) do
     graph = to_graph(graph)
 
@@ -91,7 +92,7 @@ defmodule Reach.Query do
   @doc """
   Returns true if `node_id` has data dependents (other nodes use its value).
   """
-  @spec has_dependents?(Graph.t(), Node.id()) :: boolean()
+  @spec has_dependents?(term(), Node.id()) :: boolean()
   def has_dependents?(graph, node_id) do
     graph = to_graph(graph)
     Graph.forward_slice(graph, node_id) != []
@@ -101,7 +102,12 @@ defmodule Reach.Query do
   Returns true if the data-flow path from `source` to `sink` passes
   through any node matching `predicate`.
   """
-  @spec passes_through?(Graph.t(), Node.id(), Node.id(), (Node.t() -> boolean())) :: boolean()
+  @spec passes_through?(
+          term(),
+          Node.id(),
+          Node.id(),
+          (Node.t() -> boolean())
+        ) :: boolean()
   def passes_through?(graph, source_id, sink_id, predicate) do
     graph = to_graph(graph)
     path_nodes = Graph.chop(graph, source_id, sink_id)
@@ -117,7 +123,7 @@ defmodule Reach.Query do
   @doc """
   Returns true if the node's result is the return value of its function.
   """
-  @spec returns?(Graph.t(), Node.id()) :: boolean()
+  @spec returns?(term(), Node.id()) :: boolean()
   def returns?(graph, node_id) do
     %Graph{control_flow: control_flow} = to_graph(graph)
 

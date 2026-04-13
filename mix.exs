@@ -1,10 +1,13 @@
 defmodule Reach.MixProject do
   use Mix.Project
 
+  @version "0.1.0"
+  @source_url "https://github.com/dannote/reach"
+
   def project do
     [
       app: :reach,
-      version: "0.1.0",
+      version: @version,
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -14,7 +17,10 @@ defmodule Reach.MixProject do
         plt_add_apps: [:mix]
       ],
       name: "Reach",
-      description: "Program Dependence Graph for Elixir and Erlang"
+      description: "Program dependence graph for Elixir and Erlang",
+      source_url: @source_url,
+      docs: docs(),
+      package: package()
     ]
   end
 
@@ -47,6 +53,32 @@ defmodule Reach.MixProject do
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false}
+    ]
+  end
+
+  defp docs do
+    [
+      main: "Reach",
+      extras: [
+        "README.md",
+        "LICENSE"
+      ],
+      groups_for_modules: [
+        "Public API": [Reach],
+        IR: [Reach.IR, Reach.IR.Node],
+        Analysis: [Reach.Effects, Reach.Query],
+        Frontends: [Reach.Frontend.Elixir, Reach.Frontend.Erlang, Reach.Frontend.BEAM]
+      ],
+      source_url: @source_url,
+      source_ref: "master"
+    ]
+  end
+
+  defp package do
+    [
+      licenses: ["MIT"],
+      links: %{"GitHub" => @source_url},
+      files: ~w(lib mix.exs README.md LICENSE .formatter.exs)
     ]
   end
 end

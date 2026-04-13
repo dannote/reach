@@ -46,7 +46,8 @@ defmodule Reach do
   alias Reach.IR.Counter
   alias Reach.IR.Node
 
-  @type graph :: SystemDependence.t()
+  @typedoc "A program dependence graph. Built by `string_to_graph/2`, `file_to_graph/2`, etc."
+  @opaque graph :: map()
 
   # --- Building ---
 
@@ -427,7 +428,7 @@ defmodule Reach do
   @doc """
   Returns the per-function PDG for a `{module, function, arity}` tuple.
   """
-  @spec function_graph(graph(), SystemDependence.function_id()) :: Reach.Graph.t() | nil
+  @spec function_graph(graph(), {module() | nil, atom(), non_neg_integer()}) :: graph() | nil
   defdelegate function_graph(graph, function_id), to: SystemDependence, as: :function_pdg
 
   @doc """

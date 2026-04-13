@@ -1,8 +1,10 @@
 defmodule Reach.IR do
   @moduledoc """
-  Internal Representation for Reach.
+  Internal Representation tree utilities.
 
-  Provides functions for parsing source into IR and traversing IR node trees.
+  Provides functions for traversing and querying IR node trees.
+  To build IR from source, use `Reach.string_to_graph/2` or
+  `Reach.file_to_graph/2`.
   """
 
   alias Reach.IR.Node
