@@ -1,4 +1,4 @@
-defmodule ExPDG.IR.Counter do
+defmodule Reach.IR.Counter do
   @moduledoc false
 
   @opaque t :: :atomics.atomics_ref()

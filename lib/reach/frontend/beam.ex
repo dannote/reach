@@ -1,10 +1,10 @@
-defmodule ExPDG.Frontend.BEAM do
+defmodule Reach.Frontend.BEAM do
   @moduledoc false
-  alias ExPDG.IR.Counter
+  alias Reach.IR.Counter
 
-  alias ExPDG.Frontend.Erlang
+  alias Reach.Frontend.Erlang
 
-  @spec from_bytecode(binary(), keyword()) :: {:ok, [ExPDG.IR.Node.t()]} | {:error, term()}
+  @spec from_bytecode(binary(), keyword()) :: {:ok, [Reach.IR.Node.t()]} | {:error, term()}
   def from_bytecode(bytecode, opts \\ []) when is_binary(bytecode) do
     with {:error, _} <- from_abstract_code(bytecode, opts),
          {:error, _} <- from_debug_info(bytecode, opts) do
@@ -12,7 +12,7 @@ defmodule ExPDG.Frontend.BEAM do
     end
   end
 
-  @spec from_module(module(), keyword()) :: {:ok, [ExPDG.IR.Node.t()]} | {:error, term()}
+  @spec from_module(module(), keyword()) :: {:ok, [Reach.IR.Node.t()]} | {:error, term()}
   def from_module(module, opts \\ []) when is_atom(module) do
     case :code.which(module) do
       :non_existing ->
@@ -30,9 +30,9 @@ defmodule ExPDG.Frontend.BEAM do
   end
 
   @spec from_compiled_string(String.t(), keyword()) ::
-          {:ok, [ExPDG.IR.Node.t()]} | {:error, term()}
+          {:ok, [Reach.IR.Node.t()]} | {:error, term()}
   def from_compiled_string(source, opts \\ []) do
-    tmp_dir = Path.join(System.tmp_dir!(), "ex_pdg_beam_#{:erlang.unique_integer([:positive])}")
+    tmp_dir = Path.join(System.tmp_dir!(), "reach_beam_#{:erlang.unique_integer([:positive])}")
 
     try do
       File.mkdir_p!(tmp_dir)
@@ -70,7 +70,7 @@ defmodule ExPDG.Frontend.BEAM do
     end
   end
 
-  @spec from_compiled_modules([{module(), binary()}], keyword()) :: {:ok, [ExPDG.IR.Node.t()]}
+  @spec from_compiled_modules([{module(), binary()}], keyword()) :: {:ok, [Reach.IR.Node.t()]}
   def from_compiled_modules(compiled, opts \\ []) do
     nodes =
       Enum.flat_map(compiled, fn {_module, bytecode} ->

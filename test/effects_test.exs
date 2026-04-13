@@ -1,7 +1,7 @@
-defmodule ExPDG.EffectsTest do
+defmodule Reach.EffectsTest do
   use ExUnit.Case, async: true
 
-  alias ExPDG.{Effects, IR}
+  alias Reach.{Effects, IR}
 
   defp node_for(source) do
     [node] = IR.from_string!(source)

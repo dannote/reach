@@ -1,8 +1,8 @@
-defmodule ExPDG.ControlFlowTest do
+defmodule Reach.ControlFlowTest do
   use ExUnit.Case, async: true
 
-  alias ExPDG.{ControlFlow, IR}
-  alias ExPDG.IR.Node
+  alias Reach.{ControlFlow, IR}
+  alias Reach.IR.Node
 
   defp build_control_flow(source) do
     [func_def] = IR.from_string!(source)

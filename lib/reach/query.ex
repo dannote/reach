@@ -1,4 +1,4 @@
-defmodule ExPDG.Query do
+defmodule Reach.Query do
   @moduledoc """
   Query functions for the program dependence graph.
 
@@ -8,7 +8,7 @@ defmodule ExPDG.Query do
 
   ## Examples
 
-      import ExPDG.Query
+      import Reach.Query
 
       # Find all pure call nodes
       nodes(graph, type: :call)
@@ -18,11 +18,11 @@ defmodule ExPDG.Query do
       data_flows?(graph, source_id, sink_id)
   """
 
-  alias ExPDG.{Effects, Graph}
+  alias Reach.{Effects, Graph}
 
   defp to_graph(%Graph{} = g), do: g
 
-  defp to_graph(%ExPDG.SystemDependence{} = sdg) do
+  defp to_graph(%Reach.SystemDependence{} = sdg) do
     %Graph{
       graph: sdg.graph,
       ir: sdg.ir,
@@ -31,7 +31,7 @@ defmodule ExPDG.Query do
     }
   end
 
-  alias ExPDG.IR.Node
+  alias Reach.IR.Node
 
   # --- Node queries ---
 
@@ -44,7 +44,7 @@ defmodule ExPDG.Query do
     * `:module` — filter calls by module
     * `:function` — filter calls by function name
   """
-  @spec nodes(Graph.t() | ExPDG.SystemDependence.t(), keyword()) :: [Node.t()]
+  @spec nodes(Graph.t() | Reach.SystemDependence.t(), keyword()) :: [Node.t()]
   def nodes(graph_or_sdg, opts \\ [])
 
   def nodes(%Graph{nodes: node_map}, opts) do
@@ -53,7 +53,7 @@ defmodule ExPDG.Query do
     |> filter_nodes(opts)
   end
 
-  def nodes(%ExPDG.SystemDependence{} = sdg, opts) do
+  def nodes(%Reach.SystemDependence{} = sdg, opts) do
     nodes(to_graph(sdg), opts)
   end
 

@@ -1,8 +1,8 @@
-defmodule ExPDG.OTP do
+defmodule Reach.OTP do
   @moduledoc false
 
-  alias ExPDG.IR
-  alias ExPDG.IR.Node
+  alias Reach.IR
+  alias Reach.IR.Node
 
   @type otp_edge_label ::
           :state_read

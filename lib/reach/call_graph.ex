@@ -1,8 +1,8 @@
-defmodule ExPDG.CallGraph do
+defmodule Reach.CallGraph do
   @moduledoc false
 
-  alias ExPDG.IR
-  alias ExPDG.IR.Node
+  alias Reach.IR
+  alias Reach.IR.Node
 
   @type function_id :: {module(), atom(), non_neg_integer()}
 

@@ -1,8 +1,8 @@
-defmodule ExPDG.IR.PropertyTest do
+defmodule Reach.IR.PropertyTest do
   use ExUnit.Case, async: true
   use ExUnitProperties
 
-  alias ExPDG.IR
+  alias Reach.IR
 
   property "all nodes have unique IDs" do
     check all(source <- simple_elixir_source()) do

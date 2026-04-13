@@ -1,7 +1,7 @@
-defmodule ExPDG.OTPTest do
+defmodule Reach.OTPTest do
   use ExUnit.Case, async: true
 
-  alias ExPDG.{IR, OTP}
+  alias Reach.{IR, OTP}
 
   describe "detect_behaviour/1" do
     test "detects GenServer from callback names" do
@@ -251,7 +251,7 @@ defmodule ExPDG.OTPTest do
   describe "integration with system dependence graph" do
     test "OTP edges appear in SDG" do
       {:ok, sdg} =
-        ExPDG.SystemDependence.from_string("""
+        Reach.SystemDependence.from_string("""
         def handle_call(:get, _from, state) do
           {:reply, state, state}
         end

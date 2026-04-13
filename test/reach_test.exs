@@ -1,25 +1,25 @@
-defmodule ExPDGTest do
+defmodule ReachTest do
   use ExUnit.Case, async: true
 
   describe "string_to_graph/2" do
     test "parses source and returns graph" do
       assert {:ok, graph} =
-               ExPDG.string_to_graph("""
+               Reach.string_to_graph("""
                def foo(x), do: x + 1
                """)
 
-      assert %ExPDG.SystemDependence{} = graph
+      assert %Reach.SystemDependence{} = graph
     end
 
     test "returns error for invalid source" do
-      assert {:error, _} = ExPDG.string_to_graph("def foo(")
+      assert {:error, _} = Reach.string_to_graph("def foo(")
     end
 
     test "accepts :file option" do
       {:ok, graph} =
-        ExPDG.string_to_graph("def foo(x), do: x", file: "my_file.ex")
+        Reach.string_to_graph("def foo(x), do: x", file: "my_file.ex")
 
-      node = ExPDG.nodes(graph) |> Enum.find(&(&1.source_span != nil))
+      node = Reach.nodes(graph) |> Enum.find(&(&1.source_span != nil))
       assert node.source_span.file == "my_file.ex"
     end
   end
@@ -27,38 +27,38 @@ defmodule ExPDGTest do
   describe "string_to_graph!/2" do
     test "returns graph directly" do
       graph =
-        ExPDG.string_to_graph!("""
+        Reach.string_to_graph!("""
         def foo(x), do: x + 1
         """)
 
-      assert %ExPDG.SystemDependence{} = graph
+      assert %Reach.SystemDependence{} = graph
     end
 
     test "raises on parse error" do
       assert_raise RuntimeError, ~r/parse error/i, fn ->
-        ExPDG.string_to_graph!("def foo(")
+        Reach.string_to_graph!("def foo(")
       end
     end
   end
 
   describe "file_to_graph/2" do
     test "reads and parses a file" do
-      assert {:ok, graph} = ExPDG.file_to_graph("lib/ex_pdg/ir.ex")
-      assert ExPDG.nodes(graph) != []
+      assert {:ok, graph} = Reach.file_to_graph("lib/reach/ir.ex")
+      assert Reach.nodes(graph) != []
     end
 
     test "returns error for missing file" do
-      assert {:error, {:file, :enoent}} = ExPDG.file_to_graph("nonexistent.ex")
+      assert {:error, {:file, :enoent}} = Reach.file_to_graph("nonexistent.ex")
     end
 
     test "infers module name from path" do
-      {:ok, graph} = ExPDG.file_to_graph("lib/ex_pdg/effects.ex")
-      cg = ExPDG.call_graph(graph)
+      {:ok, graph} = Reach.file_to_graph("lib/reach/effects.ex")
+      cg = Reach.call_graph(graph)
       vertices = Graph.vertices(cg)
 
       has_effects_module =
         Enum.any?(vertices, fn
-          {ExPDG.Effects, _, _} -> true
+          {Reach.Effects, _, _} -> true
           _ -> false
         end)
 
@@ -68,53 +68,53 @@ defmodule ExPDGTest do
 
   describe "nodes/2" do
     test "returns all nodes" do
-      graph = ExPDG.string_to_graph!("def foo(x), do: x + 1")
-      assert ExPDG.nodes(graph) != []
+      graph = Reach.string_to_graph!("def foo(x), do: x + 1")
+      assert Reach.nodes(graph) != []
     end
 
     test "filters by type" do
-      graph = ExPDG.string_to_graph!("def foo(x), do: x + 1")
-      calls = ExPDG.nodes(graph, type: :call)
+      graph = Reach.string_to_graph!("def foo(x), do: x + 1")
+      calls = Reach.nodes(graph, type: :call)
       Enum.each(calls, fn n -> assert n.type == :call end)
     end
 
     test "filters by module and function" do
       graph =
-        ExPDG.string_to_graph!("""
+        Reach.string_to_graph!("""
         def foo(list) do
           Enum.map(list, &to_string/1)
         end
         """)
 
-      enum_maps = ExPDG.nodes(graph, type: :call, module: Enum, function: :map)
+      enum_maps = Reach.nodes(graph, type: :call, module: Enum, function: :map)
       assert enum_maps != []
     end
   end
 
   describe "node/2" do
     test "returns node by ID" do
-      graph = ExPDG.string_to_graph!("def foo(x), do: x + 1")
-      [first | _] = ExPDG.nodes(graph)
-      assert ExPDG.node(graph, first.id) == first
+      graph = Reach.string_to_graph!("def foo(x), do: x + 1")
+      [first | _] = Reach.nodes(graph)
+      assert Reach.node(graph, first.id) == first
     end
 
     test "returns nil for unknown ID" do
-      graph = ExPDG.string_to_graph!("def foo(x), do: x + 1")
-      assert ExPDG.node(graph, 999_999) == nil
+      graph = Reach.string_to_graph!("def foo(x), do: x + 1")
+      assert Reach.node(graph, 999_999) == nil
     end
   end
 
   describe "backward_slice/2" do
     test "returns node IDs affecting the target" do
       graph =
-        ExPDG.string_to_graph!("""
+        Reach.string_to_graph!("""
         def foo(x) do
           y = x + 1
           y
         end
         """)
 
-      all = ExPDG.nodes(graph)
+      all = Reach.nodes(graph)
 
       last_y =
         all
@@ -122,7 +122,7 @@ defmodule ExPDGTest do
         |> List.last()
 
       if last_y do
-        slice = ExPDG.backward_slice(graph, last_y.id)
+        slice = Reach.backward_slice(graph, last_y.id)
         assert is_list(slice)
       end
     end
@@ -131,7 +131,7 @@ defmodule ExPDGTest do
   describe "forward_slice/2" do
     test "returns node IDs affected by the source" do
       graph =
-        ExPDG.string_to_graph!("""
+        Reach.string_to_graph!("""
         def foo(x) do
           y = x + 1
           z = y + 2
@@ -139,7 +139,7 @@ defmodule ExPDGTest do
         end
         """)
 
-      all = ExPDG.nodes(graph)
+      all = Reach.nodes(graph)
 
       x_def =
         Enum.find(all, fn n ->
@@ -149,7 +149,7 @@ defmodule ExPDGTest do
         end)
 
       if x_def do
-        slice = ExPDG.forward_slice(graph, x_def.id)
+        slice = Reach.forward_slice(graph, x_def.id)
         assert is_list(slice)
       end
     end
@@ -158,14 +158,14 @@ defmodule ExPDGTest do
   describe "independent?/3" do
     test "independent variables" do
       graph =
-        ExPDG.string_to_graph!("""
+        Reach.string_to_graph!("""
         def foo do
           x = 1
           y = 2
         end
         """)
 
-      all = ExPDG.nodes(graph)
+      all = Reach.nodes(graph)
 
       x_match =
         Enum.find(all, fn n ->
@@ -178,7 +178,7 @@ defmodule ExPDGTest do
         end)
 
       if x_match && y_match do
-        assert ExPDG.independent?(graph, x_match.id, y_match.id)
+        assert Reach.independent?(graph, x_match.id, y_match.id)
       end
     end
   end
@@ -186,7 +186,7 @@ defmodule ExPDGTest do
   describe "data_flows?/3" do
     test "detects flow through variable assignment" do
       graph =
-        ExPDG.string_to_graph!("""
+        Reach.string_to_graph!("""
         def foo do
           x = 1
           y = x + 1
@@ -194,7 +194,7 @@ defmodule ExPDGTest do
         end
         """)
 
-      all = ExPDG.nodes(graph)
+      all = Reach.nodes(graph)
 
       x_match =
         Enum.find(all, fn n ->
@@ -211,39 +211,39 @@ defmodule ExPDGTest do
         end)
 
       if x_match && x_use do
-        assert ExPDG.data_flows?(graph, x_match.id, x_use.id)
+        assert Reach.data_flows?(graph, x_match.id, x_use.id)
       end
     end
   end
 
   describe "pure?/1 and classify_effect/1" do
     test "literals are pure" do
-      graph = ExPDG.string_to_graph!("42")
-      [node] = ExPDG.nodes(graph, type: :literal)
-      assert ExPDG.pure?(node)
-      assert ExPDG.classify_effect(node) == :pure
+      graph = Reach.string_to_graph!("42")
+      [node] = Reach.nodes(graph, type: :literal)
+      assert Reach.pure?(node)
+      assert Reach.classify_effect(node) == :pure
     end
 
     test "IO calls are not pure" do
-      graph = ExPDG.string_to_graph!("def foo, do: IO.puts(:hello)")
-      calls = ExPDG.nodes(graph, type: :call, module: IO)
+      graph = Reach.string_to_graph!("def foo, do: IO.puts(:hello)")
+      calls = Reach.nodes(graph, type: :call, module: IO)
       [io_call | _] = calls
-      refute ExPDG.pure?(io_call)
-      assert ExPDG.classify_effect(io_call) == :io
+      refute Reach.pure?(io_call)
+      assert Reach.classify_effect(io_call) == :io
     end
   end
 
   describe "edges/1" do
     test "returns dependence edges" do
       graph =
-        ExPDG.string_to_graph!("""
+        Reach.string_to_graph!("""
         def foo(x) do
           y = x + 1
           y
         end
         """)
 
-      edges = ExPDG.edges(graph)
+      edges = Reach.edges(graph)
       assert is_list(edges)
     end
   end
@@ -251,47 +251,47 @@ defmodule ExPDGTest do
   describe "control_deps/2 and data_deps/2" do
     test "returns dependency lists" do
       graph =
-        ExPDG.string_to_graph!("""
+        Reach.string_to_graph!("""
         def foo(x) do
           y = x + 1
           y
         end
         """)
 
-      [node | _] = ExPDG.nodes(graph)
-      assert is_list(ExPDG.control_deps(graph, node.id))
-      assert is_list(ExPDG.data_deps(graph, node.id))
+      [node | _] = Reach.nodes(graph)
+      assert is_list(Reach.control_deps(graph, node.id))
+      assert is_list(Reach.data_deps(graph, node.id))
     end
   end
 
   describe "function_graph/2" do
     test "returns per-function PDG" do
       graph =
-        ExPDG.string_to_graph!("""
+        Reach.string_to_graph!("""
         def foo(x), do: x + 1
         def bar(y), do: y * 2
         """)
 
-      foo = ExPDG.function_graph(graph, {nil, :foo, 1})
-      assert %ExPDG.Graph{} = foo
+      foo = Reach.function_graph(graph, {nil, :foo, 1})
+      assert %Reach.Graph{} = foo
 
-      assert ExPDG.function_graph(graph, {nil, :nope, 0}) == nil
+      assert Reach.function_graph(graph, {nil, :nope, 0}) == nil
     end
   end
 
   describe "context_sensitive_slice/2" do
     test "slices across function boundaries" do
       graph =
-        ExPDG.string_to_graph!("""
+        Reach.string_to_graph!("""
         def foo(x), do: bar(x)
         def bar(y), do: y + 1
         """)
 
-      all = ExPDG.nodes(graph)
+      all = Reach.nodes(graph)
       plus = Enum.find(all, &(&1.type == :binary_op and &1.meta[:operator] == :+))
 
       if plus do
-        slice = ExPDG.context_sensitive_slice(graph, plus.id)
+        slice = Reach.context_sensitive_slice(graph, plus.id)
         assert is_list(slice)
       end
     end
@@ -300,12 +300,12 @@ defmodule ExPDGTest do
   describe "call_graph/1" do
     test "returns the call graph" do
       graph =
-        ExPDG.string_to_graph!("""
+        Reach.string_to_graph!("""
         def foo(x), do: bar(x)
         def bar(y), do: y + 1
         """)
 
-      cg = ExPDG.call_graph(graph)
+      cg = Reach.call_graph(graph)
       assert is_struct(cg, Graph)
     end
   end
@@ -313,17 +313,17 @@ defmodule ExPDGTest do
   describe "ast_to_graph/2" do
     test "builds graph from parsed AST" do
       {:ok, ast} = Code.string_to_quoted("def foo(x), do: x + 1")
-      {:ok, graph} = ExPDG.ast_to_graph(ast)
+      {:ok, graph} = Reach.ast_to_graph(ast)
 
-      assert ExPDG.nodes(graph) != []
-      assert ExPDG.nodes(graph, type: :function_def) != []
+      assert Reach.nodes(graph) != []
+      assert Reach.nodes(graph, type: :function_def) != []
     end
   end
 
   describe "canonical_order/2" do
     test "independent siblings get sorted deterministically" do
       graph =
-        ExPDG.string_to_graph!("""
+        Reach.string_to_graph!("""
         def foo do
           a = 1
           b = 2
@@ -331,10 +331,10 @@ defmodule ExPDGTest do
         end
         """)
 
-      blocks = ExPDG.nodes(graph, type: :block)
+      blocks = Reach.nodes(graph, type: :block)
 
       if blocks != [] do
-        order = ExPDG.canonical_order(graph, hd(blocks).id)
+        order = Reach.canonical_order(graph, hd(blocks).id)
         assert is_list(order)
         assert order != []
       end
@@ -342,7 +342,7 @@ defmodule ExPDGTest do
 
     test "dependent statements preserve relative order" do
       graph =
-        ExPDG.string_to_graph!("""
+        Reach.string_to_graph!("""
         def foo do
           x = 1
           y = x + 1
@@ -351,10 +351,10 @@ defmodule ExPDGTest do
         end
         """)
 
-      blocks = ExPDG.nodes(graph, type: :block)
+      blocks = Reach.nodes(graph, type: :block)
 
       if blocks != [] do
-        order = ExPDG.canonical_order(graph, hd(blocks).id)
+        order = Reach.canonical_order(graph, hd(blocks).id)
 
         names =
           Enum.map(order, fn {_, n} ->
@@ -378,8 +378,8 @@ defmodule ExPDGTest do
 
   describe "to_dot/1" do
     test "exports to DOT format" do
-      graph = ExPDG.string_to_graph!("def foo(x), do: x + 1")
-      assert {:ok, dot} = ExPDG.to_dot(graph)
+      graph = Reach.string_to_graph!("def foo(x), do: x + 1")
+      assert {:ok, dot} = Reach.to_dot(graph)
       assert String.contains?(dot, "digraph")
     end
   end

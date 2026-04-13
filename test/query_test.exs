@@ -1,7 +1,7 @@
-defmodule ExPDG.QueryTest do
+defmodule Reach.QueryTest do
   use ExUnit.Case, async: true
 
-  alias ExPDG.{Graph, IR, Query}
+  alias Reach.{Graph, IR, Query}
 
   defp build_graph(source) do
     nodes = IR.from_string!(source)
@@ -91,7 +91,7 @@ defmodule ExPDG.QueryTest do
   describe "works with SystemDependence" do
     test "nodes/2 accepts SystemDependence struct" do
       {:ok, sdg} =
-        ExPDG.SystemDependence.from_string("""
+        Reach.SystemDependence.from_string("""
         def foo(x), do: x + 1
         """)
 
@@ -101,7 +101,7 @@ defmodule ExPDG.QueryTest do
 
     test "has_dependents?/2 accepts SystemDependence struct" do
       {:ok, sdg} =
-        ExPDG.SystemDependence.from_string("""
+        Reach.SystemDependence.from_string("""
         def foo(x), do: x + 1
         """)
 

@@ -1,23 +1,23 @@
-defmodule ExPDG.IR do
+defmodule Reach.IR do
   @moduledoc """
-  Internal Representation for ExPDG.
+  Internal Representation for Reach.
 
   Provides functions for parsing source into IR and traversing IR node trees.
   """
 
-  alias ExPDG.IR.Node
+  alias Reach.IR.Node
 
   @doc """
   Parses Elixir source code into IR nodes.
   """
   @spec from_string(String.t(), keyword()) :: {:ok, [Node.t()]} | {:error, term()}
-  defdelegate from_string(source, opts \\ []), to: ExPDG.Frontend.Elixir, as: :parse
+  defdelegate from_string(source, opts \\ []), to: Reach.Frontend.Elixir, as: :parse
 
   @doc """
   Same as `from_string/2` but raises on error.
   """
   @spec from_string!(String.t(), keyword()) :: [Node.t()]
-  defdelegate from_string!(source, opts \\ []), to: ExPDG.Frontend.Elixir, as: :parse!
+  defdelegate from_string!(source, opts \\ []), to: Reach.Frontend.Elixir, as: :parse!
 
   @doc """
   Collects all nodes in the IR tree (pre-order depth-first).

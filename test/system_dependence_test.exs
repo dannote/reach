@@ -1,7 +1,7 @@
-defmodule ExPDG.SystemDependenceTest do
+defmodule Reach.SystemDependenceTest do
   use ExUnit.Case, async: true
 
-  alias ExPDG.{IR, SystemDependence}
+  alias Reach.{IR, SystemDependence}
 
   describe "build/2" do
     test "builds system dependence graph from multiple function definitions" do
@@ -11,7 +11,7 @@ defmodule ExPDG.SystemDependenceTest do
         def bar(y), do: y + 1
         """)
 
-      assert %ExPDG.SystemDependence{} = sdg
+      assert %Reach.SystemDependence{} = sdg
       assert map_size(sdg.function_pdgs) == 2
     end
 
@@ -91,7 +91,7 @@ defmodule ExPDG.SystemDependenceTest do
         def factorial(n), do: n * factorial(n - 1)
         """)
 
-      assert %ExPDG.SystemDependence{} = sdg
+      assert %Reach.SystemDependence{} = sdg
       vertices = Graph.vertices(sdg.graph)
       assert is_list(vertices)
     end
@@ -160,7 +160,7 @@ defmodule ExPDG.SystemDependenceTest do
 
       foo_pdg = SystemDependence.function_pdg(sdg, {nil, :foo, 1})
       assert foo_pdg != nil
-      assert %ExPDG.Graph{} = foo_pdg
+      assert %Reach.Graph{} = foo_pdg
 
       bar_pdg = SystemDependence.function_pdg(sdg, {nil, :bar, 1})
       assert bar_pdg != nil
@@ -193,7 +193,7 @@ defmodule ExPDG.SystemDependenceTest do
         end
         """)
 
-      assert %ExPDG.SystemDependence{} = sdg
+      assert %Reach.SystemDependence{} = sdg
       assert map_size(sdg.function_pdgs) >= 1
     end
 
@@ -209,7 +209,7 @@ defmodule ExPDG.SystemDependenceTest do
         end
         """)
 
-      assert %ExPDG.SystemDependence{} = sdg
+      assert %Reach.SystemDependence{} = sdg
     end
 
     test "function with try/rescue/after" do
@@ -226,7 +226,7 @@ defmodule ExPDG.SystemDependenceTest do
         end
         """)
 
-      assert %ExPDG.SystemDependence{} = sdg
+      assert %Reach.SystemDependence{} = sdg
     end
 
     test "function with with/else" do
@@ -242,7 +242,7 @@ defmodule ExPDG.SystemDependenceTest do
         end
         """)
 
-      assert %ExPDG.SystemDependence{} = sdg
+      assert %Reach.SystemDependence{} = sdg
     end
 
     test "function with pipe chain and anonymous function" do
@@ -256,7 +256,7 @@ defmodule ExPDG.SystemDependenceTest do
         end
         """)
 
-      assert %ExPDG.SystemDependence{} = sdg
+      assert %Reach.SystemDependence{} = sdg
     end
 
     test "GenServer module with callbacks" do
@@ -268,7 +268,7 @@ defmodule ExPDG.SystemDependenceTest do
         def handle_info(:tick, state), do: {:noreply, state + 1}
         """)
 
-      assert %ExPDG.SystemDependence{} = sdg
+      assert %Reach.SystemDependence{} = sdg
       assert map_size(sdg.function_pdgs) == 4
     end
 
@@ -283,7 +283,7 @@ defmodule ExPDG.SystemDependenceTest do
         end
         """)
 
-      assert %ExPDG.SystemDependence{} = sdg
+      assert %Reach.SystemDependence{} = sdg
     end
 
     test "for comprehension with multiple generators and filters" do
@@ -294,7 +294,7 @@ defmodule ExPDG.SystemDependenceTest do
         end
         """)
 
-      assert %ExPDG.SystemDependence{} = sdg
+      assert %Reach.SystemDependence{} = sdg
     end
 
     test "receive with multiple clauses and timeout" do
@@ -310,7 +310,7 @@ defmodule ExPDG.SystemDependenceTest do
         end
         """)
 
-      assert %ExPDG.SystemDependence{} = sdg
+      assert %Reach.SystemDependence{} = sdg
     end
   end
 

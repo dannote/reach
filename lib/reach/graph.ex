@@ -1,8 +1,8 @@
-defmodule ExPDG.Graph do
+defmodule Reach.Graph do
   @moduledoc false
 
-  alias ExPDG.{ControlDependence, ControlFlow, DataDependence, Effects, IR}
-  alias ExPDG.IR.Node
+  alias Reach.{ControlDependence, ControlFlow, DataDependence, Effects, IR}
+  alias Reach.IR.Node
 
   @type t :: %__MODULE__{
           graph: Graph.t(),
@@ -55,7 +55,7 @@ defmodule ExPDG.Graph do
           {flow, control_deps, data_deps}
       end
 
-    merged = ExPDG.GraphUtils.merge(control_deps, data_deps)
+    merged = Reach.GraphUtils.merge(control_deps, data_deps)
 
     data_only = build_data_graph(merged)
 
@@ -183,7 +183,7 @@ defmodule ExPDG.Graph do
   defp build_data_graph(graph) do
     graph
     |> Graph.edges()
-    |> Enum.filter(&match?({:data, _}, &1.label))
+    |> Enum.filter(fn e -> match?({:data, _}, e.label) or e.label == :containment end)
     |> then(&Graph.add_edges(Graph.new(), &1))
   end
 
@@ -206,7 +206,7 @@ defmodule ExPDG.Graph do
   end
 
   defp extract_graph(%__MODULE__{graph: graph}), do: graph
-  defp extract_graph(%ExPDG.SystemDependence{graph: graph}), do: graph
+  defp extract_graph(%Reach.SystemDependence{graph: graph}), do: graph
 
   defp same_control_deps?(pdg, id_x, id_y) do
     deps_x = control_deps(pdg, id_x) |> MapSet.new()

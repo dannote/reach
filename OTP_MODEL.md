@@ -1,6 +1,6 @@
-# ExPDG OTP Semantic Model
+# Reach OTP Semantic Model
 
-ExPDG doesn't just analyze Elixir syntax — it understands **OTP and BEAM
+Reach doesn't just analyze Elixir syntax — it understands **OTP and BEAM
 runtime primitives** as first-class program structures with their own
 dependence semantics.
 
@@ -338,7 +338,7 @@ These matter for understanding crash propagation and cleanup flow.
 
 ## Detection strategy
 
-How does ExPDG recognize OTP patterns?
+How does Reach recognize OTP patterns?
 
 ### Behaviour detection (at IR build time)
 ```elixir
@@ -430,12 +430,12 @@ The core models above are BEAM/OTP only. Library-specific analysis
 1. Register additional edge types
 2. Register additional node recognizers (e.g., "this call is a PubSub broadcast")
 3. Register additional built-in checks
-4. Depend on ExPDG as a library, not the other way around
+4. Depend on Reach as a library, not the other way around
 
 ```elixir
-# Future — NOT part of core ExPDG
-defmodule ExPDGPhoenix do
-  use ExPDG.Extension
+# Future — NOT part of core Reach
+defmodule ReachPhoenix do
+  use Reach.Extension
 
   register_edge_type :pubsub_broadcast
   register_edge_type :assign_write

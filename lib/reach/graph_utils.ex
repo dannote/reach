@@ -1,4 +1,4 @@
-defmodule ExPDG.GraphUtils do
+defmodule Reach.GraphUtils do
   @moduledoc false
 
   @doc """

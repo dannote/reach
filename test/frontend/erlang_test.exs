@@ -1,8 +1,8 @@
-defmodule ExPDG.Frontend.ErlangTest do
+defmodule Reach.Frontend.ErlangTest do
   use ExUnit.Case, async: true
 
-  alias ExPDG.Frontend.Erlang
-  alias ExPDG.IR
+  alias Reach.Frontend.Erlang
+  alias Reach.IR
 
   defp parse!(source) do
     {:ok, nodes} = Erlang.parse_string(source)
@@ -207,10 +207,10 @@ defmodule ExPDG.Frontend.ErlangTest do
     end
   end
 
-  describe "integration with ExPDG API" do
+  describe "integration with Reach API" do
     test "string_to_graph with language: :erlang" do
       {:ok, graph} =
-        ExPDG.string_to_graph(
+        Reach.string_to_graph(
           """
           -module(test).
           foo(X) -> X + 1.
@@ -219,19 +219,19 @@ defmodule ExPDG.Frontend.ErlangTest do
           language: :erlang
         )
 
-      assert %ExPDG.SystemDependence{} = graph
-      assert ExPDG.nodes(graph) != []
+      assert %Reach.SystemDependence{} = graph
+      assert Reach.nodes(graph) != []
     end
 
     test "file_to_graph auto-detects .erl" do
       path =
-        Path.join(System.tmp_dir!(), "ex_pdg_test_#{:erlang.unique_integer([:positive])}.erl")
+        Path.join(System.tmp_dir!(), "reach_test_#{:erlang.unique_integer([:positive])}.erl")
 
       File.write!(path, "-module(test).\nfoo(X) -> X + 1.\n")
 
       try do
-        {:ok, graph} = ExPDG.file_to_graph(path)
-        assert ExPDG.nodes(graph) != []
+        {:ok, graph} = Reach.file_to_graph(path)
+        assert Reach.nodes(graph) != []
       after
         File.rm(path)
       end
@@ -239,7 +239,7 @@ defmodule ExPDG.Frontend.ErlangTest do
 
     test "slicing works on Erlang code" do
       graph =
-        ExPDG.string_to_graph!(
+        Reach.string_to_graph!(
           """
           -module(test).
           foo(X) ->
@@ -249,11 +249,11 @@ defmodule ExPDG.Frontend.ErlangTest do
           language: :erlang
         )
 
-      all = ExPDG.nodes(graph)
+      all = Reach.nodes(graph)
       plus = Enum.find(all, &(&1.type == :binary_op and &1.meta[:operator] == :+))
 
       if plus do
-        slice = ExPDG.backward_slice(graph, plus.id)
+        slice = Reach.backward_slice(graph, plus.id)
         assert is_list(slice)
         assert slice != []
       end
@@ -261,7 +261,7 @@ defmodule ExPDG.Frontend.ErlangTest do
 
     test "call graph connects Erlang functions" do
       graph =
-        ExPDG.string_to_graph!(
+        Reach.string_to_graph!(
           """
           -module(test).
           foo(X) -> bar(X).
@@ -270,7 +270,7 @@ defmodule ExPDG.Frontend.ErlangTest do
           language: :erlang
         )
 
-      cg = ExPDG.call_graph(graph)
+      cg = Reach.call_graph(graph)
       edges = Graph.edges(cg)
       assert edges != []
     end

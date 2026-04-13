@@ -1,4 +1,4 @@
-# ExPDG — Program Dependence Graph for BEAM Languages
+# Reach — Program Dependence Graph for BEAM Languages
 
 ## Vision
 
@@ -106,7 +106,7 @@ Source (.ex/.erl)
 ## Phase 0 — Project Setup
 
 ### Deliverables
-- Mix project with `mix new ex_pdg`
+- Mix project with `mix new reach`
 - CI with `mix test`, `mix credo`, `mix dialyzer`
 - Property-based testing dependency (StreamData)
 - Graph storage via `libgraph` (~> 0.16.0) — immutable, built-in reachability + DOT export
@@ -607,22 +607,22 @@ test "GenServer state flows through handle_call return"
 ### 7.1 Mix Task
 
 ```
-mix ex_pdg --file lib/my_module.ex --function my_fun/2 --format dot
-mix ex_pdg.slice --file lib/my_module.ex --line 42 --direction backward
-mix ex_pdg.independent --file lib/my_module.ex --line 10 --line 15
+mix reach --file lib/my_module.ex --function my_fun/2 --format dot
+mix reach.slice --file lib/my_module.ex --line 42 --direction backward
+mix reach.independent --file lib/my_module.ex --line 10 --line 15
 ```
 
 ### 7.2 Programmatic API
 
 ```elixir
-{:ok, pdg} = ExPDG.build_file("lib/my_module.ex")
-{:ok, fn_pdg} = ExPDG.function_pdg(pdg, {MyModule, :my_fun, 2})
+{:ok, pdg} = Reach.build_file("lib/my_module.ex")
+{:ok, fn_pdg} = Reach.function_pdg(pdg, {MyModule, :my_fun, 2})
 
-ExPDG.independent?(fn_pdg, node_a, node_b)
-ExPDG.backward_slice(fn_pdg, node)
-ExPDG.forward_slice(fn_pdg, node)
-ExPDG.control_deps(fn_pdg, node)
-ExPDG.data_deps(fn_pdg, node)
+Reach.independent?(fn_pdg, node_a, node_b)
+Reach.backward_slice(fn_pdg, node)
+Reach.forward_slice(fn_pdg, node)
+Reach.control_deps(fn_pdg, node)
+Reach.data_deps(fn_pdg, node)
 ```
 
 ### 7.3 Visualization
@@ -633,12 +633,12 @@ ExPDG.data_deps(fn_pdg, node)
 
 ### 7.4 ExDNA Integration
 
-ExPDG provides the independence oracle that ExDNA can use to detect
+Reach provides the independence oracle that ExDNA can use to detect
 reordering-equivalent clones:
 
 ```elixir
 # In ex_dna clone comparison:
-if ExPDG.same_pdg_structure?(pdg_a, pdg_b) do
+if Reach.same_pdg_structure?(pdg_a, pdg_b) do
   :clone  # even if statement order differs
 end
 ```
@@ -770,7 +770,7 @@ For editor integration and CI, rebuild must be fast on incremental changes:
   changes, only reconnect its summary edges.
 - **Invalidation**: when a function's AST changes, rebuild its PDG + recompute
   summary edges. If summary edges didn't change, callers don't need updating.
-- **Persistent cache**: store in `.ex_pdg/cache/` keyed by file + content hash.
+- **Persistent cache**: store in `.reach/cache/` keyed by file + content hash.
 
 ---
 
@@ -797,7 +797,7 @@ For editor integration and CI, rebuild must be fast on incremental changes:
 Elixir is actively gaining a **gradual set-theoretic type system**. As of v1.20-rc, the
 compiler infers types from all constructs — patterns, guards, function bodies, and
 across clauses — without requiring type annotations. This has major implications
-for ExPDG:
+for Reach:
 
 ### What the type system gives us (free)
 
@@ -809,9 +809,9 @@ The Elixir compiler now infers:
 - Redundant clause detection
 - Dead code detection
 
-These overlap with several planned ExPDG analyses. Specifically:
+These overlap with several planned Reach analyses. Specifically:
 
-| Planned ExPDG feature | Elixir compiler already does? |
+| Planned Reach feature | Elixir compiler already does? |
 |-----------------------|-------------------------------|
 | Dead code detection (unreachable branches) | **Yes** — redundant clause warnings since v1.18 |
 | Variable type inference | **Yes** — local type inference since v1.17 |
@@ -824,7 +824,7 @@ These overlap with several planned ExPDG analyses. Specifically:
 
 ### Strategy: complement, don't compete
 
-ExPDG should **consume the type system's output** where available and focus on
+Reach should **consume the type system's output** where available and focus on
 what the type system doesn't do:
 
 1. **Use inferred types to improve data dependence** — if the compiler knows
@@ -832,11 +832,11 @@ what the type system doesn't do:
    Access inferred types via `Code.Typespec.fetch_specs/1` from compiled beams.
 
 2. **Use type warnings as a pre-filter** — dead code found by the type system
-   doesn't need PDG analysis. ExPDG focuses on semantic dependencies the type
+   doesn't need PDG analysis. Reach focuses on semantic dependencies the type
    system can't see.
 
-3. **Effect/purity analysis is ExPDG's unique value** — the type system has no
-   concept of side effects. ExPDG's effect annotations (`:pure`, `:io`, `:ets_write`,
+3. **Effect/purity analysis is Reach's unique value** — the type system has no
+   concept of side effects. Reach's effect annotations (`:pure`, `:io`, `:ets_write`,
    etc.) are complementary.
 
 4. **Independence and slicing are uniquely PDG** — no type system answers
@@ -860,9 +860,9 @@ end
 ### What NOT to do
 
 - **Don't rebuild type inference** — the Elixir compiler already does it better.
-- **Don't overlap with compiler warnings** — ExPDG checks should target what the
+- **Don't overlap with compiler warnings** — Reach checks should target what the
   compiler can't find (data flow, effects, independence).
-- **Don't depend on v1.20 features for correctness** — ExPDG must work on v1.18+.
+- **Don't depend on v1.20 features for correctness** — Reach must work on v1.18+.
   Type information is a *refinement*, not a requirement.
 
 ### Target Elixir version

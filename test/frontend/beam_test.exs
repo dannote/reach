@@ -1,9 +1,9 @@
-defmodule ExPDG.Frontend.BEAMTest do
+defmodule Reach.Frontend.BEAMTest do
   use ExUnit.Case, async: false
 
   describe "compiled_to_graph/2" do
     test "captures macro-injected callbacks from use GenServer" do
-      mod = :"ExPDGTestGS#{System.unique_integer([:positive])}"
+      mod = :"ReachTestGS#{System.unique_integer([:positive])}"
 
       source = "defmodule #{mod} do
   use GenServer
@@ -15,8 +15,8 @@ defmodule ExPDG.Frontend.BEAMTest do
   def handle_call(:get, _from, state), do: {:reply, state, state}
 end"
 
-      {:ok, graph} = ExPDG.compiled_to_graph(source)
-      funcs = ExPDG.nodes(graph, type: :function_def)
+      {:ok, graph} = Reach.compiled_to_graph(source)
+      funcs = Reach.nodes(graph, type: :function_def)
       func_names = Enum.map(funcs, & &1.meta[:name]) |> Enum.uniq()
 
       assert :init in func_names
@@ -25,7 +25,7 @@ end"
     end
 
     test "captures try/rescue inside macros" do
-      mod = :"ExPDGTestTR#{System.unique_integer([:positive])}"
+      mod = :"ReachTestTR#{System.unique_integer([:positive])}"
 
       source = "defmodule #{mod} do
   defmacrop safe(do: body) do
@@ -45,8 +45,8 @@ end"
   end
 end"
 
-      {:ok, graph} = ExPDG.compiled_to_graph(source)
-      all = ExPDG.nodes(graph)
+      {:ok, graph} = Reach.compiled_to_graph(source)
+      all = Reach.nodes(graph)
 
       func_names =
         all
@@ -64,8 +64,8 @@ end"
 
   describe "module_to_graph/2" do
     test "analyzes a loaded module" do
-      {:ok, graph} = ExPDG.module_to_graph(Enum)
-      funcs = ExPDG.nodes(graph, type: :function_def)
+      {:ok, graph} = Reach.module_to_graph(Enum)
+      funcs = Reach.nodes(graph, type: :function_def)
       func_names = Enum.map(funcs, & &1.meta[:name]) |> Enum.uniq()
 
       assert :map in func_names
@@ -74,7 +74,7 @@ end"
     end
 
     test "returns error for non-existing module" do
-      assert {:error, :module_not_found} = ExPDG.module_to_graph(NonExistentModule12345)
+      assert {:error, :module_not_found} = Reach.module_to_graph(NonExistentModule12345)
     end
   end
 end

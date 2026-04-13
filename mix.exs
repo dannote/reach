@@ -1,9 +1,9 @@
-defmodule ExPDG.MixProject do
+defmodule Reach.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :ex_pdg,
+      app: :reach,
       version: "0.1.0",
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
@@ -13,7 +13,7 @@ defmodule ExPDG.MixProject do
         plt_file: {:no_warn, "_build/dev/dialyxir_plt.plt"},
         plt_add_apps: [:mix]
       ],
-      name: "ExPDG",
+      name: "Reach",
       description: "Program Dependence Graph for Elixir and Erlang"
     ]
   end

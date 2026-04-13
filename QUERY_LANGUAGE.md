@@ -1,15 +1,15 @@
-# ExPDG Query Language — Ecto-style Macros for Graph Queries
+# Reach Query Language — Ecto-style Macros for Graph Queries
 
 ## Core idea
 
 Ecto proved that **Elixir macros can be a query language**. You write what looks
 like Elixir, but it compiles to a query plan that runs against a data store.
 
-ExPDG does the same thing, but the data store is a **program dependence graph**
+Reach does the same thing, but the data store is a **program dependence graph**
 instead of a database.
 
 ```elixir
-import ExPDG.Query
+import Reach.Query
 
 # "Find all definitions that have no data dependents and are pure"
 from n in pdg,
@@ -27,7 +27,7 @@ interpretation overhead.
 
 ## Why Ecto-style
 
-| Property | Ecto | ExPDG |
+| Property | Ecto | Reach |
 |----------|------|-------|
 | Looks like Elixir | ✓ | ✓ |
 | Compiles to query plan | ✓ (SQL AST) | ✓ (traversal plan) |
@@ -158,7 +158,7 @@ from {source, sink} in pdg,
 
 ```elixir
 defmodule MyAnalysis do
-  import ExPDG.Query
+  import Reach.Query
 
   def taint_sources(pdg) do
     from n in pdg,
@@ -197,7 +197,7 @@ They integrate with Credo-style reporting.
 
 ```elixir
 defmodule MyProject.Checks do
-  use ExPDG.Check
+  use Reach.Check
 
   check :useless_expression,
     severity: :warning,
@@ -270,25 +270,25 @@ check :complex_dependency_chain,
   category: :complexity do
   from n in pdg,
     where: custom(fn pdg, n ->
-      slice = ExPDG.backward_slice(pdg, n)
+      slice = Reach.backward_slice(pdg, n)
       length(slice) > 50
     end),
     message: "Expression depends on #{length(slice)} other expressions"
 end
 ```
 
-Or skip the macro entirely and implement `ExPDG.Check` behaviour directly:
+Or skip the macro entirely and implement `Reach.Check` behaviour directly:
 
 ```elixir
 defmodule MyProject.Checks.WeirdOne do
-  @behaviour ExPDG.Check
+  @behaviour Reach.Check
 
   @impl true
   def run(pdg, _opts) do
     # full Elixir, full API access, no restrictions
-    for node <- ExPDG.nodes(pdg),
-        ExPDG.backward_slice(pdg, node) |> length() > 100 do
-      %ExPDG.Diagnostic{
+    for node <- Reach.nodes(pdg),
+        Reach.backward_slice(pdg, node) |> length() > 100 do
+      %Reach.Diagnostic{
         severity: :info,
         location: node.source_span,
         message: "Overly complex dependency chain"
@@ -387,17 +387,17 @@ Ship out of the box (like Credo ships checks):
 
 ## Relationship to Credo
 
-ExPDG checks are **not a Credo replacement** — they're a complement.
+Reach checks are **not a Credo replacement** — they're a complement.
 
-Credo checks operate on AST (syntax). ExPDG checks operate on PDG (semantics).
+Credo checks operate on AST (syntax). Reach checks operate on PDG (semantics).
 
-Examples Credo can't do but ExPDG can:
+Examples Credo can't do but Reach can:
 - "Is this expression reachable?" (needs CFG)
 - "Does user input reach this sink?" (needs data flow)
 - "Are these two statements independent?" (needs PDG)
 - "Does this GenServer state leak?" (needs OTP model + data flow)
 
 Potential integration:
-- ExPDG ships a Credo plugin that registers ExPDG checks as Credo checks
+- Reach ships a Credo plugin that registers Reach checks as Credo checks
 - Credo runs them alongside its own checks
 - Same `mix credo` interface, deeper analysis underneath

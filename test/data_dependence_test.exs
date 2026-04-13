@@ -1,7 +1,7 @@
-defmodule ExPDG.DataDependenceTest do
+defmodule Reach.DataDependenceTest do
   use ExUnit.Case, async: true
 
-  alias ExPDG.{DataDependence, IR}
+  alias Reach.{DataDependence, IR}
 
   defp build_data_deps(source) do
     nodes = IR.from_string!(source)
@@ -178,20 +178,20 @@ defmodule ExPDG.DataDependenceTest do
 
     test "backward slice of expression reaches sub-expression variables" do
       graph =
-        ExPDG.string_to_graph!("""
+        Reach.string_to_graph!("""
         def foo(x) do
           x + 1
         end
         """)
 
-      all = ExPDG.nodes(graph)
+      all = Reach.nodes(graph)
       plus = Enum.find(all, &(&1.type == :binary_op and &1.meta[:operator] == :+))
 
       if plus do
-        slice = ExPDG.backward_slice(graph, plus.id)
+        slice = Reach.backward_slice(graph, plus.id)
 
         slice_types =
-          Enum.map(slice, &ExPDG.node(graph, &1)) |> Enum.reject(&is_nil/1) |> Enum.map(& &1.type)
+          Enum.map(slice, &Reach.node(graph, &1)) |> Enum.reject(&is_nil/1) |> Enum.map(& &1.type)
 
         assert :var in slice_types
         assert :literal in slice_types

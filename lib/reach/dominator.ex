@@ -1,4 +1,4 @@
-defmodule ExPDG.Dominator do
+defmodule Reach.Dominator do
   @moduledoc false
 
   @doc """

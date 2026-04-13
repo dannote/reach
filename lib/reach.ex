@@ -1,8 +1,8 @@
-defmodule ExPDG do
+defmodule Reach do
   @moduledoc """
   Program Dependence Graph for Elixir and Erlang.
 
-  ExPDG analyzes Elixir and Erlang source code and builds a graph that captures
+  Reach analyzes Elixir and Erlang source code and builds a graph that captures
   **what depends on what**: which expressions produce values consumed
   by others (data dependence), and which expressions control whether
   others execute (control dependence).
@@ -10,7 +10,7 @@ defmodule ExPDG do
   ## Building a graph
 
       # Elixir (default)
-      {:ok, graph} = ExPDG.string_to_graph(\"""
+      {:ok, graph} = Reach.string_to_graph(\"""
       def foo(x) do
         y = x + 1
         if y > 10, do: :big, else: :small
@@ -18,33 +18,33 @@ defmodule ExPDG do
       \""")
 
       # Erlang
-      {:ok, graph} = ExPDG.string_to_graph(source, language: :erlang)
+      {:ok, graph} = Reach.string_to_graph(source, language: :erlang)
 
       # Auto-detected from file extension
-      {:ok, graph} = ExPDG.file_to_graph("lib/my_module.ex")
-      {:ok, graph} = ExPDG.file_to_graph("src/my_module.erl")
+      {:ok, graph} = Reach.file_to_graph("lib/my_module.ex")
+      {:ok, graph} = Reach.file_to_graph("src/my_module.erl")
 
   ## Querying
 
-      ExPDG.backward_slice(graph, node_id)
-      ExPDG.forward_slice(graph, node_id)
-      ExPDG.independent?(graph, id_a, id_b)
-      ExPDG.nodes(graph, type: :call, module: Enum)
-      ExPDG.data_flows?(graph, source_id, sink_id)
+      Reach.backward_slice(graph, node_id)
+      Reach.forward_slice(graph, node_id)
+      Reach.independent?(graph, id_a, id_b)
+      Reach.nodes(graph, type: :call, module: Enum)
+      Reach.data_flows?(graph, source_id, sink_id)
 
   ## Inspecting nodes
 
-      node = ExPDG.node(graph, some_id)
+      node = Reach.node(graph, some_id)
       node.type       #=> :call
       node.meta       #=> %{module: Enum, function: :map, arity: 2}
       node.source_span #=> %{file: "lib/foo.ex", start_line: 5, ...}
 
-      ExPDG.pure?(node)  #=> true
+      Reach.pure?(node)  #=> true
   """
 
-  alias ExPDG.{Effects, Frontend, Query, SystemDependence}
-  alias ExPDG.IR.Counter
-  alias ExPDG.IR.Node
+  alias Reach.{Effects, Frontend, Query, SystemDependence}
+  alias Reach.IR.Counter
+  alias Reach.IR.Node
 
   @type graph :: SystemDependence.t()
 
@@ -78,7 +78,7 @@ defmodule ExPDG do
   def string_to_graph!(source, opts \\ []) do
     case string_to_graph(source, opts) do
       {:ok, graph} -> graph
-      {:error, reason} -> raise "ExPDG parse error: #{inspect(reason)}"
+      {:error, reason} -> raise "Reach parse error: #{inspect(reason)}"
     end
   end
 
@@ -128,7 +128,7 @@ defmodule ExPDG do
   def file_to_graph!(path, opts \\ []) do
     case file_to_graph(path, opts) do
       {:ok, graph} -> graph
-      {:error, reason} -> raise "ExPDG error: #{inspect(reason)}"
+      {:error, reason} -> raise "Reach error: #{inspect(reason)}"
     end
   end
 
@@ -204,7 +204,7 @@ defmodule ExPDG do
       # Because a=1 and b=2 are independent, they get sorted,
       # while c=a+b stays last (depends on both).
   """
-  @spec canonical_order(graph(), ExPDG.IR.Node.id()) :: [{ExPDG.IR.Node.id(), ExPDG.IR.Node.t()}]
+  @spec canonical_order(graph(), Reach.IR.Node.id()) :: [{Reach.IR.Node.id(), Reach.IR.Node.t()}]
   def canonical_order(%SystemDependence{} = graph, block_node_id) do
     block = node(graph, block_node_id)
 
@@ -293,21 +293,21 @@ defmodule ExPDG do
 
   The backward slice answers: "what does this expression depend on?"
   """
-  defdelegate backward_slice(graph, node_id), to: ExPDG.Graph
+  defdelegate backward_slice(graph, node_id), to: Reach.Graph
 
   @doc """
   Returns all node IDs affected by the given node (forward slice).
 
   The forward slice answers: "what does this expression influence?"
   """
-  defdelegate forward_slice(graph, node_id), to: ExPDG.Graph
+  defdelegate forward_slice(graph, node_id), to: Reach.Graph
 
   @doc """
   Returns node IDs on all paths from `source` to `sink`.
 
   The chop answers: "how does A influence B?"
   """
-  defdelegate chop(graph, source, sink), to: ExPDG.Graph
+  defdelegate chop(graph, source, sink), to: Reach.Graph
 
   # --- Independence ---
 
@@ -322,7 +322,7 @@ defmodule ExPDG do
   Independent expressions can be safely reordered.
   """
   def independent?(graph, id_x, id_y) do
-    ExPDG.Graph.independent?(to_graph(graph), id_x, id_y)
+    Reach.Graph.independent?(to_graph(graph), id_x, id_y)
   end
 
   # --- Querying nodes ---
@@ -338,8 +338,8 @@ defmodule ExPDG do
 
   ## Examples
 
-      ExPDG.nodes(graph, type: :call)
-      ExPDG.nodes(graph, type: :call, module: Enum)
+      Reach.nodes(graph, type: :call)
+      Reach.nodes(graph, type: :call, module: Enum)
   """
   defdelegate nodes(graph, opts \\ []), to: Query
 
@@ -410,7 +410,7 @@ defmodule ExPDG do
   """
   @spec control_deps(graph(), Node.id()) :: [{Node.id(), term()}]
   def control_deps(%SystemDependence{} = sdg, node_id) do
-    ExPDG.Graph.control_deps(to_graph(sdg), node_id)
+    Reach.Graph.control_deps(to_graph(sdg), node_id)
   end
 
   @doc """
@@ -420,13 +420,13 @@ defmodule ExPDG do
   """
   @spec data_deps(graph(), Node.id()) :: [{Node.id(), atom()}]
   def data_deps(%SystemDependence{} = sdg, node_id) do
-    ExPDG.Graph.data_deps(to_graph(sdg), node_id)
+    Reach.Graph.data_deps(to_graph(sdg), node_id)
   end
 
   @doc """
   Returns the per-function PDG for a `{module, function, arity}` tuple.
   """
-  @spec function_graph(graph(), SystemDependence.function_id()) :: ExPDG.Graph.t() | nil
+  @spec function_graph(graph(), SystemDependence.function_id()) :: Reach.Graph.t() | nil
   defdelegate function_graph(graph, function_id), to: SystemDependence, as: :function_pdg
 
   @doc """
@@ -477,7 +477,7 @@ defmodule ExPDG do
   end
 
   defp to_graph(%SystemDependence{} = sdg) do
-    %ExPDG.Graph{
+    %Reach.Graph{
       graph: sdg.graph,
       ir: sdg.ir,
       control_flow: sdg.call_graph,

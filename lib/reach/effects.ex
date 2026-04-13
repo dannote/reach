@@ -1,4 +1,4 @@
-defmodule ExPDG.Effects do
+defmodule Reach.Effects do
   @moduledoc """
   Effect classification for IR nodes.
 
@@ -7,7 +7,7 @@ defmodule ExPDG.Effects do
   queries to determine whether reordering is safe.
   """
 
-  alias ExPDG.IR.Node
+  alias Reach.IR.Node
 
   @type effect ::
           :pure

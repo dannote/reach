@@ -1,4 +1,4 @@
-defmodule ExPDG.IR.Node do
+defmodule Reach.IR.Node do
   @moduledoc """
   A node in the internal representation.
 

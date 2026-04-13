@@ -1,7 +1,7 @@
-defmodule ExPDG.ControlFlow do
+defmodule Reach.ControlFlow do
   @moduledoc false
 
-  alias ExPDG.IR.Node
+  alias Reach.IR.Node
 
   @type vertex :: Node.id() | :entry | :exit
   @type edge_label ::

@@ -1,12 +1,12 @@
-defmodule ExPDG.Frontend.Elixir do
+defmodule Reach.Frontend.Elixir do
   @moduledoc """
-  Translates Elixir AST into ExPDG IR nodes.
+  Translates Elixir AST into Reach IR nodes.
 
   Parses Elixir source via `Code.string_to_quoted/2` and normalizes
   the AST into expression-level IR nodes.
   """
 
-  alias ExPDG.IR.{Counter, Node}
+  alias Reach.IR.{Counter, Node}
 
   @doc """
   Parses an Elixir source string and returns the IR.

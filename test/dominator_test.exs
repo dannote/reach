@@ -1,7 +1,7 @@
-defmodule ExPDG.DominatorTest do
+defmodule Reach.DominatorTest do
   use ExUnit.Case, async: true
 
-  alias ExPDG.Dominator
+  alias Reach.Dominator
 
   # Helper to build a simple graph
   defp graph(edges) do

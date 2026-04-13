@@ -1,7 +1,7 @@
-defmodule ExPDG.ControlDependence do
+defmodule Reach.ControlDependence do
   @moduledoc false
 
-  alias ExPDG.Dominator
+  alias Reach.Dominator
 
   @doc """
   Builds a control dependence graph from a control flow graph.

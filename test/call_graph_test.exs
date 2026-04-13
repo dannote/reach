@@ -1,7 +1,7 @@
-defmodule ExPDG.CallGraphTest do
+defmodule Reach.CallGraphTest do
   use ExUnit.Case, async: true
 
-  alias ExPDG.{CallGraph, IR}
+  alias Reach.{CallGraph, IR}
 
   describe "build/2" do
     test "identifies function definitions" do

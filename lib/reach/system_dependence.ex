@@ -1,14 +1,14 @@
-defmodule ExPDG.SystemDependence do
+defmodule Reach.SystemDependence do
   @moduledoc false
 
-  alias ExPDG.{CallGraph, ControlDependence, ControlFlow, DataDependence, IR, OTP}
-  alias ExPDG.IR.Node
+  alias Reach.{CallGraph, ControlDependence, ControlFlow, DataDependence, IR, OTP}
+  alias Reach.IR.Node
 
   @type function_id :: CallGraph.function_id()
 
   @type t :: %__MODULE__{
           graph: Graph.t(),
-          function_pdgs: %{function_id() => ExPDG.Graph.t()},
+          function_pdgs: %{function_id() => Reach.Graph.t()},
           call_graph: Graph.t(),
           ir: [Node.t()],
           nodes: %{Node.id() => Node.t()}
@@ -47,7 +47,7 @@ defmodule ExPDG.SystemDependence do
     graph = add_summary_edges(graph, all_nodes, func_defs, function_pdgs)
 
     otp_edges = OTP.analyze(ir_nodes)
-    graph = ExPDG.GraphUtils.merge(graph, otp_edges)
+    graph = Reach.GraphUtils.merge(graph, otp_edges)
 
     %__MODULE__{
       graph: graph,
@@ -76,7 +76,7 @@ defmodule ExPDG.SystemDependence do
   @doc """
   Returns the PDG for a specific function.
   """
-  @spec function_pdg(t(), function_id()) :: ExPDG.Graph.t() | nil
+  @spec function_pdg(t(), function_id()) :: Reach.Graph.t() | nil
   def function_pdg(%__MODULE__{function_pdgs: pdgs}, function_id) do
     Map.get(pdgs, function_id)
   end
@@ -100,9 +100,9 @@ defmodule ExPDG.SystemDependence do
       all_func_nodes = IR.all_nodes(func_node)
       node_map = Map.new(all_func_nodes, fn n -> {n.id, n} end)
 
-      merged = ExPDG.GraphUtils.merge(control_deps, data_deps)
+      merged = Reach.GraphUtils.merge(control_deps, data_deps)
 
-      pdg = %ExPDG.Graph{
+      pdg = %Reach.Graph{
         graph: merged,
         ir: [func_node],
         control_flow: flow,
@@ -115,7 +115,7 @@ defmodule ExPDG.SystemDependence do
 
   defp merge_function_pdgs(function_pdgs) do
     Enum.reduce(function_pdgs, Graph.new(), fn {_func_id, pdg}, acc ->
-      ExPDG.GraphUtils.merge(acc, pdg.graph)
+      Reach.GraphUtils.merge(acc, pdg.graph)
     end)
   end
 

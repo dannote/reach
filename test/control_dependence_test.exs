@@ -1,7 +1,7 @@
-defmodule ExPDG.ControlDependenceTest do
+defmodule Reach.ControlDependenceTest do
   use ExUnit.Case, async: true
 
-  alias ExPDG.{ControlDependence, ControlFlow, IR}
+  alias Reach.{ControlDependence, ControlFlow, IR}
 
   defp build_control_deps(source) do
     [func_def] = IR.from_string!(source)

@@ -1,12 +1,12 @@
-defmodule ExPDG.Frontend.Erlang do
+defmodule Reach.Frontend.Erlang do
   @moduledoc """
-  Translates Erlang abstract forms into ExPDG IR nodes.
+  Translates Erlang abstract forms into Reach IR nodes.
 
   Parses Erlang source via `:epp.parse_file/2` and translates
   the abstract format into the same IR used by the Elixir frontend.
   """
 
-  alias ExPDG.IR.{Counter, Node}
+  alias Reach.IR.{Counter, Node}
 
   @doc """
   Parses an Erlang source file and returns the IR.
@@ -44,7 +44,7 @@ defmodule ExPDG.Frontend.Erlang do
   @spec parse_string(String.t(), keyword()) :: {:ok, [Node.t()]} | {:error, term()}
   def parse_string(source, opts \\ []) do
     path = Keyword.get(opts, :file, "nofile.erl")
-    tmp_dir = Path.join(System.tmp_dir!(), "ex_pdg_#{:erlang.unique_integer([:positive])}")
+    tmp_dir = Path.join(System.tmp_dir!(), "reach_#{:erlang.unique_integer([:positive])}")
     File.mkdir_p!(tmp_dir)
     tmp = Path.join(tmp_dir, "source.erl")
 

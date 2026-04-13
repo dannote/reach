@@ -1,7 +1,7 @@
-defmodule ExPDG.DataDependence do
+defmodule Reach.DataDependence do
   @moduledoc false
 
-  alias ExPDG.IR.Node
+  alias Reach.IR.Node
 
   @doc """
   Builds a data dependence graph from IR nodes.
@@ -11,7 +11,7 @@ defmodule ExPDG.DataDependence do
   @spec build([Node.t()] | Node.t()) :: Graph.t()
   def build(nodes) do
     nodes = List.wrap(nodes)
-    all = ExPDG.IR.all_nodes(nodes)
+    all = Reach.IR.all_nodes(nodes)
 
     # Collect definitions and uses for each node
     bindings = Enum.map(all, fn node -> {node.id, analyze_bindings(node)} end) |> Map.new()

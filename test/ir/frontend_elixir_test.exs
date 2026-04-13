@@ -1,8 +1,8 @@
-defmodule ExPDG.Frontend.ElixirTest do
+defmodule Reach.Frontend.ElixirTest do
   use ExUnit.Case, async: true
 
-  alias ExPDG.IR
-  alias ExPDG.IR.Node
+  alias Reach.IR
+  alias Reach.IR.Node
 
   describe "literals" do
     test "integer" do
