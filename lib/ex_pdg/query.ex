@@ -20,10 +20,9 @@ defmodule ExPDG.Query do
 
   alias ExPDG.{Effects, Graph}
 
-  defp unwrap(%Graph{} = g), do: g
-  defp unwrap(%ExPDG.SystemDependence{} = sdg), do: wrap_sdg(sdg)
+  defp to_graph(%Graph{} = g), do: g
 
-  defp wrap_sdg(sdg) do
+  defp to_graph(%ExPDG.SystemDependence{} = sdg) do
     %Graph{
       graph: sdg.graph,
       ir: sdg.ir,
@@ -55,7 +54,7 @@ defmodule ExPDG.Query do
   end
 
   def nodes(%ExPDG.SystemDependence{} = sdg, opts) do
-    nodes(unwrap(sdg), opts)
+    nodes(to_graph(sdg), opts)
   end
 
   @doc """
@@ -63,7 +62,7 @@ defmodule ExPDG.Query do
   """
   @spec data_flows?(Graph.t(), Node.id(), Node.id()) :: boolean()
   def data_flows?(graph, source_id, sink_id) do
-    graph = unwrap(graph)
+    graph = to_graph(graph)
     sink_id in Graph.forward_slice(graph, source_id)
   end
 
@@ -72,7 +71,7 @@ defmodule ExPDG.Query do
   """
   @spec controls?(Graph.t(), Node.id(), Node.id()) :: boolean()
   def controls?(graph, controller_id, target_id) do
-    graph = unwrap(graph)
+    graph = to_graph(graph)
 
     Graph.control_deps(graph, target_id)
     |> Enum.any?(fn {id, _label} -> id == controller_id end)
@@ -83,7 +82,7 @@ defmodule ExPDG.Query do
   """
   @spec depends?(Graph.t(), Node.id(), Node.id()) :: boolean()
   def depends?(graph, id_a, id_b) do
-    graph = unwrap(graph)
+    graph = to_graph(graph)
 
     id_b in Graph.forward_slice(graph, id_a) or
       id_a in Graph.forward_slice(graph, id_b)
@@ -94,7 +93,7 @@ defmodule ExPDG.Query do
   """
   @spec has_dependents?(Graph.t(), Node.id()) :: boolean()
   def has_dependents?(graph, node_id) do
-    graph = unwrap(graph)
+    graph = to_graph(graph)
     Graph.forward_slice(graph, node_id) != []
   end
 
@@ -104,7 +103,7 @@ defmodule ExPDG.Query do
   """
   @spec passes_through?(Graph.t(), Node.id(), Node.id(), (Node.t() -> boolean())) :: boolean()
   def passes_through?(graph, source_id, sink_id, predicate) do
-    graph = unwrap(graph)
+    graph = to_graph(graph)
     path_nodes = Graph.chop(graph, source_id, sink_id)
 
     Enum.any?(path_nodes, fn id ->
@@ -120,7 +119,7 @@ defmodule ExPDG.Query do
   """
   @spec returns?(Graph.t(), Node.id()) :: boolean()
   def returns?(graph, node_id) do
-    %Graph{control_flow: control_flow} = unwrap(graph)
+    %Graph{control_flow: control_flow} = to_graph(graph)
 
     if Elixir.Graph.has_vertex?(control_flow, node_id) do
       control_flow

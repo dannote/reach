@@ -1,13 +1,5 @@
 defmodule ExPDG.ControlDependence do
-  @moduledoc """
-  Control Dependence Graph builder.
-
-  Implements the Ferrante et al. (1987) algorithm:
-  for each CFG edge (A, B), if B does not post-dominate A,
-  walk up the post-dominator tree from A until reaching B's
-  immediate post-dominator, marking each visited node as
-  control-dependent on A.
-  """
+  @moduledoc false
 
   alias ExPDG.Dominator
 

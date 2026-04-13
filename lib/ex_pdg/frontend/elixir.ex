@@ -21,14 +21,9 @@ defmodule ExPDG.Frontend.Elixir do
            file: file
          ) do
       {:ok, ast} ->
-        {:ok, counter} = Counter.start_link()
-
-        try do
-          nodes = translate(ast, counter, file)
-          {:ok, List.wrap(nodes)}
-        after
-          Counter.stop(counter)
-        end
+        counter = Counter.new()
+        nodes = translate(ast, counter, file)
+        {:ok, List.wrap(nodes)}
 
       {:error, _} = err ->
         err
@@ -562,19 +557,6 @@ defmodule ExPDG.Frontend.Elixir do
       type: :struct,
       meta: %{name: struct_name},
       children: children,
-      source_span: span_from_meta(meta, file)
-    }
-  end
-
-  # Cons cell: [head | tail] — must be before generic list
-  defp translate([{:|, meta, [head, tail]}], counter, file) do
-    head_node = translate(head, counter, file)
-    tail_node = translate(tail, counter, file)
-
-    %Node{
-      id: Counter.next(counter),
-      type: :cons,
-      children: [head_node, tail_node],
       source_span: span_from_meta(meta, file)
     }
   end

@@ -1,19 +1,5 @@
 defmodule ExPDG.SystemDependence do
-  @moduledoc """
-  System Dependence Graph — interprocedural program dependence graph.
-
-  Connects per-function PDGs through call sites using:
-  - `actual_in` / `actual_out` nodes at call sites
-  - `formal_in` / `formal_out` nodes at function entries
-  - `call` edges from call site to callee entry
-  - `parameter_in` edges from actual-in to formal-in
-  - `parameter_out` edges from formal-out to actual-out
-  - `summary` edges: shortcut edges from actual-in to actual-out
-    when a parameter flows to the return value in the callee
-
-  Implements the Horwitz-Reps-Binkley (1990) two-phase algorithm
-  for context-sensitive interprocedural slicing.
-  """
+  @moduledoc false
 
   alias ExPDG.{CallGraph, ControlDependence, ControlFlow, DataDependence, IR, OTP}
   alias ExPDG.IR.Node
@@ -61,7 +47,7 @@ defmodule ExPDG.SystemDependence do
     graph = add_summary_edges(graph, all_nodes, func_defs, function_pdgs)
 
     otp_edges = OTP.analyze(ir_nodes)
-    graph = merge_libgraphs(graph, otp_edges)
+    graph = ExPDG.GraphUtils.merge(graph, otp_edges)
 
     %__MODULE__{
       graph: graph,
@@ -114,7 +100,7 @@ defmodule ExPDG.SystemDependence do
       all_func_nodes = IR.all_nodes(func_node)
       node_map = Map.new(all_func_nodes, fn n -> {n.id, n} end)
 
-      merged = merge_libgraphs(control_deps, data_deps)
+      merged = ExPDG.GraphUtils.merge(control_deps, data_deps)
 
       pdg = %ExPDG.Graph{
         graph: merged,
@@ -129,7 +115,7 @@ defmodule ExPDG.SystemDependence do
 
   defp merge_function_pdgs(function_pdgs) do
     Enum.reduce(function_pdgs, Graph.new(), fn {_func_id, pdg}, acc ->
-      merge_libgraphs(acc, pdg.graph)
+      ExPDG.GraphUtils.merge(acc, pdg.graph)
     end)
   end
 
@@ -149,8 +135,8 @@ defmodule ExPDG.SystemDependence do
           g
 
         callee_def ->
-          g = add_vertex_safe(g, call_node.id)
-          g = add_vertex_safe(g, callee_def.id)
+          g = Graph.add_vertex(g, call_node.id)
+          g = Graph.add_vertex(g, callee_def.id)
           g = Graph.add_edge(g, call_node.id, callee_def.id, label: :call)
 
           g = connect_parameters(g, call_node, callee_def, function_pdgs, callee_id)
@@ -166,8 +152,8 @@ defmodule ExPDG.SystemDependence do
     Enum.zip(actual_args, callee_params)
     |> Enum.reduce(graph, fn {actual, formal}, g ->
       g
-      |> add_vertex_safe(actual.id)
-      |> add_vertex_safe(formal.id)
+      |> Graph.add_vertex(actual.id)
+      |> Graph.add_vertex(formal.id)
       |> Graph.add_edge(actual.id, formal.id, label: :parameter_in)
     end)
   end
@@ -180,8 +166,8 @@ defmodule ExPDG.SystemDependence do
       return_nodes ->
         Enum.reduce(return_nodes, graph, fn ret_node, g ->
           g
-          |> add_vertex_safe(ret_node.id)
-          |> add_vertex_safe(call_node.id)
+          |> Graph.add_vertex(ret_node.id)
+          |> Graph.add_vertex(call_node.id)
           |> Graph.add_edge(ret_node.id, call_node.id, label: :parameter_out)
         end)
     end
@@ -226,8 +212,8 @@ defmodule ExPDG.SystemDependence do
 
       if flows_to_return do
         g
-        |> add_vertex_safe(actual_in.id)
-        |> add_vertex_safe(call_node.id)
+        |> Graph.add_vertex(actual_in.id)
+        |> Graph.add_vertex(call_node.id)
         |> Graph.add_edge(actual_in.id, call_node.id, label: :summary)
       else
         g
@@ -248,9 +234,11 @@ defmodule ExPDG.SystemDependence do
 
   # --- Private: slicing ---
 
+  defp slice_phase(_graph, [], visited, _phase), do: visited
+
   defp slice_phase(graph, worklist, visited, phase) do
     Enum.reduce(worklist, visited, fn node_id, acc ->
-      if MapSet.member?(acc, node_id) and node_id not in worklist do
+      if MapSet.member?(acc, node_id) do
         acc
       else
         acc = MapSet.put(acc, node_id)
@@ -308,30 +296,5 @@ defmodule ExPDG.SystemDependence do
       [] -> all |> Enum.filter(&(&1.type not in [:function_def, :clause, :guard]))
       exprs -> exprs
     end
-  end
-
-  defp merge_libgraphs(g1, g2) do
-    graph =
-      Graph.vertices(g1)
-      |> Enum.reduce(Graph.new(), &Graph.add_vertex(&2, &1))
-
-    graph =
-      Graph.edges(g1)
-      |> Enum.reduce(graph, fn e, g ->
-        Graph.add_edge(g, e.v1, e.v2, label: e.label)
-      end)
-
-    graph =
-      Graph.vertices(g2)
-      |> Enum.reduce(graph, &Graph.add_vertex(&2, &1))
-
-    Graph.edges(g2)
-    |> Enum.reduce(graph, fn e, g ->
-      Graph.add_edge(g, e.v1, e.v2, label: e.label)
-    end)
-  end
-
-  defp add_vertex_safe(graph, vertex) do
-    Graph.add_vertex(graph, vertex)
   end
 end

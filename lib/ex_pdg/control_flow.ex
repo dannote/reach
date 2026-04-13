@@ -1,11 +1,5 @@
 defmodule ExPDG.ControlFlow do
-  @moduledoc """
-  Control Flow Graph builder.
-
-  Constructs a control flow graph from IR nodes where:
-  - Vertices are IR node IDs (plus synthetic :entry and :exit)
-  - Edges represent control flow transitions with labeled types
-  """
+  @moduledoc false
 
   alias ExPDG.IR.Node
 

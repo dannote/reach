@@ -1,10 +1,5 @@
 defmodule ExPDG.Graph do
-  @moduledoc """
-  Program Dependence Graph.
-
-  Merges control dependence and data dependence into a single graph.
-  Provides slicing and independence queries.
-  """
+  @moduledoc false
 
   alias ExPDG.{ControlDependence, ControlFlow, DataDependence, Effects, IR}
   alias ExPDG.IR.Node
@@ -60,7 +55,7 @@ defmodule ExPDG.Graph do
           {flow, control_deps, data_deps}
       end
 
-    merged = merge_graphs(control_deps, data_deps)
+    merged = ExPDG.GraphUtils.merge(control_deps, data_deps)
 
     %__MODULE__{
       graph: merged,
@@ -74,14 +69,9 @@ defmodule ExPDG.Graph do
   Backward slice: all nodes that affect the given node.
   """
   @spec backward_slice(t(), Node.id()) :: [Node.id()]
-  def backward_slice(%ExPDG.SystemDependence{graph: graph}, node_id) do
-    backward_slice(
-      %__MODULE__{graph: graph, ir: [], control_flow: Graph.new(), nodes: %{}},
-      node_id
-    )
-  end
+  def backward_slice(struct, node_id) do
+    graph = extract_graph(struct)
 
-  def backward_slice(%__MODULE__{graph: graph}, node_id) do
     if Graph.has_vertex?(graph, node_id) do
       Graph.reaching(graph, [node_id])
       |> Enum.reject(&(&1 == node_id))
@@ -94,14 +84,9 @@ defmodule ExPDG.Graph do
   Forward slice: all nodes affected by the given node.
   """
   @spec forward_slice(t(), Node.id()) :: [Node.id()]
-  def forward_slice(%ExPDG.SystemDependence{graph: graph}, node_id) do
-    forward_slice(
-      %__MODULE__{graph: graph, ir: [], control_flow: Graph.new(), nodes: %{}},
-      node_id
-    )
-  end
+  def forward_slice(struct, node_id) do
+    graph = extract_graph(struct)
 
-  def forward_slice(%__MODULE__{graph: graph}, node_id) do
     if Graph.has_vertex?(graph, node_id) do
       Graph.reachable(graph, [node_id])
       |> Enum.reject(&(&1 == node_id))
@@ -192,27 +177,6 @@ defmodule ExPDG.Graph do
 
   # --- Private ---
 
-  defp merge_graphs(control_deps, data_deps) do
-    graph =
-      Graph.vertices(control_deps)
-      |> Enum.reduce(Graph.new(), &Graph.add_vertex(&2, &1))
-
-    graph =
-      Graph.edges(control_deps)
-      |> Enum.reduce(graph, fn e, g ->
-        Graph.add_edge(g, e.v1, e.v2, label: e.label)
-      end)
-
-    graph =
-      Graph.vertices(data_deps)
-      |> Enum.reduce(graph, &Graph.add_vertex(&2, &1))
-
-    Graph.edges(data_deps)
-    |> Enum.reduce(graph, fn e, g ->
-      Graph.add_edge(g, e.v1, e.v2, label: e.label)
-    end)
-  end
-
   defp data_reachable?(graph, from, to) do
     data_only = filter_data_edges(graph)
 
@@ -247,6 +211,9 @@ defmodule ExPDG.Graph do
         true
     end
   end
+
+  defp extract_graph(%__MODULE__{graph: graph}), do: graph
+  defp extract_graph(%ExPDG.SystemDependence{graph: graph}), do: graph
 
   defp same_control_deps?(pdg, id_x, id_y) do
     deps_x = control_deps(pdg, id_x) |> MapSet.new()

@@ -1,11 +1,5 @@
 defmodule ExPDG.CallGraph do
-  @moduledoc """
-  Builds a call graph from IR nodes.
-
-  Identifies function definitions and their call sites, producing a
-  directed graph where vertices are `{module, function, arity}` tuples
-  and edges represent calls.
-  """
+  @moduledoc false
 
   alias ExPDG.IR
   alias ExPDG.IR.Node

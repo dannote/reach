@@ -1,17 +1,5 @@
 defmodule ExPDG.OTP do
-  @moduledoc """
-  OTP semantic model for ExPDG.
-
-  Recognizes OTP patterns (GenServer, Supervisor, ETS, message passing)
-  and adds semantic edges to the dependence graph.
-
-  This module analyzes IR nodes for:
-  - GenServer state threading through callback returns
-  - GenServer call/cast/info message flow
-  - ETS read/write dependencies (same-table tracking)
-  - Process dictionary dependencies
-  - send/receive message ordering
-  """
+  @moduledoc false
 
   alias ExPDG.IR
   alias ExPDG.IR.Node
@@ -153,14 +141,14 @@ defmodule ExPDG.OTP do
     state_name = if state_param, do: var_name(state_param)
 
     if state_name do
-      graph = add_vertex_safe(graph, state_param.id)
+      graph = Graph.add_vertex(graph, state_param.id)
 
       callback
       |> IR.all_nodes()
       |> Enum.filter(&state_use?(&1, state_name, state_param.id))
       |> Enum.reduce(graph, fn use_node, g ->
         g
-        |> add_vertex_safe(use_node.id)
+        |> Graph.add_vertex(use_node.id)
         |> Graph.add_edge(state_param.id, use_node.id, label: :state_read)
       end)
     else
@@ -189,8 +177,8 @@ defmodule ExPDG.OTP do
     case {return_info, next_state_param} do
       {{_type, _reply, %Node{} = new_state}, %Node{} = next_param} ->
         graph
-        |> add_vertex_safe(new_state.id)
-        |> add_vertex_safe(next_param.id)
+        |> Graph.add_vertex(new_state.id)
+        |> Graph.add_vertex(next_param.id)
         |> Graph.add_edge(new_state.id, next_param.id, label: :state_pass)
 
       _ ->
@@ -212,8 +200,8 @@ defmodule ExPDG.OTP do
         reduce: graph do
       g ->
         g
-        |> add_vertex_safe(write.id)
-        |> add_vertex_safe(read.id)
+        |> Graph.add_vertex(write.id)
+        |> Graph.add_vertex(read.id)
         |> Graph.add_edge(write.id, read.id, label: {:ets_dep, ets_table_name(write)})
     end
   end
@@ -261,8 +249,8 @@ defmodule ExPDG.OTP do
         reduce: graph do
       g ->
         g
-        |> add_vertex_safe(write.id)
-        |> add_vertex_safe(read.id)
+        |> Graph.add_vertex(write.id)
+        |> Graph.add_vertex(read.id)
         |> Graph.add_edge(write.id, read.id, label: {:pdict_dep, pdict_key(write)})
     end
   end
@@ -297,8 +285,8 @@ defmodule ExPDG.OTP do
     |> Enum.reduce(graph, fn [a, b], g ->
       if same_send_target?(a, b) do
         g
-        |> add_vertex_safe(a.id)
-        |> add_vertex_safe(b.id)
+        |> Graph.add_vertex(a.id)
+        |> Graph.add_vertex(b.id)
         |> Graph.add_edge(a.id, b.id, label: :message_order)
       else
         g
@@ -380,9 +368,5 @@ defmodule ExPDG.OTP do
       end)
 
     if has_genserver_callbacks, do: :genserver, else: nil
-  end
-
-  defp add_vertex_safe(graph, vertex) do
-    Graph.add_vertex(graph, vertex)
   end
 end

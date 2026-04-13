@@ -167,7 +167,7 @@ defmodule ExPDG do
   Independent expressions can be safely reordered.
   """
   def independent?(graph, id_x, id_y) do
-    ExPDG.Graph.independent?(unwrap(graph), id_x, id_y)
+    ExPDG.Graph.independent?(to_graph(graph), id_x, id_y)
   end
 
   # --- Querying nodes ---
@@ -255,7 +255,7 @@ defmodule ExPDG do
   """
   @spec control_deps(graph(), Node.id()) :: [{Node.id(), term()}]
   def control_deps(%SystemDependence{} = sdg, node_id) do
-    ExPDG.Graph.control_deps(unwrap(sdg), node_id)
+    ExPDG.Graph.control_deps(to_graph(sdg), node_id)
   end
 
   @doc """
@@ -265,7 +265,7 @@ defmodule ExPDG do
   """
   @spec data_deps(graph(), Node.id()) :: [{Node.id(), atom()}]
   def data_deps(%SystemDependence{} = sdg, node_id) do
-    ExPDG.Graph.data_deps(unwrap(sdg), node_id)
+    ExPDG.Graph.data_deps(to_graph(sdg), node_id)
   end
 
   @doc """
@@ -321,7 +321,7 @@ defmodule ExPDG do
     end
   end
 
-  defp unwrap(%SystemDependence{} = sdg) do
+  defp to_graph(%SystemDependence{} = sdg) do
     %ExPDG.Graph{
       graph: sdg.graph,
       ir: sdg.ir,

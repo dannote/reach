@@ -1,10 +1,5 @@
 defmodule ExPDG.DataDependence do
-  @moduledoc """
-  Data Dependence Graph builder.
-
-  Performs variable binding analysis on IR nodes, computes reaching definitions,
-  and builds def-use edges.
-  """
+  @moduledoc false
 
   alias ExPDG.IR.Node
 

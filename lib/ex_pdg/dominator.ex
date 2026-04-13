@@ -1,15 +1,5 @@
 defmodule ExPDG.Dominator do
-  @moduledoc """
-  Dominator and post-dominator tree computation.
-
-  Implements the iterative data-flow algorithm for computing dominators.
-  While Lengauer-Tarjan is asymptotically faster, the iterative algorithm
-  is simpler, correct, and fast enough for function-level CFGs (typically
-  < 100 nodes).
-
-  ## References
-  - Cooper, Harvey, Kennedy: "A Simple, Fast Dominance Algorithm" (2001)
-  """
+  @moduledoc false
 
   @doc """
   Computes the immediate dominator map for a directed graph.

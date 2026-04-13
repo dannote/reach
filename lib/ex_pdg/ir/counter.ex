@@ -1,17 +1,15 @@
 defmodule ExPDG.IR.Counter do
   @moduledoc false
 
-  use Agent
+  @opaque t :: :atomics.atomics_ref()
 
-  def start_link(initial \\ 0) do
-    Agent.start_link(fn -> initial end)
+  @spec new() :: t()
+  def new do
+    :atomics.new(1, signed: true)
   end
 
-  def next(counter) do
-    Agent.get_and_update(counter, fn n -> {n, n + 1} end)
-  end
-
-  def stop(counter) do
-    Agent.stop(counter)
+  @spec next(t()) :: non_neg_integer()
+  def next(ref) do
+    :atomics.add_get(ref, 1, 1) - 1
   end
 end

@@ -17,7 +17,7 @@ defmodule ExPDG.Frontend.Erlang do
 
     case :epp.parse_file(to_charlist(path), include_dirs) do
       {:ok, forms} ->
-        {:ok, counter} = Counter.start_link()
+        counter = Counter.new()
 
         try do
           nodes =
@@ -31,7 +31,6 @@ defmodule ExPDG.Frontend.Erlang do
 
           {:ok, nodes}
         after
-          Counter.stop(counter)
         end
 
       {:error, _} = err ->
@@ -45,13 +44,15 @@ defmodule ExPDG.Frontend.Erlang do
   @spec parse_string(String.t(), keyword()) :: {:ok, [Node.t()]} | {:error, term()}
   def parse_string(source, opts \\ []) do
     path = Keyword.get(opts, :file, "nofile.erl")
-    tmp = System.tmp_dir!() |> Path.join("ex_pdg_#{:erlang.unique_integer([:positive])}.erl")
+    tmp_dir = Path.join(System.tmp_dir!(), "ex_pdg_#{:erlang.unique_integer([:positive])}")
+    File.mkdir_p!(tmp_dir)
+    tmp = Path.join(tmp_dir, "source.erl")
 
     try do
       File.write!(tmp, source)
       parse_file(tmp, Keyword.put(opts, :file, path))
     after
-      File.rm(tmp)
+      File.rm_rf(tmp_dir)
     end
   end
 
