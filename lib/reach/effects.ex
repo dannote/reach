@@ -240,8 +240,82 @@ defmodule Reach.Effects do
       classify_state(module, function) ||
       classify_exception(module, function) ||
       classify_nif(module) ||
+      classify_from_spec(module, function, arity) ||
       :unknown
   end
+
+  defp classify_from_spec(module, function, arity) when is_atom(module) do
+    case Code.Typespec.fetch_specs(module) do
+      {:ok, specs} ->
+        case List.keyfind(specs, {function, arity}, 0) do
+          {_, clauses} -> infer_effect_from_spec(clauses)
+          nil -> nil
+        end
+
+      :error ->
+        nil
+    end
+  rescue
+    _ -> nil
+  end
+
+  defp classify_from_spec(_, _, _), do: nil
+
+  defp infer_effect_from_spec(clauses) do
+    return_types = Enum.map(clauses, &extract_return_type/1)
+
+    cond do
+      Enum.all?(return_types, &ok_atom_type?/1) -> nil
+      Enum.all?(return_types, &pure_return_type?/1) -> :pure
+      true -> nil
+    end
+  end
+
+  defp extract_return_type({:type, _, :fun, [{:type, _, :product, _}, return]}), do: return
+
+  defp extract_return_type(
+         {:type, _, :bounded_fun, [{:type, _, :fun, [{:type, _, :product, _}, return]}, _]}
+       ),
+       do: return
+
+  defp extract_return_type(_), do: nil
+
+  defp ok_atom_type?({:atom, _, :ok}), do: true
+  defp ok_atom_type?(_), do: false
+
+  defp pure_return_type?(nil), do: false
+  defp pure_return_type?({:atom, _, :ok}), do: false
+
+  defp pure_return_type?({:type, _, type, _})
+       when type in [
+              :integer,
+              :non_neg_integer,
+              :pos_integer,
+              :float,
+              :number,
+              :binary,
+              :bitstring,
+              :boolean,
+              :list,
+              :map,
+              :tuple,
+              :atom,
+              :module,
+              :mfa,
+              :arity,
+              :node
+            ],
+       do: true
+
+  defp pure_return_type?({:type, _, :union, subtypes}),
+    do: Enum.all?(subtypes, &pure_return_type?/1)
+
+  defp pure_return_type?({:type, _, :range, _}), do: true
+  defp pure_return_type?({:remote_type, _, _}), do: true
+  defp pure_return_type?({:user_type, _, _, _}), do: true
+  defp pure_return_type?({:var, _, _}), do: true
+  defp pure_return_type?({:atom, _, _}), do: true
+  defp pure_return_type?(_), do: false
 
   @effectful_in_pure_modules [{Enum, :each, 2}, {Enum, :each, 1}]
 

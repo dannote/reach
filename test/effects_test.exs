@@ -102,6 +102,18 @@ defmodule Reach.EffectsTest do
     end
   end
 
+  describe "type-aware inference from specs" do
+    test "infers :pure from typespec for unknown module functions" do
+      node = node_for(":crypto.hash(:sha256, <<>>)")
+      assert Effects.classify(node) == :pure
+    end
+
+    test "does not infer :pure for functions returning :ok" do
+      node = node_for("IO.puts(:hello)")
+      refute Effects.classify(node) == :pure
+    end
+  end
+
   describe "conflicting?" do
     test "pure never conflicts" do
       refute Effects.conflicting?(:pure, :pure)
