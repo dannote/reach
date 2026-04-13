@@ -42,7 +42,7 @@ defmodule Reach.SystemDependence do
     function_pdgs = build_function_pdgs(func_defs)
 
     graph = merge_function_pdgs(function_pdgs)
-    graph = add_call_edges(graph, all_nodes, func_defs, function_pdgs)
+    graph = add_call_edges(graph, all_nodes, func_defs, function_pdgs, opts)
     graph = add_summary_edges(graph, all_nodes, func_defs, function_pdgs)
 
     otp_edges = OTP.analyze(ir_nodes, all_nodes: all_nodes)
@@ -114,10 +114,17 @@ defmodule Reach.SystemDependence do
     |> then(&Graph.add_edges(Graph.new(), &1))
   end
 
+  @doc false
+  def add_call_edges_with_externals(graph, all_nodes, func_defs, opts) do
+    add_call_edges(graph, all_nodes, func_defs, %{}, opts)
+  end
+
   # --- Private: interprocedural edges ---
 
-  defp add_call_edges(graph, all_nodes, func_defs, function_pdgs) do
+  defp add_call_edges(graph, all_nodes, func_defs, function_pdgs, opts) do
     func_map = Map.new(func_defs)
+    external_sdgs = Keyword.get(opts, :external_sdgs, %{})
+    summaries = Keyword.get(opts, :summaries, %{})
 
     call_nodes = Enum.filter(all_nodes, &(&1.type == :call))
 
@@ -125,17 +132,54 @@ defmodule Reach.SystemDependence do
       callee_id =
         {call_node.meta[:module], call_node.meta[:function], call_node.meta[:arity] || 0}
 
-      case Map.get(func_map, callee_id) do
-        nil ->
-          g
-
-        callee_def ->
+      cond do
+        # Local function in this module
+        Map.has_key?(func_map, callee_id) ->
+          callee_def = Map.get(func_map, callee_id)
           g = Graph.add_vertex(g, call_node.id)
           g = Graph.add_vertex(g, callee_def.id)
           g = Graph.add_edge(g, call_node.id, callee_def.id, label: :call)
-
           g = connect_parameters(g, call_node, callee_def, function_pdgs, callee_id)
           connect_return_value(g, call_node, callee_def)
+
+        # Function in another analyzed module's SDG
+        Map.has_key?(external_sdgs, callee_id) ->
+          connect_cross_module(g, call_node, callee_id, external_sdgs)
+
+        # External dependency with precomputed summary
+        Map.has_key?(summaries, callee_id) ->
+          apply_summary(g, call_node, Map.get(summaries, callee_id))
+
+        true ->
+          g
+      end
+    end)
+  end
+
+  defp connect_cross_module(graph, call_node, callee_id, external_sdgs) do
+    %{func_def: callee_def, pdg: _callee_pdg} = Map.get(external_sdgs, callee_id)
+
+    graph
+    |> Graph.add_vertex(call_node.id)
+    |> Graph.add_vertex(callee_def.id)
+    |> Graph.add_edge(call_node.id, callee_def.id, label: :call)
+    |> connect_parameters(call_node, callee_def, %{}, callee_id)
+    |> connect_return_value(call_node, callee_def)
+  end
+
+  @doc false
+  def apply_summary(graph, call_node, param_flows) do
+    graph = Graph.add_vertex(graph, call_node.id)
+
+    call_node.children
+    |> Enum.with_index()
+    |> Enum.reduce(graph, fn {arg_node, index}, g ->
+      if Map.get(param_flows, index, false) do
+        g
+        |> Graph.add_vertex(arg_node.id)
+        |> Graph.add_edge(arg_node.id, call_node.id, label: :summary)
+      else
+        g
       end
     end)
   end
