@@ -248,6 +248,71 @@ defmodule Reach.OTPTest do
     end
   end
 
+  describe "message content flow" do
+    test "send payload flows to handle_info pattern vars" do
+      nodes =
+        IR.from_string!("""
+        defmodule MsgFlow do
+          def notify(pid, data) do
+            send(pid, {:update, data})
+          end
+
+          def handle_info({:update, payload}, state) do
+            {:noreply, payload}
+          end
+        end
+        """)
+
+      otp_graph = OTP.analyze(nodes)
+      edges = Graph.edges(otp_graph)
+      content_edges = Enum.filter(edges, &match?({:message_content, _}, &1.label))
+      assert content_edges != []
+      assert Enum.any?(content_edges, &(&1.label == {:message_content, :update}))
+    end
+
+    test "no content flow when tags don't match" do
+      nodes =
+        IR.from_string!("""
+        defmodule NoMatch do
+          def notify(pid, data) do
+            send(pid, {:foo, data})
+          end
+
+          def handle_info({:bar, payload}, state) do
+            {:noreply, payload}
+          end
+        end
+        """)
+
+      otp_graph = OTP.analyze(nodes)
+      edges = Graph.edges(otp_graph)
+      content_edges = Enum.filter(edges, &match?({:message_content, _}, &1.label))
+      assert content_edges == []
+    end
+  end
+
+  describe "GenServer.call reply flow" do
+    test "reply value flows back to call site" do
+      nodes =
+        IR.from_string!("""
+        defmodule ReplyFlow do
+          def get_count(pid) do
+            GenServer.call(pid, :get_count)
+          end
+
+          def handle_call(:get_count, _from, state) do
+            {:reply, state.count, state}
+          end
+        end
+        """)
+
+      otp_graph = OTP.analyze(nodes)
+      edges = Graph.edges(otp_graph)
+      reply_edges = Enum.filter(edges, &(&1.label == :call_reply))
+      assert reply_edges != []
+    end
+  end
+
   describe "integration with system dependence graph" do
     test "OTP edges appear in SDG" do
       {:ok, sdg} =

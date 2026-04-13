@@ -42,6 +42,8 @@ defmodule Reach.OTP do
     |> add_ets_edges(all_nodes)
     |> add_process_dict_edges(all_nodes)
     |> add_message_order_edges(all_nodes)
+    |> add_message_content_edges(all_nodes)
+    |> add_call_reply_edges(all_nodes)
   end
 
   @doc """
@@ -314,6 +316,157 @@ defmodule Reach.OTP do
   defp send_target(%Node{children: [%Node{type: :literal, meta: %{value: val}} | _]}), do: val
 
   defp send_target(_), do: nil
+
+  # --- GenServer.call reply flow ---
+
+  defp add_call_reply_edges(graph, all_nodes) do
+    # Find GenServer.call sites
+    call_sites =
+      Enum.filter(all_nodes, fn node ->
+        node.type == :call and
+          node.meta[:module] == GenServer and
+          node.meta[:function] == :call
+      end)
+
+    # Find handle_call functions with {:reply, value, state} returns
+    reply_nodes = find_reply_values(all_nodes)
+
+    for call_site <- call_sites,
+        {_tag, reply_value} <- reply_nodes,
+        reduce: graph do
+      g ->
+        g
+        |> Graph.add_vertex(reply_value.id)
+        |> Graph.add_vertex(call_site.id)
+        |> Graph.add_edge(reply_value.id, call_site.id, label: :call_reply)
+    end
+  end
+
+  defp find_reply_values(all_nodes) do
+    all_nodes
+    |> Enum.filter(fn node ->
+      node.type == :function_def and node.meta[:name] == :handle_call
+    end)
+    |> Enum.flat_map(fn func_def ->
+      func_def
+      |> IR.all_nodes()
+      |> Enum.filter(fn node ->
+        node.type == :tuple and
+          match?([%{type: :literal, meta: %{value: :reply}} | _], node.children)
+      end)
+      |> Enum.flat_map(fn tuple ->
+        case tuple.children do
+          [_, reply_value | _] -> [{:reply, reply_value}]
+          _ -> []
+        end
+      end)
+    end)
+  end
+
+  # --- Message content flow ---
+
+  defp add_message_content_edges(graph, all_nodes) do
+    sends = Enum.filter(all_nodes, &send_with_payload?/1)
+    handlers = find_message_handlers(all_nodes)
+
+    for send_node <- sends,
+        {handler_def, pattern_vars} <- handlers,
+        {tag, payload_nodes} = extract_send_payload(send_node),
+        tag != nil,
+        {handler_tag, handler_vars} <- [{extract_handler_tag(handler_def), pattern_vars}],
+        tag == handler_tag,
+        payload <- payload_nodes,
+        var <- handler_vars,
+        reduce: graph do
+      g ->
+        g
+        |> Graph.add_vertex(payload.id)
+        |> Graph.add_vertex(var.id)
+        |> Graph.add_edge(payload.id, var.id, label: {:message_content, tag})
+    end
+  end
+
+  defp send_with_payload?(%Node{
+         type: :call,
+         meta: %{function: :send, kind: :local},
+         children: [_, _]
+       }),
+       do: true
+
+  defp send_with_payload?(%Node{
+         type: :call,
+         meta: %{module: Process, function: :send},
+         children: [_, _]
+       }),
+       do: true
+
+  defp send_with_payload?(%Node{
+         type: :call,
+         meta: %{module: GenServer, function: f},
+         children: [_, _ | _]
+       })
+       when f in [:call, :cast],
+       do: true
+
+  defp send_with_payload?(_), do: false
+
+  defp extract_send_payload(%Node{children: [_target, payload | _]}) do
+    case payload do
+      %Node{type: :tuple, children: [%Node{type: :literal, meta: %{value: tag}} | rest]}
+      when is_atom(tag) ->
+        {tag, rest}
+
+      %Node{type: :literal, meta: %{value: tag}} when is_atom(tag) ->
+        {tag, []}
+
+      _ ->
+        {nil, []}
+    end
+  end
+
+  defp find_message_handlers(all_nodes) do
+    all_nodes
+    |> Enum.filter(fn node ->
+      node.type == :function_def and
+        node.meta[:name] in [:handle_info, :handle_cast, :handle_call]
+    end)
+    |> Enum.flat_map(fn func_def ->
+      func_def.children
+      |> Enum.filter(&(&1.type == :clause))
+      |> Enum.map(fn clause ->
+        pattern_vars =
+          clause.children
+          |> Enum.take_while(&(&1.type != :guard))
+          |> Enum.flat_map(&collect_pattern_vars/1)
+
+        {clause, pattern_vars}
+      end)
+    end)
+  end
+
+  defp extract_handler_tag(%Node{type: :clause, children: [first | _]}) do
+    case first do
+      %Node{type: :tuple, children: [%Node{type: :literal, meta: %{value: tag}} | _]}
+      when is_atom(tag) ->
+        tag
+
+      %Node{type: :literal, meta: %{value: tag}} when is_atom(tag) ->
+        tag
+
+      _ ->
+        nil
+    end
+  end
+
+  defp collect_pattern_vars(%Node{type: :var, meta: %{binding_role: :definition}} = node) do
+    [node]
+  end
+
+  defp collect_pattern_vars(%Node{children: children}) do
+    Enum.flat_map(children, &collect_pattern_vars/1)
+  end
+
+  defp collect_pattern_vars(_), do: []
 
   # --- Private: helpers ---
 
