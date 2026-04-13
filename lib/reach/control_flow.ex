@@ -55,12 +55,6 @@ defmodule Reach.ControlFlow do
     connect_to_exit(graph, exits)
   end
 
-  @doc """
-  Exports the control flow graph to DOT format for visualization.
-  """
-  @spec to_dot(Graph.t()) :: {:ok, String.t()} | {:error, term()}
-  defdelegate to_dot(graph), to: Graph
-
   # --- Internal builders ---
 
   # Dispatch for multi-clause functions

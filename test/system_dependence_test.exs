@@ -105,7 +105,7 @@ defmodule Reach.SystemDependenceTest do
         def bar(y), do: y + 1
         """)
 
-      all = IR.all_nodes(sdg.ir)
+      all = Reach.nodes(sdg)
 
       plus_node =
         Enum.find(all, fn n ->
@@ -126,7 +126,7 @@ defmodule Reach.SystemDependenceTest do
         def helper(z), do: z + 1
         """)
 
-      all = IR.all_nodes(sdg.ir)
+      all = Reach.nodes(sdg)
 
       # Find the call to helper inside foo
       foo_def =

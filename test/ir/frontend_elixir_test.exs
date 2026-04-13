@@ -513,18 +513,6 @@ defmodule Reach.Frontend.ElixirTest do
       assert :literal in types
     end
 
-    test "find_by_type" do
-      nodes = IR.from_string!("x = 1 + 2")
-      literals = IR.find_by_type(nodes, :literal)
-      assert length(literals) == 2
-    end
-
-    test "find_by_id" do
-      [root] = IR.from_string!("x = 1")
-      found = IR.find_by_id(root, root.id)
-      assert found.id == root.id
-    end
-
     test "unique IDs across all nodes" do
       nodes =
         IR.from_string!("""

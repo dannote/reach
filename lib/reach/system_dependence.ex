@@ -10,12 +10,11 @@ defmodule Reach.SystemDependence do
           graph: Graph.t(),
           function_pdgs: %{function_id() => map()},
           call_graph: Graph.t(),
-          ir: [Node.t()],
           nodes: %{Node.id() => Node.t()}
         }
 
-  @enforce_keys [:graph, :function_pdgs, :call_graph, :ir, :nodes]
-  defstruct [:graph, :function_pdgs, :call_graph, :ir, :nodes]
+  @enforce_keys [:graph, :function_pdgs, :call_graph, :nodes]
+  defstruct [:graph, :function_pdgs, :call_graph, :nodes]
 
   @doc """
   Builds an SDG from Elixir source containing one or more function definitions.
@@ -55,7 +54,6 @@ defmodule Reach.SystemDependence do
       graph: graph,
       function_pdgs: function_pdgs,
       call_graph: call_graph,
-      ir: ir_nodes,
       nodes: node_map
     }
   end

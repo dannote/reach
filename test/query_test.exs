@@ -42,7 +42,7 @@ defmodule Reach.QueryTest do
         end
         """)
 
-      all = Reach.IR.all_nodes(graph.ir)
+      all = Reach.nodes(graph)
       x_nodes = Enum.filter(all, &(&1.type == :var and &1.meta[:name] == :x))
       y_nodes = Enum.filter(all, &(&1.type == :var and &1.meta[:name] == :y))
 
@@ -73,7 +73,7 @@ defmodule Reach.QueryTest do
         end
         """)
 
-      all = Reach.IR.all_nodes(graph.ir)
+      all = Reach.nodes(graph)
 
       x_match =
         Enum.find(all, fn n ->

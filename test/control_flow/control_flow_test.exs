@@ -216,7 +216,7 @@ defmodule Reach.ControlFlowTest do
         """)
 
       # Find all function defs
-      func_defs = IR.find_by_type(nodes, :function_def)
+      func_defs = nodes |> IR.all_nodes() |> Enum.filter(&(&1.type == :function_def))
       assert func_defs != []
     end
   end
@@ -272,14 +272,6 @@ defmodule Reach.ControlFlowTest do
         """)
 
       assert has_path?(control_flow, :entry, :exit)
-    end
-  end
-
-  describe "DOT export" do
-    test "produces valid DOT string" do
-      {_func, cfg} = build_control_flow("def foo(x), do: x + 1")
-      assert {:ok, dot} = ControlFlow.to_dot(cfg)
-      assert String.contains?(dot, "digraph")
     end
   end
 end
