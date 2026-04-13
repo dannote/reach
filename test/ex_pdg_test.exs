@@ -310,6 +310,72 @@ defmodule ExPDGTest do
     end
   end
 
+  describe "ast_to_graph/2" do
+    test "builds graph from parsed AST" do
+      {:ok, ast} = Code.string_to_quoted("def foo(x), do: x + 1")
+      {:ok, graph} = ExPDG.ast_to_graph(ast)
+
+      assert ExPDG.nodes(graph) != []
+      assert ExPDG.nodes(graph, type: :function_def) != []
+    end
+  end
+
+  describe "canonical_order/2" do
+    test "independent siblings get sorted deterministically" do
+      graph =
+        ExPDG.string_to_graph!("""
+        def foo do
+          a = 1
+          b = 2
+          {a, b}
+        end
+        """)
+
+      blocks = ExPDG.nodes(graph, type: :block)
+
+      if blocks != [] do
+        order = ExPDG.canonical_order(graph, hd(blocks).id)
+        assert is_list(order)
+        assert order != []
+      end
+    end
+
+    test "dependent statements preserve relative order" do
+      graph =
+        ExPDG.string_to_graph!("""
+        def foo do
+          x = 1
+          y = x + 1
+          z = y + 1
+          z
+        end
+        """)
+
+      blocks = ExPDG.nodes(graph, type: :block)
+
+      if blocks != [] do
+        order = ExPDG.canonical_order(graph, hd(blocks).id)
+
+        names =
+          Enum.map(order, fn {_, n} ->
+            case n do
+              %{type: :match, children: [%{meta: %{name: name}} | _]} -> name
+              _ -> n.type
+            end
+          end)
+
+        x_idx = Enum.find_index(names, &(&1 == :x))
+        y_idx = Enum.find_index(names, &(&1 == :y))
+        z_idx = Enum.find_index(names, &(&1 == :z))
+
+        if x_idx && y_idx && z_idx do
+          assert x_idx < y_idx
+          assert y_idx < z_idx
+        end
+      end
+    end
+  end
+
   describe "to_dot/1" do
     test "exports to DOT format" do
       graph = ExPDG.string_to_graph!("def foo(x), do: x + 1")

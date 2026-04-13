@@ -12,7 +12,7 @@ defmodule ExPDG.Graph do
         }
 
   @enforce_keys [:graph, :ir, :control_flow, :nodes]
-  defstruct [:graph, :ir, :control_flow, :nodes]
+  defstruct [:graph, :ir, :control_flow, :nodes, :data_graph]
 
   @doc """
   Builds a PDG from Elixir source code containing a function definition.
@@ -57,11 +57,14 @@ defmodule ExPDG.Graph do
 
     merged = ExPDG.GraphUtils.merge(control_deps, data_deps)
 
+    data_only = build_data_graph(merged)
+
     %__MODULE__{
       graph: merged,
       ir: ir_nodes,
       control_flow: flow,
-      nodes: node_map
+      nodes: node_map,
+      data_graph: data_only
     }
   end
 
@@ -113,10 +116,9 @@ defmodule ExPDG.Graph do
   """
   @spec control_deps(t(), Node.id()) :: [{Node.id(), term()}]
   def control_deps(%__MODULE__{graph: graph}, node_id) do
-    Graph.edges(graph)
-    |> Enum.filter(fn e ->
-      e.v2 == node_id and match?({:control, _}, e.label)
-    end)
+    graph
+    |> Graph.in_edges(node_id)
+    |> Enum.filter(fn e -> match?({:control, _}, e.label) end)
     |> Enum.map(fn e -> {e.v1, e.label} end)
   end
 
@@ -125,10 +127,9 @@ defmodule ExPDG.Graph do
   """
   @spec data_deps(t(), Node.id()) :: [{Node.id(), atom()}]
   def data_deps(%__MODULE__{graph: graph}, node_id) do
-    Graph.edges(graph)
-    |> Enum.filter(fn e ->
-      e.v2 == node_id and match?({:data, _}, e.label)
-    end)
+    graph
+    |> Graph.in_edges(node_id)
+    |> Enum.filter(fn e -> match?({:data, _}, e.label) end)
     |> Enum.map(fn e ->
       {:data, var} = e.label
       {e.v1, var}
@@ -144,9 +145,11 @@ defmodule ExPDG.Graph do
   3. Their effects don't conflict
   """
   @spec independent?(t(), Node.id(), Node.id()) :: boolean()
-  def independent?(%__MODULE__{graph: graph, nodes: node_map} = pdg, id_x, id_y) do
-    not data_reachable?(graph, id_x, id_y) and
-      not data_reachable?(graph, id_y, id_x) and
+  def independent?(%__MODULE__{graph: graph, data_graph: dg, nodes: node_map} = pdg, id_x, id_y) do
+    data_only = dg || build_data_graph(graph)
+
+    not data_path?(data_only, id_x, id_y) and
+      not data_path?(data_only, id_y, id_x) and
       same_control_deps?(pdg, id_x, id_y) and
       not conflicting_effects?(node_map, id_x, id_y)
   end
@@ -177,29 +180,11 @@ defmodule ExPDG.Graph do
 
   # --- Private ---
 
-  defp data_reachable?(graph, from, to) do
-    data_only = filter_data_edges(graph)
-
-    if Graph.has_vertex?(data_only, from) and Graph.has_vertex?(data_only, to) do
-      Graph.get_shortest_path(data_only, from, to) != nil
-    else
-      false
-    end
-  end
-
-  defp filter_data_edges(graph) do
-    Enum.reduce(Graph.edges(graph), Graph.new(), fn edge, g ->
-      case edge.label do
-        {:data, _} ->
-          g
-          |> Graph.add_vertex(edge.v1)
-          |> Graph.add_vertex(edge.v2)
-          |> Graph.add_edge(edge.v1, edge.v2, label: edge.label)
-
-        _ ->
-          g
-      end
-    end)
+  defp build_data_graph(graph) do
+    graph
+    |> Graph.edges()
+    |> Enum.filter(&match?({:data, _}, &1.label))
+    |> then(&Graph.add_edges(Graph.new(), &1))
   end
 
   defp conflicting_effects?(node_map, id_x, id_y) do
@@ -209,6 +194,14 @@ defmodule ExPDG.Graph do
 
       _ ->
         true
+    end
+  end
+
+  defp data_path?(data_graph, from, to) do
+    if Graph.has_vertex?(data_graph, from) and Graph.has_vertex?(data_graph, to) do
+      Graph.get_shortest_path(data_graph, from, to) != nil
+    else
+      false
     end
   end
 

@@ -43,6 +43,7 @@ defmodule ExPDG do
   """
 
   alias ExPDG.{Effects, Frontend, Query, SystemDependence}
+  alias ExPDG.IR.Counter
   alias ExPDG.IR.Node
 
   @type graph :: SystemDependence.t()
@@ -170,6 +171,119 @@ defmodule ExPDG do
     case Frontend.BEAM.from_compiled_modules(compiled, opts) do
       {:ok, nodes} -> {:ok, SystemDependence.build(nodes, opts)}
     end
+  end
+
+  @doc """
+  Builds a graph from an already-parsed Elixir AST.
+
+  Useful when you already have the AST (e.g. from Credo or ExDNA)
+  and don't want to re-parse source.
+  """
+  @spec ast_to_graph(Macro.t(), keyword()) :: {:ok, graph()} | {:error, term()}
+  def ast_to_graph(ast, opts \\ []) do
+    counter = Counter.new()
+    file = Keyword.get(opts, :file, "nofile")
+    nodes = Frontend.Elixir.translate_ast(ast, counter, file)
+    {:ok, SystemDependence.build(List.wrap(nodes), opts)}
+  end
+
+  @doc """
+  Returns the children of a block in canonical order.
+
+  Independent sibling expressions are sorted by structural hash so
+  that reordered-but-equivalent blocks produce the same sequence.
+  Dependent expressions preserve their relative order.
+
+  Returns a list of `{node_id, ir_node}` pairs.
+
+  ## Example
+
+      # These two blocks produce the same canonical order:
+      #   a = 1; b = 2; c = a + b
+      #   b = 2; a = 1; c = a + b
+      # Because a=1 and b=2 are independent, they get sorted,
+      # while c=a+b stays last (depends on both).
+  """
+  @spec canonical_order(graph(), ExPDG.IR.Node.id()) :: [{ExPDG.IR.Node.id(), ExPDG.IR.Node.t()}]
+  def canonical_order(%SystemDependence{} = graph, block_node_id) do
+    block = node(graph, block_node_id)
+
+    case block do
+      %{type: type, children: children} when type in [:block, :clause, :function_def] ->
+        sort_preserving_deps(graph, children)
+
+      _ ->
+        case block do
+          %{id: id} = n -> [{id, n}]
+          nil -> []
+        end
+    end
+  end
+
+  defp sort_preserving_deps(graph, children) do
+    indexed = Enum.with_index(children)
+
+    # Build a dependency map: which children must come before which
+    must_precede =
+      for {a, i} <- indexed,
+          {b, j} <- indexed,
+          i < j,
+          not independent?(graph, a.id, b.id),
+          reduce: MapSet.new() do
+        acc -> MapSet.put(acc, {i, j})
+      end
+
+    # Topological sort respecting dependencies, breaking ties by structural hash
+    sorted_indices = topo_sort_with_hash(indexed, must_precede)
+
+    Enum.map(sorted_indices, fn i ->
+      {node, _} = Enum.at(indexed, i)
+      {node.id, node}
+    end)
+  end
+
+  defp topo_sort_with_hash(indexed, must_precede) do
+    n = length(indexed)
+
+    # Build adjacency + in-degree
+    {adj, in_deg} =
+      Enum.reduce(must_precede, {%{}, Map.new(0..(n - 1), &{&1, 0})}, fn {i, j}, {a, d} ->
+        {Map.update(a, i, [j], &[j | &1]), Map.update(d, j, 1, &(&1 + 1))}
+      end)
+
+    # Compute structural hash for each child (for deterministic tie-breaking)
+    hashes =
+      Map.new(indexed, fn {node, i} ->
+        {i, :erlang.phash2(node)}
+      end)
+
+    # Kahn's algorithm with hash-based priority
+    ready =
+      in_deg
+      |> Enum.filter(fn {_, d} -> d == 0 end)
+      |> Enum.map(&elem(&1, 0))
+      |> Enum.sort_by(&Map.get(hashes, &1))
+
+    do_topo_sort(ready, adj, in_deg, hashes, [])
+  end
+
+  defp do_topo_sort([], _adj, _in_deg, _hashes, acc), do: Enum.reverse(acc)
+
+  defp do_topo_sort([current | rest], adj, in_deg, hashes, acc) do
+    neighbors = Map.get(adj, current, [])
+
+    {new_ready, in_deg} =
+      Enum.reduce(neighbors, {[], in_deg}, fn neighbor, {ready, deg} ->
+        new_deg = Map.get(deg, neighbor, 0) - 1
+        deg = Map.put(deg, neighbor, new_deg)
+        if new_deg == 0, do: {[neighbor | ready], deg}, else: {ready, deg}
+      end)
+
+    next_ready =
+      (rest ++ new_ready)
+      |> Enum.sort_by(&Map.get(hashes, &1))
+
+    do_topo_sort(next_ready, adj, in_deg, hashes, [current | acc])
   end
 
   # --- Slicing ---

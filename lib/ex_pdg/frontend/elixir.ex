@@ -41,6 +41,12 @@ defmodule ExPDG.Frontend.Elixir do
     end
   end
 
+  @doc false
+  def translate_ast(ast, counter, file) do
+    result = translate(ast, counter, file)
+    List.wrap(result)
+  end
+
   # --- Translation ---
 
   # Cons cell: [head | tail]
