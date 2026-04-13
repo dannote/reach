@@ -4,7 +4,7 @@ defmodule ExPDG.Query do
 
   Provides composable predicates for filtering nodes and checking
   dependence relationships. These are the runtime building blocks
-  that the `ExPDG.Check` macro compiles into.
+  used for graph analysis.
 
   ## Examples
 
