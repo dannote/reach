@@ -21,3 +21,4 @@ ex_pdg-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/
+reach-*.tar
