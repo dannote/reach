@@ -389,8 +389,8 @@ defmodule ReachTest do
 
       results =
         Reach.taint_analysis(graph,
-          sources: &(&1.type == :call and &1.meta[:function] == :get_param),
-          sinks: &(&1.type == :call and &1.meta[:function] == :execute)
+          sources: [type: :call, function: :get_param],
+          sinks: [type: :call, function: :execute]
         )
 
       assert results != []
@@ -410,9 +410,9 @@ defmodule ReachTest do
 
       results =
         Reach.taint_analysis(graph,
-          sources: &(&1.type == :call and &1.meta[:function] == :get_param),
-          sinks: &(&1.type == :call and &1.meta[:function] == :execute),
-          sanitizers: &(&1.type == :call and &1.meta[:function] == :sanitize)
+          sources: [type: :call, function: :get_param],
+          sinks: [type: :call, function: :execute],
+          sanitizers: [type: :call, function: :sanitize]
         )
 
       if results != [] do
@@ -431,8 +431,8 @@ defmodule ReachTest do
 
       results =
         Reach.taint_analysis(graph,
-          sources: &(&1.type == :call and &1.meta[:function] == :get_param),
-          sinks: &(&1.type == :call and &1.meta[:function] == :execute)
+          sources: [type: :call, function: :get_param],
+          sinks: [type: :call, function: :execute]
         )
 
       assert results == []

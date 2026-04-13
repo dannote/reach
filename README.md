@@ -17,21 +17,12 @@ Does user input reach a dangerous sink without sanitization?
 ```elixir
 graph = Reach.file_to_graph!("lib/my_app_web/controllers/user_controller.ex")
 
-# Find all Plug.Conn.params calls (taint sources)
-sources = Reach.nodes(graph, type: :call, module: Plug.Conn, function: :params)
-
-# Find all Ecto.Adapters.SQL.query calls (sinks)
-sinks = Reach.nodes(graph, type: :call, module: Ecto.Adapters.SQL, function: :query)
-
-for source <- sources, sink <- sinks do
-  if Reach.data_flows?(graph, source.id, sink.id) do
-    unless Reach.passes_through?(graph, source.id, sink.id, fn node ->
-      node.type == :call and node.meta[:function] == :sanitize
-    end) do
-      IO.warn("Unsanitized input flows to SQL query at #{inspect(sink.source_span)}")
-    end
-  end
-end
+Reach.taint_analysis(graph,
+  sources: [type: :call, function: :params],
+  sinks: [type: :call, module: System, function: :cmd, arity: 2],
+  sanitizers: [type: :call, function: :sanitize]
+)
+#=> [%{source: ..., sink: ..., path: [...], sanitized: false}]
 ```
 
 ### Code quality: dead code and useless expressions
@@ -157,7 +148,7 @@ Reach.compiled_to_graph(genserver_source)
 Reach.nodes(graph)                                    # all nodes
 Reach.nodes(graph, type: :call)                       # by type
 Reach.nodes(graph, type: :call, module: Enum)         # by module
-Reach.nodes(graph, type: :call, module: Repo, function: :insert)
+Reach.nodes(graph, type: :call, module: Repo, function: :insert, arity: 1)
 
 node = Reach.node(graph, node_id)
 node.type        #=> :call
@@ -210,12 +201,46 @@ Reach.context_sensitive_slice(graph, node_id)   # Horwitz-Reps-Binkley
 Reach.call_graph(graph)                         # {module, function, arity} vertices
 ```
 
+### Taint analysis
+
+```elixir
+# Keyword filters (same format as nodes/2)
+Reach.taint_analysis(graph,
+  sources: [type: :call, function: :params],
+  sinks: [type: :call, module: Repo, function: :query],
+  sanitizers: [type: :call, function: :sanitize]
+)
+
+# Predicates also work
+Reach.taint_analysis(graph,
+  sources: &(&1.meta[:function] in [:params, :body_params]),
+  sinks: [type: :call, module: System, function: :cmd]
+)
+#=> [%{source: node, sink: node, path: [node_id, ...], sanitized: boolean}]
+```
+
 ### Canonical ordering
 
 ```elixir
 Reach.canonical_order(graph, block_id)
 #=> [{node_id, %Reach.IR.Node{}}, ...] sorted so independent
 #   siblings have deterministic order regardless of source order
+```
+
+### Neighbors
+
+```elixir
+Reach.neighbors(graph, node_id)                # all direct neighbors
+Reach.neighbors(graph, node_id, :state_read)   # only state_read edges
+Reach.neighbors(graph, node_id, :data)         # matches {:data, _} labels
+```
+
+### Raw graph access
+
+```elixir
+raw = Reach.to_graph(graph)     # returns the underlying libgraph Graph.t()
+Graph.vertices(raw)             # use any libgraph function
+Graph.get_shortest_path(raw, id_a, id_b)
 ```
 
 ### Export

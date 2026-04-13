@@ -564,36 +564,49 @@ defmodule Reach do
   Returns a list of `%{source: node, sink: node, path: [node_id], sanitized: boolean}`
   for each source→sink pair where data flows.
 
+  Sources, sinks, and sanitizers can be specified as keyword filters
+  (same format as `nodes/2`) or as predicate functions.
+
   ## Options
 
-    * `:sources` — predicate `(Node.t() -> boolean)` identifying taint sources
-    * `:sinks` — predicate `(Node.t() -> boolean)` identifying dangerous sinks
-    * `:sanitizers` — predicate `(Node.t() -> boolean)` identifying sanitization
-      points (optional, defaults to no sanitizers)
+    * `:sources` — keyword filter or predicate identifying taint sources
+    * `:sinks` — keyword filter or predicate identifying dangerous sinks
+    * `:sanitizers` — keyword filter or predicate identifying sanitization
+      points (optional)
 
-  ## Example
+  ## Examples
 
       Reach.taint_analysis(graph,
-        sources: &(&1.type == :call and &1.meta[:function] == :params),
-        sinks: &(&1.type == :call and &1.meta[:module] == Ecto.Adapters.SQL),
-        sanitizers: &(&1.type == :call and &1.meta[:function] == :sanitize)
+        sources: [type: :call, function: :get_param],
+        sinks: [type: :call, module: System, function: :cmd, arity: 2],
+        sanitizers: [type: :call, function: :sanitize]
+      )
+
+      # Predicates also work
+      Reach.taint_analysis(graph,
+        sources: &(&1.meta[:function] in [:params, :body_params]),
+        sinks: [type: :call, module: Ecto.Adapters.SQL]
       )
   """
   @spec taint_analysis(graph(), keyword()) :: [map()]
   def taint_analysis(graph, opts) do
-    source_pred = Keyword.fetch!(opts, :sources)
-    sink_pred = Keyword.fetch!(opts, :sinks)
-    sanitizer_pred = Keyword.get(opts, :sanitizers, fn _ -> false end)
+    source_filter = Keyword.fetch!(opts, :sources)
+    sink_filter = Keyword.fetch!(opts, :sinks)
+    sanitizer_filter = Keyword.get(opts, :sanitizers)
 
     all = nodes(graph)
-    sources = Enum.filter(all, source_pred)
-    sinks = Enum.filter(all, sink_pred)
+    sources = filter_by(all, source_filter)
+    sinks = filter_by(all, sink_filter)
+    sanitizer_pred = to_predicate(all, sanitizer_filter)
 
     for source <- sources,
         sink <- sinks,
         data_flows?(graph, source.id, sink.id) do
       path = chop(graph, source.id, sink.id)
-      sanitized = passes_through?(graph, source.id, sink.id, sanitizer_pred)
+
+      sanitized =
+        sanitizer_pred != nil and
+          passes_through?(graph, source.id, sink.id, sanitizer_pred)
 
       %{
         source: source,
@@ -605,6 +618,17 @@ defmodule Reach do
   end
 
   # --- Private ---
+
+  defp filter_by(nodes, filter) when is_list(filter), do: filter_nodes(nodes, filter)
+  defp filter_by(nodes, filter) when is_function(filter), do: Enum.filter(nodes, filter)
+
+  defp to_predicate(_all, nil), do: nil
+  defp to_predicate(_all, pred) when is_function(pred), do: pred
+
+  defp to_predicate(all, filter) when is_list(filter) do
+    matching_ids = filter_nodes(all, filter) |> MapSet.new(& &1.id)
+    fn node -> MapSet.member?(matching_ids, node.id) end
+  end
 
   defp match_label?(label, label), do: true
   defp match_label?({tag, _}, tag) when is_atom(tag), do: true
