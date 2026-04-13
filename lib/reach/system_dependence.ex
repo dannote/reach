@@ -46,8 +46,10 @@ defmodule Reach.SystemDependence do
     graph = add_call_edges(graph, all_nodes, func_defs, function_pdgs)
     graph = add_summary_edges(graph, all_nodes, func_defs, function_pdgs)
 
-    otp_edges = OTP.analyze(ir_nodes)
+    otp_edges = OTP.analyze(ir_nodes, all_nodes: all_nodes)
+    concurrency_edges = Reach.Concurrency.analyze(ir_nodes, all_nodes: all_nodes)
     graph = Reach.GraphUtils.merge(graph, otp_edges)
+    graph = Reach.GraphUtils.merge(graph, concurrency_edges)
 
     %__MODULE__{
       graph: graph,
