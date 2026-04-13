@@ -47,7 +47,7 @@ defmodule Reach do
   alias Reach.IR.{Counter, Node}
 
   @typedoc "A program dependence graph. Built by `string_to_graph/2`, `file_to_graph/2`, etc."
-  @opaque graph :: struct()
+  @type graph :: struct()
 
   # --- Building ---
 
@@ -474,6 +474,7 @@ defmodule Reach do
   """
   @spec edges(graph()) :: [Elixir.Graph.Edge.t()]
   def edges(%SystemDependence{graph: g}), do: Elixir.Graph.edges(g)
+  def edges(%Reach.Project{graph: g}), do: Elixir.Graph.edges(g)
 
   @doc """
   Returns the control dependencies of a node.
@@ -532,6 +533,7 @@ defmodule Reach do
   """
   @spec to_dot(graph()) :: {:ok, String.t()}
   def to_dot(%SystemDependence{graph: g}), do: Elixir.Graph.to_dot(g)
+  def to_dot(%Reach.Project{graph: g}), do: Elixir.Graph.to_dot(g)
 
   @doc """
   Returns the underlying `Graph.t()` (libgraph) for direct traversal.
@@ -545,6 +547,7 @@ defmodule Reach do
   """
   @spec to_graph(graph()) :: Graph.t()
   def to_graph(%SystemDependence{graph: g}), do: g
+  def to_graph(%Reach.Project{graph: g}), do: g
 
   @doc """
   Returns node IDs directly connected to `node_id`.

@@ -52,6 +52,7 @@ defmodule Reach.MixProject do
       {:stream_data, "~> 1.0", only: [:test, :dev]},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:jason, "~> 1.0", optional: true},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false}
     ]
   end
