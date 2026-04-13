@@ -27,7 +27,7 @@ defmodule ExPDG.Frontend.Erlang do
               {:attribute, _, :file, _} -> true
               _ -> false
             end)
-            |> Enum.map(&translate(&1, counter, path))
+            |> Enum.map(&translate_form(&1, counter, path))
 
           {:ok, nodes}
         after
@@ -59,7 +59,7 @@ defmodule ExPDG.Frontend.Erlang do
   # --- Translation ---
 
   # Module attribute
-  defp translate({:attribute, line, name, value}, counter, file) do
+  def translate_form({:attribute, line, name, value}, counter, file) do
     %Node{
       id: Counter.next(counter),
       type: :call,
@@ -69,7 +69,7 @@ defmodule ExPDG.Frontend.Erlang do
   end
 
   # Function definition
-  defp translate({:function, line, name, arity, clauses}, counter, file) do
+  def translate_form({:function, line, name, arity, clauses}, counter, file) do
     clause_nodes = Enum.map(clauses, &translate_clause(&1, counter, file))
 
     %Node{
@@ -82,7 +82,7 @@ defmodule ExPDG.Frontend.Erlang do
   end
 
   # Catch-all for other top-level forms
-  defp translate(form, counter, file) do
+  def translate_form(form, counter, file) do
     translate_expr(form, counter, file)
   end
 

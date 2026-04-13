@@ -398,6 +398,30 @@ defmodule ExPDG.Frontend.ElixirTest do
     end
   end
 
+  describe "capture operator" do
+    test "&fun/arity produces fun_ref node" do
+      [node] = IR.from_string!("&to_string/1")
+      assert %Node{type: :call, meta: %{function: :to_string, arity: 1, kind: :fun_ref}} = node
+    end
+
+    test "&Mod.fun/arity produces fun_ref with module" do
+      [node] = IR.from_string!("&Enum.map/2")
+
+      assert %Node{type: :call, meta: %{module: Enum, function: :map, arity: 2, kind: :fun_ref}} =
+               node
+    end
+
+    test "&(&1 + 1) produces fn node" do
+      [node] = IR.from_string!("&(&1 + 1)")
+      assert %Node{type: :fn, meta: %{kind: :capture}} = node
+    end
+
+    test "&(&1.field) produces fn node with call child" do
+      [node] = IR.from_string!("&(&1.active)")
+      assert %Node{type: :fn, meta: %{kind: :capture}} = node
+    end
+  end
+
   describe "dot access on variables" do
     test "result.field makes result a child var node" do
       [node] = IR.from_string!("result.issues")

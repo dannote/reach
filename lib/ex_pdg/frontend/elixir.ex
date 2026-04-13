@@ -583,6 +583,43 @@ defmodule ExPDG.Frontend.Elixir do
     }
   end
 
+  # Capture operator: &fun/arity
+  defp translate({:&, meta, [{:/, _, [{name, _, ctx}, arity]}]}, counter, file)
+       when is_atom(name) and is_atom(ctx) and is_integer(arity) do
+    %Node{
+      id: Counter.next(counter),
+      type: :call,
+      meta: %{function: name, arity: arity, kind: :fun_ref},
+      source_span: span_from_meta(meta, file)
+    }
+  end
+
+  # Capture operator: &Mod.fun/arity
+  defp translate({:&, meta, [{:/, _, [{{:., _, [mod, fun]}, _, _}, arity]}]}, counter, file)
+       when is_atom(fun) and is_integer(arity) do
+    {_children, resolved} = translate_receiver(mod, counter, file)
+
+    %Node{
+      id: Counter.next(counter),
+      type: :call,
+      meta: %{module: resolved, function: fun, arity: arity, kind: :fun_ref},
+      source_span: span_from_meta(meta, file)
+    }
+  end
+
+  # Capture operator: &(&1 + 1) or &(&1.field) — anonymous function shorthand
+  defp translate({:&, meta, [body]}, counter, file) do
+    body_node = translate(body, counter, file)
+
+    %Node{
+      id: Counter.next(counter),
+      type: :fn,
+      meta: %{kind: :capture},
+      children: [body_node],
+      source_span: span_from_meta(meta, file)
+    }
+  end
+
   # Binary operators
   @binary_ops [
     :+,

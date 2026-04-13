@@ -131,6 +131,47 @@ defmodule ExPDG do
     end
   end
 
+  @doc """
+  Builds a graph from a compiled module (loaded in the VM).
+
+  Analyzes the macro-expanded Erlang abstract forms from the BEAM bytecode.
+  This captures code injected by `use`, `defmacro`, and other macros that
+  the source-level frontend misses.
+
+  Requires the module to be compiled with debug info (the default).
+  """
+  @spec module_to_graph(module(), keyword()) :: {:ok, graph()} | {:error, term()}
+  def module_to_graph(module, opts \\ []) do
+    case Frontend.BEAM.from_module(module, opts) do
+      {:ok, nodes} -> {:ok, SystemDependence.build(nodes, opts)}
+      {:error, _} = err -> err
+    end
+  end
+
+  @doc """
+  Compiles an Elixir source string and builds a graph from the expanded bytecode.
+
+  Unlike `string_to_graph/2`, this compiles the code first, so macro-expanded
+  constructs (try/rescue inside macros, `use` callbacks, etc.) are visible.
+
+  The source must define complete modules.
+  """
+  @spec compiled_to_graph(String.t(), keyword()) :: {:ok, graph()} | {:error, term()}
+  def compiled_to_graph(source_or_modules, opts \\ [])
+
+  def compiled_to_graph(source, opts) when is_binary(source) do
+    case Frontend.BEAM.from_compiled_string(source, opts) do
+      {:ok, nodes} -> {:ok, SystemDependence.build(nodes, opts)}
+      {:error, _} = err -> err
+    end
+  end
+
+  def compiled_to_graph(compiled, opts) when is_list(compiled) do
+    case Frontend.BEAM.from_compiled_modules(compiled, opts) do
+      {:ok, nodes} -> {:ok, SystemDependence.build(nodes, opts)}
+    end
+  end
+
   # --- Slicing ---
 
   @doc """
