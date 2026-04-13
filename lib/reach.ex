@@ -556,6 +556,52 @@ defmodule Reach do
     |> Enum.uniq()
   end
 
+  # --- Dead code ---
+
+  @doc """
+  Returns nodes whose values are never used and have no side effects.
+
+  A node is dead if:
+  1. It is pure (no side effects)
+  2. No observable output depends on it (return values or effectful calls)
+  """
+  @spec dead_code(graph()) :: [Node.t()]
+  def dead_code(graph) do
+    observables = observable_nodes(graph)
+    observable_ids = MapSet.new(observables, & &1.id)
+
+    alive_ids =
+      observables
+      |> Enum.flat_map(&backward_slice(graph, &1.id))
+      |> MapSet.new()
+      |> MapSet.union(observable_ids)
+
+    graph
+    |> nodes()
+    |> Enum.filter(fn node ->
+      node.type in [:call, :binary_op, :unary_op, :match, :var] and
+        pure?(node) and
+        not MapSet.member?(alive_ids, node.id)
+    end)
+  end
+
+  defp observable_nodes(graph) do
+    ret_ids = return_node_ids(graph)
+
+    nodes(graph)
+    |> Enum.filter(fn node ->
+      not pure?(node) or MapSet.member?(ret_ids, node.id)
+    end)
+  end
+
+  defp return_node_ids(graph) do
+    nodes(graph, type: :clause)
+    |> Enum.filter(&(&1.meta[:kind] == :function_clause))
+    |> Enum.map(fn clause -> List.last(clause.children) end)
+    |> Enum.reject(&is_nil/1)
+    |> MapSet.new(& &1.id)
+  end
+
   # --- Taint analysis ---
 
   @doc """

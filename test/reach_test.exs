@@ -417,6 +417,96 @@ defmodule ReachTest do
     end
   end
 
+  describe "dead_code/1" do
+    test "unused pure expression is dead" do
+      graph =
+        Reach.string_to_graph!("""
+        def foo(x) do
+          y = String.upcase(x)
+          x
+        end
+        """)
+
+      dead = Reach.dead_code(graph)
+      dead_fns = Enum.filter(dead, &(&1.type == :call))
+      assert Enum.any?(dead_fns, &(&1.meta[:function] == :upcase))
+    end
+
+    test "used expression is not dead" do
+      graph = Reach.string_to_graph!("def foo(x), do: x + 1")
+      dead = Reach.dead_code(graph)
+      assert dead == []
+    end
+
+    test "side-effecting call is never dead" do
+      graph =
+        Reach.string_to_graph!("""
+        def foo(x) do
+          IO.puts(x)
+          :ok
+        end
+        """)
+
+      dead = Reach.dead_code(graph)
+      io_calls = Enum.filter(dead, &(&1.meta[:function] == :puts))
+      assert io_calls == []
+    end
+
+    test "pure call without consumers is dead" do
+      graph =
+        Reach.string_to_graph!("""
+        def foo(x) do
+          String.upcase(x)
+          :ok
+        end
+        """)
+
+      dead = Reach.dead_code(graph)
+      assert Enum.any?(dead, &(&1.meta[:function] == :upcase))
+    end
+  end
+
+  describe "higher-order function resolution" do
+    test "Enum.map callback flows to result" do
+      graph =
+        Reach.string_to_graph!("""
+        def foo(items) do
+          Enum.map(items, &String.upcase/1)
+        end
+        """)
+
+      edges = Reach.edges(graph)
+      ho_edges = Enum.filter(edges, &(&1.label == :higher_order))
+      assert ho_edges != []
+    end
+
+    test "Enum.each callback does not flow to result" do
+      graph =
+        Reach.string_to_graph!("""
+        def foo(items) do
+          Enum.each(items, &IO.puts/1)
+        end
+        """)
+
+      edges = Reach.edges(graph)
+      ho_edges = Enum.filter(edges, &(&1.label == :higher_order))
+      assert ho_edges == []
+    end
+
+    test "collection flows through Enum.filter" do
+      graph =
+        Reach.string_to_graph!("""
+        def foo(items) do
+          Enum.filter(items, &(&1 > 0))
+        end
+        """)
+
+      edges = Reach.edges(graph)
+      ho_edges = Enum.filter(edges, &(&1.label == :higher_order))
+      assert ho_edges != []
+    end
+  end
+
   describe "to_graph/1" do
     test "returns the raw libgraph struct" do
       graph = Reach.string_to_graph!("def foo(x), do: x + 1")
