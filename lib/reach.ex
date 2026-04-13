@@ -30,6 +30,7 @@ defmodule Reach do
       Reach.forward_slice(graph, node_id)
       Reach.independent?(graph, id_a, id_b)
       Reach.nodes(graph, type: :call, module: Enum)
+      Reach.nodes(graph, type: :call, module: Enum, function: :map, arity: 2)
       Reach.data_flows?(graph, source_id, sink_id)
 
   ## Inspecting nodes
@@ -357,11 +358,13 @@ defmodule Reach do
     * `:type` — filter by node type (`:call`, `:match`, `:var`, etc.)
     * `:module` — filter calls by module
     * `:function` — filter calls by function name
+    * `:arity` — filter by arity
 
   ## Examples
 
       Reach.nodes(graph, type: :call)
       Reach.nodes(graph, type: :call, module: Enum)
+      Reach.nodes(graph, type: :call, module: Enum, function: :map, arity: 2)
   """
   def nodes(graph, opts \\ [])
 
@@ -619,6 +622,10 @@ defmodule Reach do
 
   defp filter_nodes(nodes, [{:function, function} | rest]) do
     nodes |> Enum.filter(&(&1.meta[:function] == function)) |> filter_nodes(rest)
+  end
+
+  defp filter_nodes(nodes, [{:arity, arity} | rest]) do
+    nodes |> Enum.filter(&(&1.meta[:arity] == arity)) |> filter_nodes(rest)
   end
 
   defp filter_nodes(nodes, [_ | rest]) do
