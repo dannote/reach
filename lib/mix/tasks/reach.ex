@@ -137,12 +137,12 @@ defmodule Mix.Tasks.Reach do
     <script src="https://cdn.tailwindcss.com"><\/script>
     <style>
     body { margin: 0; }
-    #cy { width: 100vw; height: 100vh; }
+    #graph-container { width: 100vw; height: 100vh; }
     #info-panel { transition: transform 0.2s; }
     <\/style>
     <\/head>
     <body class="bg-slate-950">
-    <div id="cy"><\/div>
+    <div id="graph-container"><\/div>
 
     <div id="info-panel" class="fixed top-4 right-4 bg-slate-900 border border-slate-700 rounded-xl p-4 shadow-xl text-slate-200 max-w-sm text-sm font-mono z-50 hidden">
       <div class="flex justify-between items-center mb-2">
@@ -191,8 +191,8 @@ defmodule Mix.Tasks.Reach do
       elements.push({data: {id: e.id, source: e.source, target: e.target, label: e.label, edgeType: edgeType, color: e.style.stroke}});
     }
 
-    const cy = cytoscape({
-      container: document.getElementById('cy'),
+    window.cy = cytoscape({
+      container: document.getElementById('graph-container'),
       elements: elements,
       style: [
         {selector: 'node', style: {
