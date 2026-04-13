@@ -75,15 +75,13 @@ defmodule Reach.QueryTest do
 
       all = Reach.nodes(graph)
 
-      x_match =
+      x_def =
         Enum.find(all, fn n ->
-          n.type == :match and
-            hd(n.children).type == :var and
-            hd(n.children).meta[:name] == :x
+          n.type == :var and n.meta[:name] == :x and n.meta[:binding_role] == :definition
         end)
 
-      if x_match do
-        assert Reach.has_dependents?(graph, x_match.id)
+      if x_def do
+        assert Reach.has_dependents?(graph, x_def.id)
       end
     end
   end

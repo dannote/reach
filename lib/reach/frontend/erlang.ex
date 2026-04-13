@@ -86,7 +86,8 @@ defmodule Reach.Frontend.Erlang do
   # --- Clause translation ---
 
   defp translate_clause({:clause, line, patterns, guards, body}, counter, file) do
-    pattern_nodes = Enum.map(patterns, &translate_expr(&1, counter, file))
+    pattern_nodes =
+      Enum.map(patterns, &translate_expr(&1, counter, file)) |> Enum.map(&mark_as_definitions/1)
 
     guard_nodes =
       Enum.map(guards, fn guard_seq ->
@@ -212,7 +213,7 @@ defmodule Reach.Frontend.Erlang do
 
   # Match
   defp translate_expr({:match, line, pattern, expr}, counter, file) do
-    left = translate_expr(pattern, counter, file)
+    left = translate_expr(pattern, counter, file) |> mark_as_definitions()
     right = translate_expr(expr, counter, file)
 
     %Node{
@@ -576,10 +577,22 @@ defmodule Reach.Frontend.Erlang do
     %Node{id: Counter.next(counter), type: :literal, meta: %{value: nil, raw: true}}
   end
 
+  defp mark_as_definitions(%Node{type: :var, meta: meta} = n) do
+    %{n | meta: Map.put(meta, :binding_role, :definition)}
+  end
+
+  defp mark_as_definitions(%Node{children: children} = n) do
+    %{n | children: Enum.map(children, &mark_as_definitions/1)}
+  end
+
+  defp mark_as_definitions(n), do: n
+
   # --- Helpers ---
 
   defp translate_case_clause({:clause, line, pats, guards, body}, index, counter, file) do
-    pats_ir = Enum.map(pats, &translate_expr(&1, counter, file))
+    pats_ir =
+      Enum.map(pats, &translate_expr(&1, counter, file)) |> Enum.map(&mark_as_definitions/1)
+
     guards_ir = translate_guards(guards, counter, file)
     body_ir = translate_body(body, counter, file)
 

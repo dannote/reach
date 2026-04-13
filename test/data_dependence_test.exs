@@ -20,17 +20,21 @@ defmodule Reach.DataDependenceTest do
   end
 
   describe "variable binding analysis" do
-    test "simple assignment" do
-      node = hd(IR.from_string!("x = 1"))
-      {defs, _uses} = DataDependence.analyze_bindings(node)
+    test "var with binding_role :definition returns defs" do
+      [match] = Reach.IR.from_string!("x = 1")
+      [left | _] = match.children
+      assert left.meta[:binding_role] == :definition
+      {defs, _} = DataDependence.analyze_bindings(left)
       assert :x in defs
     end
 
-    test "pattern match defines multiple variables" do
-      node = hd(IR.from_string!("{a, b} = foo()"))
-      {defs, _uses} = DataDependence.analyze_bindings(node)
-      assert :a in defs
-      assert :b in defs
+    test "pattern match vars have binding_role :definition" do
+      [match] = Reach.IR.from_string!("{a, b} = foo()")
+      all = Reach.IR.all_nodes(match)
+      def_vars = Enum.filter(all, &(&1.meta[:binding_role] == :definition))
+      names = Enum.map(def_vars, & &1.meta[:name])
+      assert :a in names
+      assert :b in names
     end
 
     test "variable reference is a use" do

@@ -404,7 +404,7 @@ defmodule Reach.Frontend.Elixir do
     clause_nodes =
       Enum.map(clauses, fn
         {:<-, clause_meta, [pattern, enumerable]} ->
-          pat_node = translate(pattern, counter, file)
+          pat_node = translate(pattern, counter, file) |> mark_as_definitions()
           enum_node = translate(enumerable, counter, file)
 
           %Node{
@@ -447,7 +447,7 @@ defmodule Reach.Frontend.Elixir do
 
   # Match operator
   defp translate({:=, meta, [left, right]}, counter, file) do
-    left_node = translate(left, counter, file)
+    left_node = translate(left, counter, file) |> mark_as_definitions()
     right_node = translate(right, counter, file)
 
     %Node{
@@ -734,13 +734,24 @@ defmodule Reach.Frontend.Elixir do
     }
   end
 
+  defp mark_as_definitions(%Node{type: :var, meta: meta} = node) do
+    %{node | meta: Map.put(meta, :binding_role, :definition)}
+  end
+
+  defp mark_as_definitions(%Node{children: children} = node) do
+    %{node | children: Enum.map(children, &mark_as_definitions/1)}
+  end
+
+  defp mark_as_definitions(other), do: other
+
   # --- Helpers ---
 
   defp translate_function_def(def_kind, meta, head, guards, body, counter, file) do
     {name, arity} = fun_name_arity(head)
     params = fun_params(head)
 
-    param_nodes = Enum.map(params, &translate(&1, counter, file))
+    param_nodes =
+      Enum.map(params, &translate(&1, counter, file)) |> Enum.map(&mark_as_definitions/1)
 
     guard_nodes =
       Enum.map(guards, fn g ->
@@ -809,7 +820,7 @@ defmodule Reach.Frontend.Elixir do
         {pats ++ [pat], gs ++ new_guards}
 
       pattern, {pats, gs} ->
-        {pats ++ [translate(pattern, counter, file)], gs}
+        {pats ++ [translate(pattern, counter, file) |> mark_as_definitions()], gs}
     end)
   end
 

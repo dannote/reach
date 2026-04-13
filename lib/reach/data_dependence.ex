@@ -26,32 +26,11 @@ defmodule Reach.DataDependence do
   Analyzes which variables a node defines and uses.
   """
   @spec analyze_bindings(Node.t()) :: {[atom()], [atom()]}
+  def analyze_bindings(%Node{type: :var, meta: %{binding_role: :definition, name: name}}) do
+    {[name], []}
+  end
+
   def analyze_bindings(%Node{type: :var, meta: %{name: name}}), do: {[], [name]}
-
-  def analyze_bindings(%Node{type: :match, children: [left, _right]}) do
-    {collect_definitions(left), []}
-  end
-
-  def analyze_bindings(%Node{type: :clause, meta: %{kind: kind}} = node)
-      when kind in [:function_clause, :fn_clause] do
-    params = Enum.reject(node.children, &(&1.type in [:guard, :block]))
-    {Enum.flat_map(params, &collect_definitions/1), []}
-  end
-
-  def analyze_bindings(%Node{type: :clause, meta: %{kind: kind}} = node)
-      when kind in [:case_clause, :receive_clause, :with_clause, :else_clause] do
-    patterns =
-      Enum.take_while(
-        node.children,
-        &(&1.type not in [:guard, :block, :call, :binary_op, :literal])
-      )
-
-    {Enum.flat_map(patterns, &collect_definitions/1), []}
-  end
-
-  def analyze_bindings(%Node{type: :generator, children: [pattern, _]}) do
-    {collect_definitions(pattern), []}
-  end
 
   def analyze_bindings(%Node{type: :pin, children: [%Node{type: :var, meta: %{name: name}}]}) do
     {[], [name]}
