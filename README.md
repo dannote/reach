@@ -7,8 +7,6 @@ Given any expression, you can ask: what affects it? What does it affect?
 Can these two statements be safely reordered? Does user input reach this
 database call without sanitization?
 
-Built for tool authors — linters, clone detectors, refactoring tools,
-security analyzers — who need deeper analysis than the AST alone provides.
 
 ## Use cases
 
