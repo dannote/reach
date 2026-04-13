@@ -64,7 +64,7 @@ Enum.filter(edges, &match?({:ets_dep, _}, &1.label))  # ETS deps
 
 ```elixir
 def deps do
-  [{:reach, "~> 0.1"}]
+  [{:reach, "~> 1.0"}]
 end
 ```
 
