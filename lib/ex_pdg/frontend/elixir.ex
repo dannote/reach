@@ -508,16 +508,20 @@ defmodule ExPDG.Frontend.Elixir do
           map_node = translate(map_expr, counter, file)
 
           update_nodes =
-            Enum.map(updates, fn {key, value} ->
-              key_node = translate(key, counter, file)
-              val_node = translate(value, counter, file)
+            Enum.map(updates, fn
+              {key, value} ->
+                key_node = translate(key, counter, file)
+                val_node = translate(value, counter, file)
 
-              %Node{
-                id: Counter.next(counter),
-                type: :map_field,
-                meta: %{kind: :update},
-                children: [key_node, val_node]
-              }
+                %Node{
+                  id: Counter.next(counter),
+                  type: :map_field,
+                  meta: %{kind: :update},
+                  children: [key_node, val_node]
+                }
+
+              other ->
+                translate(other, counter, file)
             end)
 
           %Node{
@@ -526,6 +530,9 @@ defmodule ExPDG.Frontend.Elixir do
             meta: %{kind: :update},
             children: [map_node | update_nodes]
           }
+
+        other ->
+          translate(other, counter, file)
       end)
 
     %Node{
@@ -541,15 +548,19 @@ defmodule ExPDG.Frontend.Elixir do
     struct_name = module_name(struct_alias)
 
     children =
-      Enum.map(pairs, fn {key, value} ->
-        key_node = translate(key, counter, file)
-        val_node = translate(value, counter, file)
+      Enum.map(pairs, fn
+        {key, value} ->
+          key_node = translate(key, counter, file)
+          val_node = translate(value, counter, file)
 
-        %Node{
-          id: Counter.next(counter),
-          type: :map_field,
-          children: [key_node, val_node]
-        }
+          %Node{
+            id: Counter.next(counter),
+            type: :map_field,
+            children: [key_node, val_node]
+          }
+
+        other ->
+          translate(other, counter, file)
       end)
 
     %Node{
@@ -810,7 +821,14 @@ defmodule ExPDG.Frontend.Elixir do
     {[], module_name(module)}
   end
 
-  defp module_name({:__aliases__, _, parts}), do: Module.concat(parts)
+  defp module_name({:__aliases__, _, parts}) do
+    if Enum.all?(parts, &is_atom/1) do
+      Module.concat(parts)
+    else
+      {:dynamic, parts}
+    end
+  end
+
   defp module_name(atom) when is_atom(atom), do: atom
   defp module_name(other), do: other
 
