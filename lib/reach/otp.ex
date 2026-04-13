@@ -34,8 +34,8 @@ defmodule Reach.OTP do
   with the existing PDG/SDG graph.
   """
   @spec analyze([Node.t()]) :: Graph.t()
-  def analyze(ir_nodes) do
-    all_nodes = IR.all_nodes(ir_nodes)
+  def analyze(ir_nodes, opts \\ []) do
+    all_nodes = Keyword.get_lazy(opts, :all_nodes, fn -> IR.all_nodes(ir_nodes) end)
 
     Graph.new()
     |> add_genserver_edges(ir_nodes, all_nodes)

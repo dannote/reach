@@ -15,7 +15,7 @@ defmodule Reach.CallGraph do
   @spec build([Node.t()], keyword()) :: Graph.t()
   def build(ir_nodes, opts \\ []) do
     module_name = Keyword.get(opts, :module)
-    all_nodes = IR.all_nodes(ir_nodes)
+    all_nodes = Keyword.get_lazy(opts, :all_nodes, fn -> IR.all_nodes(ir_nodes) end)
 
     func_defs = collect_function_defs(all_nodes, module_name)
     call_sites = collect_call_sites(all_nodes)

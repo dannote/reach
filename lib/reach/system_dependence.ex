@@ -38,7 +38,7 @@ defmodule Reach.SystemDependence do
     node_map = Map.new(all_nodes, fn n -> {n.id, n} end)
 
     func_defs = CallGraph.collect_function_defs(all_nodes, module_name)
-    call_graph = CallGraph.build(ir_nodes, module: module_name)
+    call_graph = CallGraph.build(ir_nodes, module: module_name, all_nodes: all_nodes)
 
     function_pdgs = build_function_pdgs(func_defs)
 

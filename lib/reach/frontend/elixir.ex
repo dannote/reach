@@ -876,16 +876,16 @@ defmodule Reach.Frontend.Elixir do
   defp module_name(other), do: other
 
   defp span_from_meta(meta, file) when is_list(meta) do
-    case {Keyword.get(meta, :line), Keyword.get(meta, :column)} do
-      {nil, _} ->
+    case meta[:line] do
+      nil ->
         nil
 
-      {line, col} ->
+      line ->
         %{
           file: file,
           start_line: line,
-          start_col: col || 1,
-          end_line: Keyword.get(meta, :end_of_expression, []) |> Keyword.get(:line, nil),
+          start_col: meta[:column] || 1,
+          end_line: nil,
           end_col: nil
         }
     end
