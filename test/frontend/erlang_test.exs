@@ -208,26 +208,29 @@ defmodule ExPDG.Frontend.ErlangTest do
   end
 
   describe "integration with ExPDG API" do
-    test "erlang_string_to_graph builds graph" do
+    test "string_to_graph with language: :erlang" do
       {:ok, graph} =
-        ExPDG.erlang_string_to_graph("""
-        -module(test).
-        foo(X) -> X + 1.
-        bar(Y) -> foo(Y).
-        """)
+        ExPDG.string_to_graph(
+          """
+          -module(test).
+          foo(X) -> X + 1.
+          bar(Y) -> foo(Y).
+          """,
+          language: :erlang
+        )
 
       assert %ExPDG.SystemDependence{} = graph
       assert ExPDG.nodes(graph) != []
     end
 
-    test "erlang_file_to_graph reads and parses" do
+    test "file_to_graph auto-detects .erl" do
       path =
         Path.join(System.tmp_dir!(), "ex_pdg_test_#{:erlang.unique_integer([:positive])}.erl")
 
       File.write!(path, "-module(test).\nfoo(X) -> X + 1.\n")
 
       try do
-        {:ok, graph} = ExPDG.erlang_file_to_graph(path)
+        {:ok, graph} = ExPDG.file_to_graph(path)
         assert ExPDG.nodes(graph) != []
       after
         File.rm(path)
@@ -236,12 +239,15 @@ defmodule ExPDG.Frontend.ErlangTest do
 
     test "slicing works on Erlang code" do
       graph =
-        ExPDG.erlang_string_to_graph!("""
-        -module(test).
-        foo(X) ->
-            Y = X + 1,
-            Y.
-        """)
+        ExPDG.string_to_graph!(
+          """
+          -module(test).
+          foo(X) ->
+              Y = X + 1,
+              Y.
+          """,
+          language: :erlang
+        )
 
       all = ExPDG.nodes(graph)
       plus = Enum.find(all, &(&1.type == :binary_op and &1.meta[:operator] == :+))
@@ -255,11 +261,14 @@ defmodule ExPDG.Frontend.ErlangTest do
 
     test "call graph connects Erlang functions" do
       graph =
-        ExPDG.erlang_string_to_graph!("""
-        -module(test).
-        foo(X) -> bar(X).
-        bar(Y) -> Y + 1.
-        """)
+        ExPDG.string_to_graph!(
+          """
+          -module(test).
+          foo(X) -> bar(X).
+          bar(Y) -> Y + 1.
+          """,
+          language: :erlang
+        )
 
       cg = ExPDG.call_graph(graph)
       edges = Graph.edges(cg)

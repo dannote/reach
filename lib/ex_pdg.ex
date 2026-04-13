@@ -9,34 +9,27 @@ defmodule ExPDG do
 
   ## Building a graph
 
+      # Elixir (default)
       {:ok, graph} = ExPDG.string_to_graph(\"""
       def foo(x) do
         y = x + 1
-        if y > 10 do
-          :big
-        else
-          :small
-        end
+        if y > 10, do: :big, else: :small
       end
       \""")
 
+      # Erlang
+      {:ok, graph} = ExPDG.string_to_graph(source, language: :erlang)
+
+      # Auto-detected from file extension
       {:ok, graph} = ExPDG.file_to_graph("lib/my_module.ex")
+      {:ok, graph} = ExPDG.file_to_graph("src/my_module.erl")
 
   ## Querying
 
-      # What affects this node?
       ExPDG.backward_slice(graph, node_id)
-
-      # What does this node affect?
       ExPDG.forward_slice(graph, node_id)
-
-      # Can these two expressions be safely reordered?
       ExPDG.independent?(graph, id_a, id_b)
-
-      # Find all nodes of a type
       ExPDG.nodes(graph, type: :call, module: Enum)
-
-      # Does data flow from source to sink?
       ExPDG.data_flows?(graph, source_id, sink_id)
 
   ## Inspecting nodes
@@ -49,7 +42,7 @@ defmodule ExPDG do
       ExPDG.pure?(node)  #=> true
   """
 
-  alias ExPDG.{Effects, Query, SystemDependence}
+  alias ExPDG.{Effects, Frontend, Query, SystemDependence}
   alias ExPDG.IR.Node
 
   @type graph :: SystemDependence.t()
@@ -57,18 +50,24 @@ defmodule ExPDG do
   # --- Building ---
 
   @doc """
-  Parses an Elixir source string and builds a program dependence graph.
+  Parses a source string and builds a program dependence graph.
 
   Returns `{:ok, graph}` or `{:error, reason}`.
 
   ## Options
 
+    * `:language` — `:elixir` (default) or `:erlang`
     * `:file` — filename for source locations (default: `"nofile"`)
     * `:module` — module name for call graph resolution
   """
   @spec string_to_graph(String.t(), keyword()) :: {:ok, graph()} | {:error, term()}
   def string_to_graph(source, opts \\ []) do
-    SystemDependence.from_string(source, opts)
+    {language, opts} = Keyword.pop(opts, :language, :elixir)
+
+    case parse_string(source, language, opts) do
+      {:ok, ir_nodes} -> {:ok, SystemDependence.build(ir_nodes, opts)}
+      {:error, _} = err -> err
+    end
   end
 
   @doc """
@@ -83,19 +82,41 @@ defmodule ExPDG do
   end
 
   @doc """
-  Reads an Elixir source file and builds a program dependence graph.
+  Reads a source file and builds a program dependence graph.
+
+  The language is auto-detected from the file extension (`.ex` / `.exs`
+  for Elixir, `.erl` / `.hrl` for Erlang), or can be set explicitly
+  via the `:language` option.
 
   Returns `{:ok, graph}` or `{:error, reason}`.
   """
   @spec file_to_graph(Path.t(), keyword()) :: {:ok, graph()} | {:error, term()}
   def file_to_graph(path, opts \\ []) do
-    case File.read(path) do
-      {:ok, source} ->
-        opts = Keyword.merge([file: path, module: module_from_path(path)], opts)
-        string_to_graph(source, opts)
+    language = Keyword.get(opts, :language) || language_from_extension(path)
+    opts = Keyword.put(opts, :language, language)
 
-      {:error, reason} ->
-        {:error, {:file, reason}}
+    case language do
+      :erlang ->
+        opts = Keyword.put_new(opts, :file, path)
+
+        case Frontend.Erlang.parse_file(path, opts) do
+          {:ok, nodes} -> {:ok, SystemDependence.build(nodes, opts)}
+          {:error, _} = err -> err
+        end
+
+      _elixir ->
+        case File.read(path) do
+          {:ok, source} ->
+            opts =
+              opts
+              |> Keyword.put_new(:file, path)
+              |> Keyword.put_new(:module, module_from_path(path))
+
+            parse_and_build(source, :elixir, opts)
+
+          {:error, reason} ->
+            {:error, {:file, reason}}
+        end
     end
   end
 
@@ -105,54 +126,6 @@ defmodule ExPDG do
   @spec file_to_graph!(Path.t(), keyword()) :: graph()
   def file_to_graph!(path, opts \\ []) do
     case file_to_graph(path, opts) do
-      {:ok, graph} -> graph
-      {:error, reason} -> raise "ExPDG error: #{inspect(reason)}"
-    end
-  end
-
-  @doc """
-  Parses an Erlang source string and builds a program dependence graph.
-  """
-  @spec erlang_string_to_graph(String.t(), keyword()) :: {:ok, graph()} | {:error, term()}
-  def erlang_string_to_graph(source, opts \\ []) do
-    case ExPDG.IR.from_erlang_string(source, opts) do
-      {:ok, nodes} -> {:ok, SystemDependence.build(nodes, opts)}
-      {:error, _} = err -> err
-    end
-  end
-
-  @doc """
-  Same as `erlang_string_to_graph/2` but raises on error.
-  """
-  @spec erlang_string_to_graph!(String.t(), keyword()) :: graph()
-  def erlang_string_to_graph!(source, opts \\ []) do
-    case erlang_string_to_graph(source, opts) do
-      {:ok, graph} -> graph
-      {:error, reason} -> raise "ExPDG Erlang parse error: #{inspect(reason)}"
-    end
-  end
-
-  @doc """
-  Reads an Erlang source file and builds a program dependence graph.
-  """
-  @spec erlang_file_to_graph(Path.t(), keyword()) :: {:ok, graph()} | {:error, term()}
-  def erlang_file_to_graph(path, opts \\ []) do
-    case ExPDG.IR.from_erlang_file(path, opts) do
-      {:ok, nodes} ->
-        opts = Keyword.put_new(opts, :file, path)
-        {:ok, SystemDependence.build(nodes, opts)}
-
-      {:error, _} = err ->
-        err
-    end
-  end
-
-  @doc """
-  Same as `erlang_file_to_graph/2` but raises on error.
-  """
-  @spec erlang_file_to_graph!(Path.t(), keyword()) :: graph()
-  def erlang_file_to_graph!(path, opts \\ []) do
-    case erlang_file_to_graph(path, opts) do
       {:ok, graph} -> graph
       {:error, reason} -> raise "ExPDG error: #{inspect(reason)}"
     end
@@ -193,7 +166,6 @@ defmodule ExPDG do
 
   Independent expressions can be safely reordered.
   """
-  @spec independent?(graph(), Node.id(), Node.id()) :: boolean()
   def independent?(graph, id_x, id_y) do
     ExPDG.Graph.independent?(unwrap(graph), id_x, id_y)
   end
@@ -214,7 +186,6 @@ defmodule ExPDG do
       ExPDG.nodes(graph, type: :call)
       ExPDG.nodes(graph, type: :call, module: Enum)
   """
-  @spec nodes(graph(), keyword()) :: [Node.t()]
   defdelegate nodes(graph, opts \\ []), to: Query
 
   @doc """
@@ -327,6 +298,28 @@ defmodule ExPDG do
   def to_dot(%SystemDependence{graph: graph}), do: Elixir.Graph.to_dot(graph)
 
   # --- Private ---
+
+  defp parse_string(source, :erlang, opts) do
+    Frontend.Erlang.parse_string(source, opts)
+  end
+
+  defp parse_string(source, _elixir, opts) do
+    Frontend.Elixir.parse(source, opts)
+  end
+
+  defp parse_and_build(source, language, opts) do
+    case parse_string(source, language, opts) do
+      {:ok, ir_nodes} -> {:ok, SystemDependence.build(ir_nodes, opts)}
+      {:error, _} = err -> err
+    end
+  end
+
+  defp language_from_extension(path) do
+    case Path.extname(path) do
+      ext when ext in [".erl", ".hrl"] -> :erlang
+      _ -> :elixir
+    end
+  end
 
   defp unwrap(%SystemDependence{} = sdg) do
     %ExPDG.Graph{
