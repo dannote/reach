@@ -97,17 +97,52 @@ defmodule ExPDG.DataDependence do
   defp build_def_use_graph(all_nodes, bindings) do
     def_map = build_def_map(all_nodes, bindings)
 
-    Enum.reduce(all_nodes, Graph.new(), fn node, graph ->
-      {_defs, uses} = Map.get(bindings, node.id, {[], []})
+    graph =
+      Enum.reduce(all_nodes, Graph.new(), fn node, graph ->
+        {_defs, uses} = Map.get(bindings, node.id, {[], []})
 
-      Enum.reduce(uses, graph, fn var_name, g ->
-        def_map
-        |> Map.get(var_name, [])
-        |> Enum.reject(&(&1 == node.id))
-        |> Enum.reduce(g, &add_data_edge(&2, &1, node.id, var_name))
+        Enum.reduce(uses, graph, fn var_name, g ->
+          def_map
+          |> Map.get(var_name, [])
+          |> Enum.reject(&(&1 == node.id))
+          |> Enum.reduce(g, &add_data_edge(&2, &1, node.id, var_name))
+        end)
       end)
+
+    add_containment_edges(graph, all_nodes)
+  end
+
+  defp add_containment_edges(graph, all_nodes) do
+    all_nodes
+    |> Enum.filter(&value_depends_on_children?/1)
+    |> Enum.reduce(graph, &add_child_edges/2)
+  end
+
+  defp add_child_edges(node, graph) do
+    Enum.reduce(node.children, graph, fn child, g ->
+      g
+      |> Graph.add_vertex(child.id)
+      |> Graph.add_vertex(node.id)
+      |> Graph.add_edge(child.id, node.id, label: :containment)
     end)
   end
+
+  @value_types [
+    :binary_op,
+    :unary_op,
+    :call,
+    :tuple,
+    :list,
+    :cons,
+    :map,
+    :map_field,
+    :struct,
+    :match,
+    :comprehension
+  ]
+
+  defp value_depends_on_children?(%Node{type: type}) when type in @value_types, do: true
+  defp value_depends_on_children?(_), do: false
 
   defp build_def_map(all_nodes, bindings) do
     Enum.reduce(all_nodes, %{}, fn node, acc ->

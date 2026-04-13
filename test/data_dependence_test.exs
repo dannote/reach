@@ -141,4 +141,72 @@ defmodule ExPDG.DataDependenceTest do
 
   # Helper: check an edge doesn't go to a y definition
   defp not_y_def?(_edge, _ddg), do: true
+
+  describe "containment edges" do
+    test "binary_op depends on its operands" do
+      {_nodes, data_deps} =
+        build_data_deps("""
+        x + 1
+        """)
+
+      edges = Graph.edges(data_deps)
+      containment = Enum.filter(edges, &(&1.label == :containment))
+      assert containment != []
+    end
+
+    test "call depends on its arguments" do
+      {_nodes, data_deps} =
+        build_data_deps("""
+        foo(x, y)
+        """)
+
+      edges = Graph.edges(data_deps)
+      containment = Enum.filter(edges, &(&1.label == :containment))
+      assert containment != []
+    end
+
+    test "tuple depends on its elements" do
+      {_nodes, data_deps} =
+        build_data_deps("""
+        {a, b, c}
+        """)
+
+      edges = Graph.edges(data_deps)
+      containment = Enum.filter(edges, &(&1.label == :containment))
+      assert Enum.count(containment) >= 3
+    end
+
+    test "backward slice of expression reaches sub-expression variables" do
+      graph =
+        ExPDG.string_to_graph!("""
+        def foo(x) do
+          x + 1
+        end
+        """)
+
+      all = ExPDG.nodes(graph)
+      plus = Enum.find(all, &(&1.type == :binary_op and &1.meta[:operator] == :+))
+
+      if plus do
+        slice = ExPDG.backward_slice(graph, plus.id)
+
+        slice_types =
+          Enum.map(slice, &ExPDG.node(graph, &1)) |> Enum.reject(&is_nil/1) |> Enum.map(& &1.type)
+
+        assert :var in slice_types
+        assert :literal in slice_types
+      end
+    end
+
+    test "match node depends on its right-hand side" do
+      {_nodes, data_deps} =
+        build_data_deps("""
+        x = foo()
+        """)
+
+      edges = Graph.edges(data_deps)
+      containment = Enum.filter(edges, &(&1.label == :containment))
+      assert containment != []
+    end
+  end
 end
