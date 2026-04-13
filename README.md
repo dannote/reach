@@ -239,50 +239,18 @@ ExPDG understands OTP patterns as first-class dependence structures:
 
 ## Architecture
 
-```
-Source (.ex/.erl/.beam)
-    │
-    ▼
-┌──────────────────┐
-│  Frontend        │  Elixir AST / Erlang abstract forms / BEAM bytecode
-│  → IR Nodes      │  Expression-level internal representation
-└──────┬───────────┘
-       │
-       ▼
-┌──────────────────┐
-│  Control Flow    │  CFG per function (entry/exit, branching, exceptions)
-└──────┬───────────┘
-       │
-       ▼
-┌──────────────────┐
-│  Dominators      │  Post-dominator tree, dominance frontier
-└──────┬───────────┘
-       │
-       ▼
-┌──────────────────┐
-│  Control Dep.    │  Ferrante et al. (1987)
-└──────┬───────────┘
-       │
-       ▼
-┌──────────────────┐
-│  Data Dep.       │  Def-use chains + containment edges
-└──────┬───────────┘
-       │
-       ▼
-┌──────────────────┐
-│  Graph           │  CDG ∪ DDG = Program Dependence Graph
-└──────┬───────────┘
-       │
-       ▼
-┌──────────────────┐
-│  System Dep.     │  Interprocedural: call/summary edges (Horwitz-Reps-Binkley)
-│  + OTP edges     │  GenServer state, ETS, messages
-└──────┬───────────┘
-       │
-       ▼
-┌──────────────────┐
-│  Query / Effects │  Slicing, independence, taint, purity
-└──────────────────┘
+```mermaid
+graph TD
+    Source["Source (.ex / .erl / .beam)"] --> Frontend
+    Frontend["Frontend → IR Nodes<br/><i>Elixir AST · Erlang abstract forms · BEAM bytecode</i>"] --> CFG
+    CFG["Control Flow Graph<br/><i>entry/exit · branching · exceptions</i>"] --> Dom
+    Dom["Dominators<br/><i>post-dominator tree · dominance frontier</i>"] --> CD
+    CD["Control Dependence<br/><i>Ferrante et al. 1987</i>"] --> PDG
+    CFG --> DD
+    DD["Data Dependence<br/><i>def-use chains · containment edges</i>"] --> PDG
+    PDG["Program Dependence Graph<br/><i>control ∪ data</i>"] --> SDG
+    SDG["System Dependence Graph + OTP<br/><i>call/summary edges · GenServer state · ETS · messages</i>"] --> Query
+    Query["Query / Effects<br/><i>slicing · independence · taint · purity</i>"]
 ```
 
 ## Validated on real projects
