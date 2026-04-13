@@ -129,7 +129,9 @@ defmodule ExPDG.Check do
   @doc """
   Runs a list of check modules against a graph.
   """
-  @spec run_checks([module()], ExPDG.Graph.t(), keyword()) :: [Diagnostic.t()]
+  @spec run_checks([module()], ExPDG.Graph.t() | ExPDG.SystemDependence.t(), keyword()) :: [
+          Diagnostic.t()
+        ]
   def run_checks(check_modules, graph, opts \\ []) do
     Enum.flat_map(check_modules, fn mod ->
       mod.run(graph, opts)

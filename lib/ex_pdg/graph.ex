@@ -74,6 +74,13 @@ defmodule ExPDG.Graph do
   Backward slice: all nodes that affect the given node.
   """
   @spec backward_slice(t(), Node.id()) :: [Node.id()]
+  def backward_slice(%ExPDG.SystemDependence{graph: graph}, node_id) do
+    backward_slice(
+      %__MODULE__{graph: graph, ir: [], control_flow: Graph.new(), nodes: %{}},
+      node_id
+    )
+  end
+
   def backward_slice(%__MODULE__{graph: graph}, node_id) do
     if Graph.has_vertex?(graph, node_id) do
       Graph.reaching(graph, [node_id])
@@ -87,6 +94,13 @@ defmodule ExPDG.Graph do
   Forward slice: all nodes affected by the given node.
   """
   @spec forward_slice(t(), Node.id()) :: [Node.id()]
+  def forward_slice(%ExPDG.SystemDependence{graph: graph}, node_id) do
+    forward_slice(
+      %__MODULE__{graph: graph, ir: [], control_flow: Graph.new(), nodes: %{}},
+      node_id
+    )
+  end
+
   def forward_slice(%__MODULE__{graph: graph}, node_id) do
     if Graph.has_vertex?(graph, node_id) do
       Graph.reachable(graph, [node_id])

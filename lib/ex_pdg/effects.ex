@@ -102,7 +102,6 @@ defmodule ExPDG.Effects do
     Base,
     Bitwise,
     Macro,
-    Module,
     Version,
     :lists,
     :maps,
@@ -244,8 +243,14 @@ defmodule ExPDG.Effects do
       :unknown
   end
 
+  @effectful_in_pure_modules [{Enum, :each, 2}, {Enum, :each, 1}]
+
   defp classify_pure(module, function, arity) do
-    if pure_module?(module) or pure_function?(module, function, arity), do: :pure
+    if {module, function, arity} in @effectful_in_pure_modules do
+      nil
+    else
+      if pure_module?(module) or pure_function?(module, function, arity), do: :pure
+    end
   end
 
   defp classify_io(module, function) do

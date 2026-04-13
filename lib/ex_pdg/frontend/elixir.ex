@@ -805,6 +805,7 @@ defmodule ExPDG.Frontend.Elixir do
     do: {name, length(args)}
 
   defp fun_name_arity({name, _, _}) when is_atom(name), do: {name, 0}
+  defp fun_name_arity(_), do: {:__unknown__, 0}
 
   defp fun_params({:when, _, [{_, _, args} | _]}) when is_list(args), do: args
   defp fun_params({_, _, args}) when is_list(args), do: args

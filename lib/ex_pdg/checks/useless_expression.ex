@@ -1,11 +1,9 @@
 defmodule ExPDG.Checks.UselessExpression do
   @moduledoc """
-  Detects pure expressions whose result is never used.
+  Detects pure function calls whose result is obviously unused.
 
-  A "useless expression" is one that:
-  1. Is pure (no side effects)
-  2. Its result is not used by any other expression (no data dependents)
-  3. Is not the return value of its function
+  Only flags calls that are direct children of a block and have no
+  data dependents. Very conservative to avoid false positives.
   """
 
   @behaviour ExPDG.Check
@@ -17,19 +15,32 @@ defmodule ExPDG.Checks.UselessExpression do
   def run(graph, _opts) do
     import ExPDG.Query
 
-    for node <- nodes(graph),
-        node.type in [:call, :binary_op, :unary_op, :literal, :var],
-        pure?(node),
-        not has_dependents?(graph, node.id),
-        not returns?(graph, node.id) do
+    all = nodes(graph)
+    non_last_block_children = collect_non_last_block_children(all)
+
+    for node <- all,
+        node.type == :call,
+        node.id in non_last_block_children,
+        pure?(node) do
       %ExPDG.Diagnostic{
         check: :useless_expression,
         severity: :warning,
         category: :code_quality,
-        message: "Expression has no effect — result is unused and it's pure",
+        message: "Pure function call result is unused",
         location: node.source_span,
         node_id: node.id
       }
     end
+  end
+
+  defp collect_non_last_block_children(all_nodes) do
+    all_nodes
+    |> Enum.filter(&(&1.type == :block))
+    |> Enum.flat_map(fn block ->
+      block.children
+      |> Enum.drop(-1)
+      |> Enum.map(& &1.id)
+    end)
+    |> MapSet.new()
   end
 end

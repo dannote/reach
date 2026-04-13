@@ -92,7 +92,9 @@ defmodule ExPDG.ControlFlow do
     graph
   end
 
-  defp build_clause(graph, %Node{type: :clause} = clause, from, index \\ 0) do
+  defp build_clause(graph, node, from, index \\ 0)
+
+  defp build_clause(graph, %Node{type: :clause} = clause, from, index) do
     children = clause.children
 
     {params, guards, body_nodes} = split_clause_children(children)
@@ -109,6 +111,10 @@ defmodule ExPDG.ControlFlow do
 
     # Build body
     build_sequential(graph, body_nodes, current)
+  end
+
+  defp build_clause(graph, %Node{} = node, from, _index) do
+    build_node(graph, node, from)
   end
 
   defp build_node(graph, %Node{type: :block, children: children}, from) do
