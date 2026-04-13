@@ -730,7 +730,7 @@ defmodule Reach do
   end
 
   defp candidate_for_dead?(%Node{type: t} = node)
-       when t in [:call, :binary_op, :unary_op, :match, :var] do
+       when t in [:call, :binary_op, :unary_op, :match] do
     pure?(node) and not attribute_or_typespec?(node)
   end
 
