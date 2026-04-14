@@ -128,18 +128,19 @@ const STYLES: cytoscape.Stylesheet[] = [
       "target-arrow-shape": "triangle",
       "curve-style": "bezier",
       label: "data(label)",
-      "font-size": "9px",
-      color: "#64748b",
-      "text-opacity": 0.7,
+      "font-size": "11px",
+      "font-family": "ui-monospace, SFMono-Regular, monospace",
+      color: "#94a3b8",
       "text-background-color": "#0f172a",
-      "text-background-opacity": 0.8,
-      "text-background-padding": "2px",
-      "text-rotation": "autorotate"
+      "text-background-opacity": 0.9,
+      "text-background-padding": "4px",
+      "text-background-shape": "roundrectangle",
+      "text-rotation": "none"
     }
   },
   {
     selector: 'edge[edgeType="containment"]',
-    style: { "line-style": "dashed", "target-arrow-shape": "none" }
+    style: { "line-style": "dashed", "target-arrow-shape": "none", label: "" }
   },
   {
     selector: ".highlighted",
