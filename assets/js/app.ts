@@ -279,6 +279,9 @@ async function init() {
   })
 
   window.cy = cy
+
+  // Ensure all nodes/edges are visible after layout
+  cy.elements().show()
   cy.fit(undefined, 40)
 
   cy.on("tap", "node", (evt) => {
