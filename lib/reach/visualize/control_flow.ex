@@ -170,6 +170,8 @@ defmodule Reach.Visualize.ControlFlow do
 
     edges = build_block_edges(cfg_edges, blocks, sequential_map, leaders, node_map)
 
+    blocks = fill_line_gaps(blocks, func)
+
     case blocks do
       [] ->
         source = Visualize.extract_func_source(func)
@@ -186,6 +188,62 @@ defmodule Reach.Visualize.ControlFlow do
 
       _ ->
         {blocks, edges}
+    end
+  end
+
+  defp fill_line_gaps(blocks, func) do
+    do_fill_line_gaps(blocks, func)
+  end
+
+  defp do_fill_line_gaps(blocks, func) do
+    file = span_field(func, :file)
+    func_end = find_func_end(file, span_line(func) || 1) || 9999
+
+    sorted = Enum.sort_by(blocks, & &1.start_line)
+
+    sorted
+    |> Enum.with_index()
+    |> Enum.map(fn {block, idx} ->
+      next_start =
+        case Enum.at(sorted, idx + 1) do
+          nil -> func_end - 1
+          next -> next.start_line - 1
+        end
+
+      current_end = block.start_line + length(block.lines) - 1
+
+      if current_end < next_start and file do
+        case File.read(file) do
+          {:ok, content} ->
+            extended_lines =
+              content
+              |> String.split("\n")
+              |> Enum.slice((block.start_line - 1)..(next_start - 1))
+              |> Enum.map(&String.trim_leading/1)
+
+            %{
+              block
+              | lines: extended_lines,
+                source_html: Visualize.highlight_source(Enum.join(extended_lines, "\n"))
+            }
+
+          _ ->
+            block
+        end
+      else
+        block
+      end
+    end)
+  end
+
+  defp find_func_end(nil, _), do: nil
+
+  defp find_func_end(file, start_line) do
+    cache = Process.get(:reach_def_end_cache, %{})
+
+    case Map.get(cache, file) do
+      nil -> nil
+      line_map -> Map.get(line_map, start_line)
     end
   end
 
@@ -493,15 +551,6 @@ defmodule Reach.Visualize.ControlFlow do
       end
 
     (next_start && next_start - 1) || func_end || clause_start + 10
-  end
-
-  defp find_func_end(file, start_line) do
-    cache = Process.get(:reach_def_end_cache, %{})
-
-    case Map.get(cache, file) do
-      nil -> nil
-      line_map -> Map.get(line_map, start_line)
-    end
   end
 
   # ── Helpers ──
