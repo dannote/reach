@@ -1,6 +1,8 @@
 defmodule Reach.Visualize do
   @moduledoc false
 
+  alias Reach.Visualize.ControlFlow
+
   # ── Public API ──
 
   def to_graph_json(graph, opts \\ []) do
@@ -31,153 +33,8 @@ defmodule Reach.Visualize do
 
   defp control_flow_data(graph) do
     all_nodes = Reach.nodes(graph)
-
-    modules =
-      all_nodes
-      |> Enum.filter(&(&1.type == :module_def))
-      |> Enum.map(fn mod ->
-        func_nodes =
-          Reach.IR.all_nodes(mod)
-          |> Enum.filter(&(&1.type == :function_def))
-
-        functions =
-          Enum.map(func_nodes, fn func ->
-            blocks = build_control_flow_blocks(func, graph)
-
-            %{
-              id: to_string(func.id),
-              name: to_string(func.meta[:name]),
-              arity: func.meta[:arity] || 0,
-              blocks: blocks
-            }
-          end)
-
-        %{
-          module: inspect(mod.meta[:name]),
-          file: get_in(mod, [Access.key(:source_span), Access.key(:file)]),
-          functions: functions
-        }
-      end)
-
-    # Handle top-level functions without module_def
-    top_funcs =
-      all_nodes
-      |> Enum.filter(&(&1.type == :function_def))
-      |> Enum.reject(fn func ->
-        Enum.any?(modules, fn m ->
-          Enum.any?(m.functions, &(&1.id == to_string(func.id)))
-        end)
-      end)
-
-    if top_funcs != [] do
-      top_module = %{
-        module: nil,
-        file: detect_file(top_funcs),
-        functions:
-          Enum.map(top_funcs, fn func ->
-            %{
-              id: to_string(func.id),
-              name: to_string(func.meta[:name]),
-              arity: func.meta[:arity] || 0,
-              blocks: build_control_flow_blocks(func, graph)
-            }
-          end)
-      }
-
-      [top_module | modules]
-    else
-      modules
-    end
+    ControlFlow.build(all_nodes, graph)
   end
-
-  defp build_control_flow_blocks(func, graph) do
-    all_func_nodes = Reach.IR.all_nodes(func)
-
-    control_edges =
-      Reach.edges(graph)
-      |> Enum.filter(fn e ->
-        is_integer(e.v1) and is_integer(e.v2) and
-          match?({:control, _}, e.label)
-      end)
-
-    func_node_ids = MapSet.new(all_func_nodes, & &1.id)
-
-    branch_edges =
-      control_edges
-      |> Enum.filter(fn e -> e.v1 in func_node_ids and e.v2 in func_node_ids end)
-      |> Enum.map(fn e ->
-        {_, detail} = e.label
-
-        %{
-          id: "cfe_#{e.v1}_#{e.v2}",
-          source: to_string(e.v1),
-          target: to_string(e.v2),
-          label: format_control_label(detail),
-          color: branch_color(detail)
-        }
-      end)
-
-    source = extract_source(func)
-    html = highlight_source(source)
-    start_line = get_in(func, [Access.key(:source_span), Access.key(:start_line)]) || 1
-
-    entry_block = %{
-      id: to_string(func.id),
-      label: "#{func.meta[:name]}/#{func.meta[:arity]}",
-      start_line: start_line,
-      lines: if(source, do: String.split(source, "\n"), else: []),
-      source_html: html
-    }
-
-    # Find nodes that are branch targets
-    branch_target_ids = MapSet.new(branch_edges, & &1.target)
-    target_blocks = build_target_blocks(all_func_nodes, branch_target_ids, start_line)
-
-    all_block_ids = MapSet.new([entry_block.id | Enum.map(target_blocks, & &1.id)])
-
-    remapped_edges =
-      Enum.map(branch_edges, fn e ->
-        src = if e.source in all_block_ids, do: e.source, else: entry_block.id
-        tgt = if e.target in all_block_ids, do: e.target, else: entry_block.id
-        %{e | source: src, target: tgt}
-      end)
-      |> Enum.reject(fn e -> e.source == e.target end)
-      |> Enum.uniq_by(fn e -> {e.source, e.target} end)
-
-    %{
-      blocks: [entry_block | target_blocks],
-      edges: remapped_edges
-    }
-  end
-
-  defp build_target_blocks(all_func_nodes, branch_target_ids, fallback_line) do
-    all_func_nodes
-    |> Enum.filter(&(to_string(&1.id) in branch_target_ids))
-    |> Enum.map(fn node ->
-      node_source = extract_node_source(node)
-
-      node_start =
-        get_in(node, [Access.key(:source_span), Access.key(:start_line)]) || fallback_line
-
-      %{
-        id: to_string(node.id),
-        label: node_label(node),
-        start_line: node_start,
-        lines: if(node_source, do: String.split(node_source, "\n"), else: [node_label(node)]),
-        source_html: highlight_source(node_source)
-      }
-    end)
-  end
-
-  defp format_control_label({:clause_match, n}), do: "match #{n}"
-
-  defp format_control_label({:clause_fail, n}), do: "fail #{n}"
-
-  defp format_control_label(other), do: inspect(other)
-
-  defp branch_color({:clause_match, _}), do: "#16a34a"
-  defp branch_color({:clause_fail, _}), do: "#dc2626"
-  defp branch_color(_), do: "#ea580c"
 
   # ── Call Graph ──
 
@@ -294,7 +151,7 @@ defmodule Reach.Visualize do
       func_nodes
       |> Enum.filter(fn f -> Enum.any?(func_edges, &(&1.src == f.id or &1.tgt == f.id)) end)
       |> Enum.map(fn f ->
-        source = extract_source(f)
+        source = extract_func_source(f)
         start_line = get_in(f, [Access.key(:source_span), Access.key(:start_line)]) || 1
 
         %{
@@ -343,8 +200,8 @@ defmodule Reach.Visualize do
     end
   end
 
-  defp extract_source(%{type: :function_def, source_span: %{file: file, start_line: start}})
-       when is_binary(file) and is_integer(start) do
+  def extract_func_source(%{type: :function_def, source_span: %{file: file, start_line: start}})
+      when is_binary(file) and is_integer(start) do
     with {:ok, content} <- File.read(file),
          end_line when is_integer(end_line) <- find_end_line(file, start) do
       content
@@ -357,23 +214,7 @@ defmodule Reach.Visualize do
     end
   end
 
-  defp extract_source(_), do: nil
-
-  defp extract_node_source(%{source_span: %{file: file, start_line: line}})
-       when is_binary(file) and is_integer(line) do
-    case File.read(file) do
-      {:ok, content} ->
-        content
-        |> String.split("\n")
-        |> Enum.at(line - 1, "")
-        |> String.trim()
-
-      _ ->
-        nil
-    end
-  end
-
-  defp extract_node_source(_), do: nil
+  def extract_func_source(_), do: nil
 
   defp format_source(source) do
     Code.format_string!(source) |> IO.iodata_to_binary()
@@ -446,17 +287,6 @@ defmodule Reach.Visualize do
     |> String.replace(~r{</code></pre>$}, "")
   end
 
-  defp node_label(%{type: :call, meta: meta}) do
-    case meta[:module] do
-      nil -> "#{meta[:function]}/#{meta[:arity]}"
-      mod -> "#{inspect(mod)}.#{meta[:function]}/#{meta[:arity]}"
-    end
-  end
-
-  defp node_label(%{type: :var, meta: %{name: name}}), do: to_string(name)
-  defp node_label(%{type: :literal, meta: %{value: val}}), do: inspect(val)
-  defp node_label(%{type: type}), do: to_string(type)
-
   defp node_label_short(%{type: :call, meta: meta}) do
     case meta[:module] do
       nil -> "#{meta[:function]}/#{meta[:arity]}"
@@ -466,10 +296,4 @@ defmodule Reach.Visualize do
 
   defp node_label_short(%{meta: %{name: name}}), do: to_string(name)
   defp node_label_short(%{type: type}), do: to_string(type)
-
-  defp detect_file(nodes) do
-    Enum.find_value(nodes, fn n ->
-      get_in(n, [Access.key(:source_span), Access.key(:file)])
-    end)
-  end
 end
