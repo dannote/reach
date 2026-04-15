@@ -168,7 +168,7 @@ defmodule Reach.Visualize.ControlFlow do
       end)
       |> Enum.reject(&(Enum.empty?(&1.lines) and is_nil(&1.source_html)))
 
-    edges = build_block_edges(cfg_edges, blocks, sequential_map, leaders)
+    edges = build_block_edges(cfg_edges, blocks, sequential_map, leaders, node_map)
 
     case blocks do
       [] ->
@@ -189,7 +189,7 @@ defmodule Reach.Visualize.ControlFlow do
     end
   end
 
-  defp build_block_edges(cfg_edges, blocks, sequential_map, leaders) do
+  defp build_block_edges(cfg_edges, blocks, sequential_map, leaders, node_map) do
     block_id_set = MapSet.new(blocks, &String.to_integer(&1.id))
 
     cfg_edges
@@ -199,12 +199,13 @@ defmodule Reach.Visualize.ControlFlow do
     end)
     |> Enum.map(fn e ->
       src = find_block_leader(e.v1, sequential_map, leaders)
+      target_node = Map.get(node_map, e.v2)
 
       %{
         id: "cfg_#{e.v1}_#{e.v2}",
         source: to_string(src),
         target: to_string(e.v2),
-        label: cfg_edge_label(e.label),
+        label: readable_edge_label(e.label, target_node),
         color: cfg_edge_color(e.label)
       }
     end)
@@ -294,6 +295,20 @@ defmodule Reach.Visualize.ControlFlow do
       true -> ir_label(first)
     end
   end
+
+  defp readable_edge_label(_label, %{type: :clause, meta: %{kind: :true_branch}}), do: "true"
+  defp readable_edge_label(_label, %{type: :clause, meta: %{kind: :false_branch}}), do: "false"
+
+  defp readable_edge_label(_label, %{
+         type: :clause,
+         meta: %{kind: :case_clause},
+         children: [first | _]
+       }),
+       do: ir_label(first)
+
+  defp readable_edge_label({:clause_fail, _}, _), do: "no match"
+  defp readable_edge_label({:clause_match, _}, _), do: "match"
+  defp readable_edge_label(label, _), do: cfg_edge_label(label)
 
   defp cfg_edge_label({:clause_match, n}), do: "match #{n}"
   defp cfg_edge_label({:clause_fail, n}), do: "fail #{n}"

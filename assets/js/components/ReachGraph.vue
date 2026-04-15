@@ -241,7 +241,19 @@ function selectFunction(modName, funcId) {
   if (mode.value !== "control_flow") {
     mode.value = "control_flow"
   } else {
-    const node = nodes.value.find((n) => n.id === funcId)
+    // Find any block belonging to this function
+    // The funcId is the function_def node, but blocks use CFG node IDs
+    // Look up the function's first block ID from the data
+    const cf = props.graphData.control_flow
+    let targetBlockId = funcId
+    for (const mod of cf) {
+      const func = mod.functions.find((f) => f.id === funcId)
+      if (func?.blocks?.blocks?.length) {
+        targetBlockId = func.blocks.blocks[0].id
+        break
+      }
+    }
+    const node = nodes.value.find((n) => n.id === targetBlockId)
     if (node?.position) {
       setCenter(node.position.x + 200, node.position.y + 50, { zoom: 1, duration: 300 })
     }
