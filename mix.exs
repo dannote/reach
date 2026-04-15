@@ -45,7 +45,7 @@ defmodule Reach.MixProject do
         "test"
       ],
       "assets.build": [
-        "volt.build --entry assets/js/app.js --outdir priv/static --no-hash --name reach"
+        "volt.build --entry assets/js/app.ts --outdir priv/static --no-hash --name reach"
       ]
     ]
   end
@@ -86,7 +86,7 @@ defmodule Reach.MixProject do
   def build_assets(_) do
     {:ok, _result} =
       Volt.Builder.build(
-        entry: "assets/js/app.js",
+        entry: "assets/js/app.ts",
         outdir: "priv/static",
         hash: false,
         name: "reach",
