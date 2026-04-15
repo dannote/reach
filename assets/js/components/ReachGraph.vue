@@ -39,14 +39,16 @@ function edgeStyle(edgeType) {
 
 function estimateSize(data) {
   const lineCount = data.lines?.length ?? 1
-  const maxLen = (data.lines ?? [data.label]).reduce((m, l) => Math.max(m, l.length), 0)
+  const codeMaxLen = (data.lines ?? []).reduce((m, l) => Math.max(m, l.length), 0)
+  const labelLen = (data.label ?? "").length
+  const maxLen = Math.max(codeMaxLen, labelLen)
   return {
     width: Math.min(600, Math.max(180, maxLen * 7.5 + 60)),
     height: Math.max(40, lineCount * 18 + 30),
   }
 }
 
-async function applyLayout(rawNodes, rawEdges) {
+async function applyLayout(rawNodes, rawEdges, layoutOverrides = {}) {
   const nodeIds = rawNodes.map((n) => n.id)
   const nodeSizes = new Map()
   for (const n of rawNodes) {
@@ -59,7 +61,8 @@ async function applyLayout(rawNodes, rawEdges) {
   const positions = await computeLayout(
     nodeIds,
     nodeSizes,
-    validEdges.map((e) => ({ id: e.id, source: e.source, target: e.target }))
+    validEdges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
+    layoutOverrides
   )
 
   for (const n of rawNodes) {
@@ -134,11 +137,13 @@ async function buildCallGraph() {
   const rawNodes = []
   for (const mod of cg.modules) {
     for (const func of mod.functions) {
+      // Use short label for internal functions: just name/arity
+      const shortLabel = mod.file ? func.id.split(".").pop() : func.id
       rawNodes.push({
         id: func.id,
         type: "compact",
         position: { x: 0, y: 0 },
-        data: { label: func.id, nodeType: mod.file ? "call" : "external" },
+        data: { label: shortLabel, nodeType: mod.file ? "call" : "external" },
       })
     }
   }
@@ -151,7 +156,10 @@ async function buildCallGraph() {
     style: { stroke: e.color, strokeWidth: 1.5 },
   }))
 
-  await applyLayout(rawNodes, rawEdges)
+  await applyLayout(rawNodes, rawEdges, {
+    "elk.direction": "RIGHT",
+    "elk.aspectRatio": "1.5",
+  })
 }
 
 async function buildDataFlow() {
