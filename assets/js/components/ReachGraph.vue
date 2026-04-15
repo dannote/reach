@@ -218,6 +218,23 @@ const sidebarModules = computed(() => {
   }))
 })
 
+function onNodeDoubleClick(event) {
+  const node = event.node
+  if (mode.value === "call_graph" && node.data?.label) {
+    // Extract function name from call graph label and navigate to control flow
+    const label = node.data.label
+    const funcName = label.split("/")[0]
+    const cf = props.graphData.control_flow
+    for (const mod of cf) {
+      const func = mod.functions.find((f) => f.name === funcName)
+      if (func) {
+        selectFunction(mod.module, func.id)
+        return
+      }
+    }
+  }
+}
+
 function selectFunction(modName, funcId) {
   selectedModule.value = modName
   selectedFunction.value = funcId
@@ -273,6 +290,7 @@ function selectFunction(modName, funcId) {
         :min-zoom="0.1"
         :max-zoom="3"
         class="reach-flow"
+        @node-double-click="onNodeDoubleClick"
       >
         <MiniMap pannable zoomable />
         <Controls />
