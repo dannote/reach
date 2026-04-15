@@ -149,14 +149,40 @@ defmodule Reach.Visualize do
 
     cond do
       # Ecto query field access: :e.name/0, :s.timestamp/0
-      is_atom(tgt_mod) and tgt_ar == 0 and ecto_binding?(tgt_mod) -> true
+      is_atom(tgt_mod) and tgt_ar == 0 and ecto_binding?(tgt_mod) ->
+        true
+
       # Pipe operator
-      tgt_fn == :\\ -> true
+      tgt_fn == :\\ ->
+        true
+
       # Kernel operators that aren't real calls
-      tgt_fn in [:!, :&&, :||, :|>, :"~~~", :not, :and, :or, :in] -> true
+      tgt_fn in [:!, :&&, :||, :|>, :"~~~", :not, :and, :or, :in] ->
+        true
+
       # AST leakage — module is a tuple/list
-      not is_atom(tgt_mod) -> true
-      true -> false
+      not is_atom(tgt_mod) ->
+        true
+
+      # Ecto query DSL macros injected as local calls
+      tgt_fn in [
+        :from,
+        :assoc,
+        :is_nil,
+        :field,
+        :type,
+        :selected_as,
+        :coalesce,
+        :fragment,
+        :subquery,
+        :dynamic,
+        :select_merge
+      ] and
+          tgt_ar <= 3 ->
+        true
+
+      true ->
+        false
     end
   end
 

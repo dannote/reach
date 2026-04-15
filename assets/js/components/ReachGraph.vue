@@ -152,13 +152,14 @@ async function buildCallGraph() {
     id: e.id,
     source: e.source,
     target: e.target,
-    type: "smoothstep",
+    type: "default",
     style: { stroke: e.color, strokeWidth: 1.5 },
   }))
 
   await applyLayout(rawNodes, rawEdges, {
     "elk.direction": "RIGHT",
     "elk.aspectRatio": "1.5",
+    "elk.edgeRouting": "SPLINES",
   })
 }
 
