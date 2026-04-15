@@ -1,5 +1,6 @@
 defmodule Mix.Tasks.ReachTest do
   use ExUnit.Case
+
   alias Mix.Tasks.Reach, as: ReachTask
 
   @output_dir Path.join(System.tmp_dir!(), "reach_task_test")
@@ -24,8 +25,6 @@ defmodule Mix.Tasks.ReachTest do
     assert File.exists?(html_path)
 
     content = File.read!(html_path)
-    assert content =~ "graphData"
-    assert content =~ "graphData"
     assert content =~ "graphData"
   end
 
@@ -57,8 +56,8 @@ defmodule Mix.Tasks.ReachTest do
     json_path = Path.join(@output_dir, "reach.json")
     assert File.exists?(json_path)
     assert {:ok, data} = Jason.decode(File.read!(json_path))
-    assert is_list(data["functions"])
-    assert is_list(data["edges"])
+    assert is_list(data["control_flow"])
+    assert is_map(data["call_graph"])
   end
 
   defp write_tmp_file(name, content) do

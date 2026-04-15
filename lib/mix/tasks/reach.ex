@@ -126,8 +126,8 @@ defmodule Mix.Tasks.Reach do
         js_bundle: @js_bundle,
         vue_flow_css: @vue_flow_css,
         makeup_css: makeup_css,
-        file: graph_data[:file] || graph_data.file,
-        module: graph_data[:module] || graph_data.module
+        file: nil,
+        module: nil
       )
 
     path = Path.join(output_dir, "index.html")

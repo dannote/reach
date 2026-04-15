@@ -2,7 +2,7 @@ defmodule Reach.VisualizeTest do
   use ExUnit.Case, async: true
 
   describe "to_graph_json/2" do
-    test "produces functions and edges from a simple graph" do
+    test "produces all three modes" do
       graph =
         Reach.string_to_graph!("""
         defmodule MyMod do
@@ -14,80 +14,64 @@ defmodule Reach.VisualizeTest do
 
       result = Reach.Visualize.to_graph_json(graph)
 
-      assert is_map(result)
-      assert is_list(result.functions)
-      assert is_list(result.edges)
-      assert result.functions != []
+      assert is_list(result.control_flow)
+      assert is_map(result.call_graph)
+      assert is_map(result.data_flow)
     end
 
-    test "function has required fields" do
+    test "control flow has modules with functions and blocks" do
       graph =
         Reach.string_to_graph!("""
         defmodule A do
-          def f(x), do: x
+          def f(x) do
+            case x do
+              :a -> 1
+              :b -> 2
+            end
+          end
         end
         """)
 
-      %{functions: [func | _]} = Reach.Visualize.to_graph_json(graph)
+      %{control_flow: [mod | _]} = Reach.Visualize.to_graph_json(graph)
 
-      assert is_binary(func.id)
-      assert is_binary(func.name)
-      assert is_integer(func.arity)
-      assert is_list(func.blocks)
-      assert [block | _] = func.blocks
-      assert is_binary(block.id)
-      assert is_integer(block.start_line)
+      assert mod.module =~ "A"
+      assert [func | _] = mod.functions
+      assert func.name == "f"
+      assert func.arity == 1
+      assert is_list(func.blocks.blocks)
+      assert is_list(func.blocks.edges)
     end
 
-    test "function name and arity are correct" do
+    test "call graph has modules and edges" do
+      graph =
+        Reach.string_to_graph!("""
+        defmodule B do
+          def caller, do: callee()
+          def callee, do: :ok
+        end
+        """)
+
+      %{call_graph: cg} = Reach.Visualize.to_graph_json(graph)
+
+      assert is_list(cg.modules)
+      assert is_list(cg.edges)
+      assert cg.modules != []
+    end
+
+    test "data flow has functions and edges" do
       graph =
         Reach.string_to_graph!("""
         defmodule C do
-          def hello, do: :world
+          def f(x), do: g(x)
+          def g(y), do: y
         end
         """)
 
-      %{functions: funcs} = Reach.Visualize.to_graph_json(graph)
-      func = Enum.find(funcs, &(&1.name == "hello"))
-      assert func
-      assert func.arity == 0
-    end
+      %{data_flow: df} = Reach.Visualize.to_graph_json(graph)
 
-    test "module name is detected" do
-      graph =
-        Reach.string_to_graph!("""
-        defmodule D do
-          def x, do: 1
-        end
-        """)
-
-      result = Reach.Visualize.to_graph_json(graph)
-      assert result.module == "D"
-    end
-
-    test "edges map to function-level IDs" do
-      graph =
-        Reach.string_to_graph!("""
-        defmodule F do
-          def caller do
-            callee()
-          end
-
-          def callee do
-            :ok
-          end
-        end
-        """)
-
-      %{functions: funcs, edges: edges} = Reach.Visualize.to_graph_json(graph)
-      func_ids = MapSet.new(funcs, & &1.id)
-
-      for edge <- edges do
-        assert edge.source in func_ids or true
-        assert edge.target in func_ids or true
-        assert is_binary(edge.edge_type)
-        assert is_binary(edge.color)
-      end
+      assert is_list(df.functions)
+      assert is_list(df.edges)
+      assert is_list(df.taint_paths)
     end
   end
 
@@ -103,8 +87,7 @@ defmodule Reach.VisualizeTest do
       json = Reach.Visualize.to_json(graph)
       assert is_binary(json)
       assert {:ok, parsed} = Jason.decode(json)
-      assert is_list(parsed["functions"])
-      assert is_list(parsed["edges"])
+      assert is_list(parsed["control_flow"])
     end
   end
 end
