@@ -130,7 +130,7 @@ defmodule Reach.Visualize.ControlFlow do
       label: "#{name}/#{arity} dispatch",
       start_line: span_field(func, :start_line) || 1,
       end_line: span_field(func, :start_line) || 1,
-      source_html: nil,
+      source_html: Visualize.highlight_source("#{name}/#{arity} dispatch"),
       parent_id: nil
     }
 
@@ -171,7 +171,7 @@ defmodule Reach.Visualize.ControlFlow do
       label: "end",
       start_line: func_end_line(func, file) || (span_field(func, :start_line) || 1),
       end_line: func_end_line(func, file) || (span_field(func, :start_line) || 1),
-      source_html: nil,
+      source_html: Visualize.highlight_source("end"),
       parent_id: nil
     }
 
