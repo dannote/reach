@@ -1,5 +1,38 @@
 # Changelog
 
+## 1.1.2
+
+### Fixed
+
+- **Anonymous fn bodies inlined into parent CFG** — `Enum.reduce(fn ... end)`
+  callbacks with internal branching (case/if/raise) are now decomposed into
+  visible control flow blocks instead of being opaque single nodes.
+- **Block merging for same-line nested constructs** — inline `if x, do: a, else: b`
+  no longer creates monster merged blocks like `b_1490_1485_1489_1478`.
+  Branch detection now includes clause targets and multi-out vertices.
+- **Source extraction for clauses without source spans** — multi-clause function
+  heads (e.g. `def foo(:join, :inner)`) that lack compiler source spans now show
+  source code via child node line walking instead of empty gray blocks.
+- **Block disjointness** — overlapping blocks eliminated (533 → 0) by clamping
+  block end_line to `(next_block_start - 1)` and removing duplicate line ranges
+  from dispatch clause blocks.
+- **Missing exit nodes** — multi-clause dispatch functions now include proper
+  exit nodes (58 missing → 0).
+- **Pure pattern-matching dispatches** — functions like `join_qual/1` with 9
+  one-line clauses render as a single function node instead of a useless
+  dispatch → 9 disconnected clause blocks.
+- **Preamble/sidebar spam removed** — the sidebar no longer shows `@doc`,
+  `@moduledoc`, `use`, `import` lines extracted by string matching. Sidebar
+  shows only module name and function list.
+- **Render patterns** added for `:pin`, `:binary_op`, `:unary_op`, `:cons`,
+  `:guard`, `:generator`, `:filter`, `:module_def` node types.
+
+### Added
+
+- **Block quality audit test** — validates 6 acceptance criteria (coverage,
+  disjointness, no empty blocks, no nil labels, entry/exit structure) across
+  real codebases (Ecto, Phoenix, Oban).
+
 ## 1.1.1
 
 ### Fixed

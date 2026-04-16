@@ -54,8 +54,8 @@ defmodule Reach.Visualize.ControlFlow do
       |> Enum.filter(&(&1.type == :clause and &1.meta[:kind] == :function_clause))
 
     {nodes, edges} =
-      if length(function_clauses) > 1 and any_clause_has_body?(function_clauses) do
-        build_multi_clause(func, function_clauses, file)
+      if length(function_clauses) > 1 do
+        build_multi_clause_cfg(func, function_clauses, file, start_line)
       else
         build_expression_nodes(func, file, start_line)
       end
@@ -69,55 +69,135 @@ defmodule Reach.Visualize.ControlFlow do
     }
   end
 
-  # ── Multi-clause dispatch ──
+  # ── Multi-clause with CFG decomposition ──
 
-  defp build_multi_clause(func, clauses, file) do
+  defp build_multi_clause_cfg(func, clauses, file, func_start) do
+    func_end = func_end_line(func, file)
+    func_id = to_string(func.id)
     name = func.meta[:name]
     arity = func.meta[:arity] || 0
-    func_id = to_string(func.id)
 
-    dispatch = %{
-      id: func_id,
-      type: :entry,
-      label: "#{name}/#{arity} dispatch",
-      start_line: span_field(func, :start_line) || 1,
-      end_line: span_field(func, :start_line) || 1,
-      source_html: Visualize.highlight_source("#{name}/#{arity} dispatch"),
-      parent_id: nil
-    }
+    if func_end <= func_start do
+      source = Visualize.extract_func_source(func)
+      {nodes, edges} = fallback_single_block(func, source, func_start)
+      {nodes, edges}
+    else
+      cfg = ControlFlow.build(func)
+      all_ir = IR.all_nodes(func)
+      node_map = Map.new(all_ir, &{&1.id, &1})
 
-    clause_nodes =
-      clauses
-      |> Enum.with_index()
-      |> Enum.map(fn {clause, idx} ->
-        {cl_start, cl_end, source} = compute_clause_range_and_source(func, clause, clauses, file)
+      # Include clause nodes in the graph (normally filtered out)
+      clause_ids = MapSet.new(clauses, & &1.id)
 
-        %{
-          id: to_string(clause.id),
-          type: :clause,
-          label: "clause #{idx + 1}: #{clause_pattern(clause)}",
-          start_line: cl_start,
-          end_line: cl_end,
-          source_html: clause_source_html(source, clause, idx),
-          parent_id: func_id
-        }
-      end)
+      ir_vertices =
+        cfg
+        |> Graph.vertices()
+        |> Enum.filter(fn v ->
+          is_integer(v) and Map.has_key?(node_map, v) and
+            (v in clause_ids or
+               span_field(Map.get(node_map, v), :start_line) not in [nil, func_start])
+        end)
+        |> Enum.sort_by(fn v ->
+          span_field(Map.get(node_map, v), :start_line) || func_start
+        end)
 
-    edges =
-      clauses
-      |> Enum.with_index()
-      |> Enum.map(fn {clause, idx} ->
-        %{
-          id: "dispatch_#{func.id}_#{clause.id}",
-          source: func_id,
-          target: to_string(clause.id),
-          label: clause_pattern(clause),
-          edge_type: :branch,
-          color: dispatch_color(idx)
-        }
-      end)
+      if ir_vertices == [] do
+        source = Visualize.extract_func_source(func)
+        {nodes, edges} = fallback_single_block(func, source, func_start)
+        {nodes, edges}
+      else
+        vertex_ranges = compute_vertex_ranges(ir_vertices, node_map, func_start, func_end)
 
-    {[dispatch | clause_nodes], edges}
+        # Adjust clause node ranges to start at their actual body line
+        vertex_ranges =
+          Enum.reduce(clauses, vertex_ranges, fn clause, ranges ->
+            child_start =
+              clause.children
+              |> Enum.flat_map(&collect_span_lines/1)
+              |> Enum.min(fn -> nil end)
+
+            if child_start && child_start > func_start do
+              Map.put(ranges, clause.id, {child_start, elem(Map.get(ranges, clause.id, {child_start, func_end}), 1)})
+            else
+              ranges
+            end
+          end)
+
+        branch_vertices = detect_branches(cfg)
+
+        blocks = build_viz_blocks(ir_vertices, cfg, vertex_ranges, branch_vertices)
+        blocks = merge_same_line_blocks(blocks, vertex_ranges, branch_vertices)
+
+        viz_nodes = blocks_to_viz_nodes(blocks, vertex_ranges, branch_vertices, node_map, file, cfg)
+
+        block_for_vertex = build_block_map(blocks)
+        viz_edges = build_viz_edges(cfg, block_for_vertex, branch_vertices, node_map)
+
+        # Add dispatch edges from entry to each clause
+        dispatch_edges =
+          clauses
+          |> Enum.with_index()
+          |> Enum.flat_map(fn {clause, idx} ->
+            target_block = Map.get(block_for_vertex, clause.id)
+            if target_block do
+              [%{
+                id: "dispatch_#{func_id}_#{clause.id}",
+                source: func_id,
+                target: target_block,
+                label: clause_pattern(clause),
+                edge_type: :branch,
+                color: dispatch_color(idx)
+              }]
+            else
+              []
+            end
+          end)
+
+        # Add entry node
+        entry =
+          make_node(
+            func_id,
+            :entry,
+            "#{name}/#{arity}",
+            func_start,
+            func_start,
+            highlight_line(file, func_start)
+          )
+
+        exit_line = func_end_line(func, file)
+        exit_node =
+          make_node(
+            "#{func_id}_exit",
+            :exit,
+            "end",
+            exit_line,
+            exit_line,
+            highlight_line(file, exit_line)
+          )
+
+        exit_id = "#{func_id}_exit"
+        exit_targets = find_exit_predecessors(cfg, block_for_vertex)
+
+        exit_edges =
+          if length(exit_targets) > 1 do
+            Enum.map(exit_targets, &converge_edge(&1, exit_id))
+          else
+            Enum.map(exit_targets, &seq_edge(&1, exit_id))
+          end
+          |> Enum.reject(&is_nil/1)
+
+        all_nodes = [entry | viz_nodes] ++ [exit_node]
+        all_edges = dispatch_edges ++ viz_edges ++ exit_edges
+
+        {all_nodes, all_edges}
+      end
+    end
+  end
+
+  defp collect_span_lines(node) do
+    line = span_field(node, :start_line)
+    child_lines = Enum.flat_map(node.children || [], &collect_span_lines/1)
+    if line, do: [line | child_lines], else: child_lines
   end
 
   # ── CFG-based expression nodes ──
@@ -541,7 +621,7 @@ defmodule Reach.Visualize.ControlFlow do
     label =
       if target_node, do: clause_label(target_node) || "clause #{idx}", else: "clause #{idx}"
 
-    {:branch, label, clause_color(idx)}
+    {:branch, label, dispatch_color(idx)}
   end
 
   defp classify_cfg_edge(%{label: :true_branch}, _bv, _nm), do: {:branch, "true", "#16a34a"}
@@ -628,21 +708,10 @@ defmodule Reach.Visualize.ControlFlow do
 
   defp converge_edge(_, _), do: nil
 
-  defp any_clause_has_body?(clauses) do
-    Enum.any?(clauses, fn clause ->
-      clause.children != nil and length(clause.children) > 2
-    end)
-  end
-
   defp dispatch_color(0), do: "#16a34a"
   defp dispatch_color(1), do: "#2563eb"
   defp dispatch_color(2), do: "#ea580c"
   defp dispatch_color(_), do: "#7c3aed"
-
-  defp clause_color(0), do: "#16a34a"
-  defp clause_color(1), do: "#2563eb"
-  defp clause_color(2), do: "#ea580c"
-  defp clause_color(_), do: "#7c3aed"
 
   defp find_top_level_functions(all_nodes, modules) do
     module_func_ids =
@@ -654,50 +723,5 @@ defmodule Reach.Visualize.ControlFlow do
     |> Enum.filter(&(&1.type == :function_def))
     |> Enum.reject(&(to_string(&1.id) in module_func_ids))
     |> Enum.sort_by(&(span_field(&1, :start_line) || 0))
-  end
-
-  defp compute_clause_range_and_source(func, clause, all_clauses, file) do
-    direct_start = span_field(clause, :start_line)
-    child_start = min_child_line(clause)
-
-    cond do
-      direct_start != nil ->
-        end_l = clause_end_line(func, direct_start, all_clauses, file)
-        source = extract_clause_source(func, clause, all_clauses, file)
-        {direct_start, end_l, source}
-
-      child_start != nil ->
-        end_l = clause_end_line(func, child_start, all_clauses, file)
-        if end_l != nil and end_l >= child_start do
-          source = extract_clause_source(func, clause, all_clauses, file)
-          {child_start, end_l, source}
-        else
-          {nil, nil, nil}
-        end
-
-      true ->
-        {nil, nil, nil}
-    end
-  end
-
-  defp clause_source_html(nil, clause, idx) do
-    pattern = clause_pattern(clause)
-    Visualize.highlight_source("clause #{idx + 1}: #{pattern}")
-  end
-
-  defp clause_source_html(source, _clause, _idx) do
-    Visualize.highlight_source(source)
-  end
-
-  defp min_child_line(node) do
-    node.children
-    |> Enum.flat_map(&collect_lines/1)
-    |> Enum.min(fn -> nil end)
-  end
-
-  defp collect_lines(node) do
-    line = span_field(node, :start_line)
-    child_lines = Enum.flat_map(node.children || [], &collect_lines/1)
-    if line, do: [line | child_lines], else: child_lines
   end
 end
