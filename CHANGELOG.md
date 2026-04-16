@@ -1,23 +1,46 @@
 # Changelog
 
-## Unreleased
+## 1.1.0
 
 ### New
 
 - **Plugin system** — `Reach.Plugin` behaviour for library-specific analysis.
-  Auto-detects Phoenix, Ecto, Oban, and GenStage at runtime. Override with
-  `plugins:` option.
-- **Reach.Plugins.Ecto** — `:ecto_changeset_flow` (cast → Repo.insert),
-  `:ecto_raw_query` (variables in raw SQL), `:ecto_cast_params` (params in
-  cast calls).
-- **Reach.Plugins.Phoenix** — `:phoenix_params` (conn.params taint sources),
-  `:phoenix_action_fallback` (error → fallback controller),
-  `:phoenix_assign` (socket assign data flow),
-  `:phoenix_plug_chain` (pipe_through → route actions, project-level).
-- **Reach.Plugins.Oban** — `:oban_job_args` (job args in perform body),
-  `:oban_enqueue` (Oban.insert args → perform, project-level).
-- **Reach.Plugins.GenStage** — `:gen_stage_pipeline` (handle_demand →
-  handle_events), `:broadway_pipeline` (handle_message → handle_batch).
+  Auto-detects Phoenix, Ecto, Oban, GenStage, Jido, and OpenTelemetry at
+  runtime. Override with `plugins:` option.
+- **`mix reach` task** — generates self-contained interactive HTML report with
+  three visualization modes: Control Flow, Call Graph, and Data Flow.
+- **Expression-level control flow graph** — source-primary visualization where
+  every line of every function is visible. Branch points (if/case/unless) show
+  fan-out edges, all paths converge at merge points with blue converge edges.
+- **Core CFG expansion** — `Reach.ControlFlow.build/1` now correctly expands
+  branches nested inside pipes, assignments, and calls. `if ... end |> f()`
+  shows both branches converging at the pipe call.
+- **Intra-function data flow** — Data Flow tab shows variable def→use chains
+  within each function, labeled with variable names.
+- **Module preamble** — sidebar shows `use`/`import`/`alias`/`@attributes` as
+  a collapsed header, not separate nodes.
+- **Syntax highlighting** — Makeup-powered server-side highlighting in all
+  code blocks, with proper indentation preservation via common-prefix dedent.
+- **Multi-clause dispatch** — pattern-match dispatch nodes with colored
+  clause edges for functions with multiple `def` heads.
+- **6 built-in plugins**: Phoenix, Ecto, Oban, GenStage, Jido, OpenTelemetry.
+
+### Improved
+
+- **Call graph** — filtered Ecto query bindings, pipe operators, kernel ops,
+  Ecto DSL macros; nil module resolved to detected module; deduplicated edges.
+- **Text selection** — code blocks now allow text selection (`user-select: text`,
+  nodes not draggable).
+- **Sidebar navigation** — click scrolls and zooms to function, highlights all
+  nodes of selected function with blue glow, dims others. Click background to
+  clear.
+
+### Fixed
+
+- Crash on `key :start_line not found` when processing branch expressions.
+- Node ID collisions in `Reach.Project` parallel file parsing (shared
+  `:atomics` counter).
+- Module name extraction fallback when path has no `lib/src` prefix.
 
 ## 1.0.0
 
