@@ -433,7 +433,8 @@ defmodule Reach.Visualize.ControlFlow do
     do_body = blocks[:do]
     else_body = blocks[:else]
 
-    {do_nodes, do_edges, do_leaves} = build_arm(do_body, "#{id}_do", id, file, offset, if_end)
+    do_end = if else_body, do: (body_start_line(else_body, offset) || if_end) - 1, else: if_end
+    {do_nodes, do_edges, do_leaves} = build_arm(do_body, "#{id}_do", id, file, offset, do_end)
     do_edge = branch_edge(id, first_id(do_nodes), "true", "#16a34a")
 
     {else_nodes, else_edges, else_leaves, else_edge} =

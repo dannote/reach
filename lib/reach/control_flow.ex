@@ -250,25 +250,72 @@ defmodule Reach.ControlFlow do
     {graph, [node.id]}
   end
 
-  # Leaf/simple nodes
+  # Nodes with children that contain branches — process children, then add node as convergence
+  defp build_node(graph, %Node{children: children} = node, from) when children != [] do
+    if has_nested_branch?(node) do
+      {graph, child_exits} = build_sequential(graph, children, from)
+      graph = Graph.add_vertex(graph, node.id)
+
+      graph =
+        Enum.reduce(child_exits, graph, fn exit_v, g ->
+          Graph.add_edge(g, exit_v, node.id, label: :sequential)
+        end)
+
+      {graph, [node.id]}
+    else
+      graph = Graph.add_vertex(graph, node.id)
+      graph = Graph.add_edge(graph, from, node.id, label: :sequential)
+      {graph, [node.id]}
+    end
+  end
+
+  # Leaf nodes
   defp build_node(graph, %Node{} = node, from) do
     graph = Graph.add_vertex(graph, node.id)
     graph = Graph.add_edge(graph, from, node.id, label: :sequential)
     {graph, [node.id]}
   end
 
+  defp has_nested_branch?(%Node{type: :case}), do: true
+  defp has_nested_branch?(%Node{type: :try}), do: true
+  defp has_nested_branch?(%Node{type: :receive}), do: true
+
+  defp has_nested_branch?(%Node{children: children}),
+    do: Enum.any?(children, &has_nested_branch?/1)
+
   # --- Helpers ---
 
-  defp last_exit([]), do: raise("no exits")
   defp last_exit(exits), do: List.last(exits)
 
-  defp build_sequential(graph, nodes, from) do
-    Enum.reduce(nodes, {graph, [from]}, fn node, {g, [current | _]} ->
-      build_node(g, node, current)
-    end)
+  defp build_sequential(graph, nodes, from) when is_list(from) do
+    build_sequential(graph, nodes, hd(from), tl(from))
   end
 
-  defp build_guards(graph, [], current), do: {graph, current}
+  defp build_sequential(graph, nodes, from) do
+    build_sequential(graph, nodes, from, [])
+  end
+
+  defp build_sequential(graph, [], current, extra), do: {graph, [current | extra]}
+
+  defp build_sequential(graph, [node | rest], current, extra_predecessors) do
+    {graph, exits} = build_node(graph, node, current)
+
+    first_vertex = first_cfg_vertex(graph, node)
+
+    graph =
+      Enum.reduce(extra_predecessors, graph, fn pred, g ->
+        if first_vertex, do: Graph.add_edge(g, pred, first_vertex, label: :sequential), else: g
+      end)
+
+    case exits do
+      [single] -> build_sequential(graph, rest, single, [])
+      multiple -> build_sequential(graph, rest, hd(multiple), tl(multiple))
+    end
+  end
+
+  defp first_cfg_vertex(graph, %Node{} = node) do
+    if Graph.has_vertex?(graph, node.id), do: node.id, else: nil
+  end
 
   defp build_guards(graph, guards, current) do
     Enum.reduce(guards, {graph, current}, fn guard, {g, prev} ->
