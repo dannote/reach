@@ -168,7 +168,7 @@ defmodule Reach.Frontend.Elixir do
 
   # if/unless — desugar into case
   defp translate({kind, meta, [condition, branches]}, counter, file)
-       when kind in [:if, :unless] do
+       when kind in [:if, :unless] and is_list(branches) do
     do_body = Keyword.get(branches, :do, nil)
     else_body = Keyword.get(branches, :else, nil)
 
@@ -205,7 +205,8 @@ defmodule Reach.Frontend.Elixir do
   end
 
   # cond — desugar into case
-  defp translate({:cond, meta, [[do: clauses]]}, counter, file) do
+  defp translate({:cond, meta, [[do: clauses]]}, counter, file)
+       when is_list(clauses) do
     children =
       Enum.map(clauses, fn {:->, clause_meta, [[condition], body]} ->
         cond_node = translate(condition, counter, file)
@@ -230,7 +231,8 @@ defmodule Reach.Frontend.Elixir do
   end
 
   # case
-  defp translate({:case, meta, [expr, [do: clauses]]}, counter, file) do
+  defp translate({:case, meta, [expr, [do: clauses]]}, counter, file)
+       when is_list(clauses) do
     expr_node = translate(expr, counter, file)
 
     clause_nodes =
@@ -333,7 +335,8 @@ defmodule Reach.Frontend.Elixir do
   end
 
   # receive
-  defp translate({:receive, meta, [[do: clauses] ++ rest]}, counter, file) do
+  defp translate({:receive, meta, [[do: clauses] ++ rest]}, counter, file)
+       when is_list(clauses) do
     clause_nodes =
       Enum.with_index(clauses, fn {:->, clause_meta, [patterns, body]}, index ->
         {pattern_nodes, guard_nodes} = extract_patterns_and_guards(patterns, counter, file)
