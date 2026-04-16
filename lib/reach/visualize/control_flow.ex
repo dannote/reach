@@ -205,7 +205,7 @@ defmodule Reach.Visualize.ControlFlow do
       blocks = build_viz_blocks(ir_vertices, cfg, vertex_ranges, branch_vertices)
       blocks = merge_same_line_blocks(blocks, vertex_ranges, branch_vertices)
 
-      viz_nodes = blocks_to_viz_nodes(blocks, vertex_ranges, branch_vertices, node_map, file)
+      viz_nodes = blocks_to_viz_nodes(blocks, vertex_ranges, branch_vertices, node_map, file, cfg)
 
       block_for_vertex = build_block_map(blocks)
       viz_edges = build_viz_edges(cfg, block_for_vertex, branch_vertices, node_map)
@@ -353,17 +353,17 @@ defmodule Reach.Visualize.ControlFlow do
     end
   end
 
-  defp blocks_to_viz_nodes(blocks, vertex_ranges, branch_vertices, node_map, file) do
-    Enum.map(blocks, &block_to_viz_node(&1, vertex_ranges, branch_vertices, node_map, file))
+  defp blocks_to_viz_nodes(blocks, vertex_ranges, branch_vertices, node_map, file, cfg) do
+    Enum.map(blocks, &block_to_viz_node(&1, vertex_ranges, branch_vertices, node_map, file, cfg))
   end
 
-  defp block_to_viz_node(block, vertex_ranges, branch_vertices, node_map, file) do
+  defp block_to_viz_node(block, vertex_ranges, branch_vertices, node_map, file, cfg) do
     first_v = hd(block)
     {start_l, _} = Map.fetch!(vertex_ranges, first_v)
     {_, end_l} = Map.fetch!(vertex_ranges, List.last(block))
     node = Map.get(node_map, first_v)
     type = block_type(block, branch_vertices, node_map)
-    label = block_label(type, node, block, node_map)
+    label = block_label(type, node, block, node_map, cfg)
     block_id = "b_" <> Enum.map_join(block, "_", &to_string/1)
 
     source =
@@ -391,14 +391,14 @@ defmodule Reach.Visualize.ControlFlow do
     end
   end
 
-  defp block_label(:branch, node, block, node_map) do
-    case find_case_node(block, node_map) do
+  defp block_label(:branch, node, block, node_map, cfg) do
+    case find_case_node(block, node_map, cfg) do
       nil -> branch_label(node)
       case_node -> branch_label(case_node)
     end
   end
 
-  defp block_label(:clause, node, block, node_map) do
+  defp block_label(:clause, node, block, node_map, _cfg) do
     clause_node =
       Enum.find_value(block, fn v ->
         n = Map.get(node_map, v)
@@ -408,13 +408,33 @@ defmodule Reach.Visualize.ControlFlow do
     clause_label(clause_node || node)
   end
 
-  defp block_label(_, _, _block, _node_map), do: nil
+  defp block_label(_, _, _block, _node_map, _cfg), do: nil
 
-  defp find_case_node(block, node_map) do
+  defp find_case_node(block, node_map, cfg) do
+    find_in_block(block, node_map) || find_in_predecessors(block, node_map, cfg)
+  end
+
+  defp find_in_block(block, node_map) do
     Enum.find_value(block, fn v ->
       n = Map.get(node_map, v)
       if n && n.type == :case, do: n
     end)
+  end
+
+  defp find_in_predecessors(block, node_map, cfg) do
+    block
+    |> Enum.flat_map(&cfg_sequential_predecessors(cfg, &1))
+    |> Enum.find_value(fn v ->
+      n = Map.get(node_map, v)
+      if n && n.type == :case, do: n
+    end)
+  end
+
+  defp cfg_sequential_predecessors(cfg, v) do
+    cfg
+    |> Graph.in_edges(v)
+    |> Enum.filter(&(&1.label == :sequential and is_integer(&1.v1)))
+    |> Enum.map(& &1.v1)
   end
 
   defp branch_label(%{type: :case, meta: %{desugared_from: :if}}), do: "if"
@@ -426,11 +446,11 @@ defmodule Reach.Visualize.ControlFlow do
   defp clause_label(%{meta: %{kind: :false_branch}}), do: "false"
 
   defp clause_label(%{meta: %{kind: :case_clause}} = node) do
-    node.children
-    |> Enum.take_while(fn c ->
-      c.meta[:binding_role] == :definition or
-        c.type in [:literal, :tuple, :map, :list, :struct, :var]
-    end)
+    # Children are [patterns...] ++ [guards...] ++ [body] — take all except last (body)
+    patterns = if length(node.children) > 1, do: Enum.drop(node.children, -1), else: node.children
+
+    patterns
+    |> Enum.reject(&(&1.type == :guard))
     |> Enum.map_join(", ", &render_pattern/1)
     |> case do
       "" -> "_"
@@ -771,10 +791,20 @@ defmodule Reach.Visualize.ControlFlow do
     if file, do: Visualize.ensure_def_cache(file)
     cache = Process.get(:reach_def_end_cache, %{})
     start = span_field(func, :start_line)
+    fallback = file_line_count(file) || (start || 1) + 50
 
     case Map.get(cache, file) do
-      nil -> (start || 1) + 100
-      map -> Map.get(map, start, (start || 1) + 100)
+      nil -> fallback
+      map -> Map.get(map, start, fallback)
+    end
+  end
+
+  defp file_line_count(nil), do: nil
+
+  defp file_line_count(file) do
+    case cached_file_lines(file) do
+      nil -> nil
+      lines -> length(lines)
     end
   end
 
