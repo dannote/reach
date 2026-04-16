@@ -1,6 +1,7 @@
 defmodule Reach.SystemDependence do
   @moduledoc false
 
+  import Reach.IR.Helpers, only: [param_var_name: 1, var_used_in_subtree?: 2]
   alias Reach.{CallGraph, ControlDependence, ControlFlow, DataDependence, IR, OTP}
   alias Reach.IR.Node
 
@@ -268,17 +269,6 @@ defmodule Reach.SystemDependence do
         g
       end
     end)
-  end
-
-  defp param_var_name(%Node{type: :var, meta: %{name: name}}), do: name
-  defp param_var_name(_), do: nil
-
-  defp var_used_in_subtree?(%Node{type: :var, meta: %{name: name}}, target_name) do
-    name == target_name
-  end
-
-  defp var_used_in_subtree?(%Node{children: children}, target_name) do
-    Enum.any?(children, &var_used_in_subtree?(&1, target_name))
   end
 
   # --- Private: slicing ---

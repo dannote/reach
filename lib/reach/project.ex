@@ -22,6 +22,7 @@ defmodule Reach.Project do
 
   alias Reach.{Frontend, IR}
   alias Reach.IR.Counter
+  import Reach.IR.Helpers, only: [param_var_name: 1, var_used_in_subtree?: 2]
 
   @type t :: %__MODULE__{
           modules: %{module() => map()},
@@ -342,15 +343,6 @@ defmodule Reach.Project do
         last -> [last]
       end
     end)
-  end
-
-  defp param_var_name(%IR.Node{type: :var, meta: %{name: name}}), do: name
-  defp param_var_name(_), do: nil
-
-  defp var_used_in_subtree?(%IR.Node{type: :var, meta: %{name: name}}, target), do: name == target
-
-  defp var_used_in_subtree?(%IR.Node{children: children}, target) do
-    Enum.any?(children, &var_used_in_subtree?(&1, target))
   end
 
   defp language_from_path(path) do

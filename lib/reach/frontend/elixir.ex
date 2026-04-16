@@ -7,6 +7,7 @@ defmodule Reach.Frontend.Elixir do
   """
 
   alias Reach.IR.{Counter, Node}
+  import Reach.IR.Helpers, only: [mark_as_definitions: 1]
 
   @doc """
   Parses an Elixir source string and returns the IR.
@@ -37,7 +38,7 @@ defmodule Reach.Frontend.Elixir do
   def parse!(source, opts \\ []) do
     case parse(source, opts) do
       {:ok, nodes} -> nodes
-      {:error, reason} -> raise "Parse error: #{inspect(reason)}"
+      {:error, reason} -> raise ArgumentError, "Parse error: #{inspect(reason)}"
     end
   end
 
@@ -770,16 +771,6 @@ defmodule Reach.Frontend.Elixir do
   end
 
   defp group_function_clauses(node), do: node
-
-  defp mark_as_definitions(%Node{type: :var, meta: meta} = node) do
-    %{node | meta: Map.put(meta, :binding_role, :definition)}
-  end
-
-  defp mark_as_definitions(%Node{children: children} = node) do
-    %{node | children: Enum.map(children, &mark_as_definitions/1)}
-  end
-
-  defp mark_as_definitions(other), do: other
 
   defp translate_function_def(def_kind, meta, head, guards, body, counter, file) do
     {name, arity} = fun_name_arity(head)

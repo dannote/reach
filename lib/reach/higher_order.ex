@@ -3,22 +3,37 @@ defmodule Reach.HigherOrder do
 
   alias Reach.IR.Node
 
-  @catalog (for mod <- Reach.Effects.pure_modules(), reduce: %{} do
-              acc ->
-                summaries = Reach.Project.summarize_dependency(mod)
+  @catalog_key :reach_higher_order_catalog
 
-                entries =
-                  for {{^mod, name, arity}, flows} <- summaries,
-                      flowing = for({idx, true} <- flows, do: idx),
-                      flowing != [],
-                      into: %{} do
-                    {{mod, name, arity}, flowing}
-                  end
+  defp catalog do
+    case :persistent_term.get(@catalog_key, nil) do
+      nil ->
+        result = build_catalog()
+        :persistent_term.put(@catalog_key, result)
+        result
 
-                Map.merge(acc, entries)
-            end)
+      result ->
+        result
+    end
+  end
+
+  defp build_catalog do
+    for mod <- Reach.Effects.pure_modules(), reduce: %{} do
+      acc -> Map.merge(acc, module_flows(mod))
+    end
+  end
+
+  defp module_flows(mod) do
+    for {{^mod, name, arity}, flows} <- Reach.Project.summarize_dependency(mod),
+        flowing = for({idx, true} <- flows, do: idx),
+        flowing != [],
+        into: %{} do
+      {{mod, name, arity}, flowing}
+    end
+  end
 
   @doc """
+
   Adds synthetic data-flow edges for known higher-order function calls.
 
   Only adds edges for pure calls — impure functions (like `Enum.each`)
@@ -34,7 +49,7 @@ defmodule Reach.HigherOrder do
   defp maybe_add_flow(graph, call) do
     key = {call.meta[:module], call.meta[:function], call.meta[:arity] || 0}
 
-    with flowing when flowing != nil <- Map.get(@catalog, key),
+    with flowing when flowing != nil <- Map.get(catalog(), key),
          true <-
            Reach.Effects.pure_call?(call.meta[:module], call.meta[:function], call.meta[:arity]) do
       add_synthetic_flows(graph, call, flowing)

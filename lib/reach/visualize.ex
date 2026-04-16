@@ -15,7 +15,7 @@ defmodule Reach.Visualize do
 
   def to_json(graph, opts \\ []) do
     unless Code.ensure_loaded?(Jason) do
-      raise "Jason is required. Add {:jason, \"~> 1.0\"} to your deps."
+      raise RuntimeError, "Jason is required. Add {:jason, ~s(~> 1.0)} to your deps."
     end
 
     graph |> to_graph_json(opts) |> Jason.encode!()

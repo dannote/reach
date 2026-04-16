@@ -7,6 +7,7 @@ defmodule Reach.Frontend.Erlang do
   """
 
   alias Reach.IR.{Counter, Node}
+  import Reach.IR.Helpers, only: [mark_as_definitions: 1]
 
   @doc """
   Parses an Erlang source file and returns the IR.
@@ -576,16 +577,6 @@ defmodule Reach.Frontend.Erlang do
   defp translate_expr(_form, counter, _file) do
     %Node{id: Counter.next(counter), type: :literal, meta: %{value: nil, raw: true}}
   end
-
-  defp mark_as_definitions(%Node{type: :var, meta: meta} = n) do
-    %{n | meta: Map.put(meta, :binding_role, :definition)}
-  end
-
-  defp mark_as_definitions(%Node{children: children} = n) do
-    %{n | children: Enum.map(children, &mark_as_definitions/1)}
-  end
-
-  defp mark_as_definitions(n), do: n
 
   # --- Helpers ---
 
