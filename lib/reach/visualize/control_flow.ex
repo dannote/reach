@@ -102,7 +102,7 @@ defmodule Reach.Visualize.ControlFlow do
       |> Enum.filter(&(&1.type == :clause and &1.meta[:kind] == :function_clause))
 
     {nodes, edges} =
-      if length(function_clauses) > 1 do
+      if length(function_clauses) > 1 and any_clause_has_body?(function_clauses) do
         build_multi_clause(func, function_clauses, file)
       else
         build_expression_nodes(func, file, start_line)
@@ -165,17 +165,7 @@ defmodule Reach.Visualize.ControlFlow do
         }
       end)
 
-    exit_node = %{
-      id: "#{func_id}_exit",
-      type: :exit,
-      label: "end",
-      start_line: func_end_line(func, file) || (span_field(func, :start_line) || 1),
-      end_line: func_end_line(func, file) || (span_field(func, :start_line) || 1),
-      source_html: Visualize.highlight_source("end"),
-      parent_id: nil
-    }
-
-    {[dispatch | clause_nodes] ++ [exit_node], edges}
+    {[dispatch | clause_nodes], edges}
   end
 
   # ── CFG-based expression nodes ──
@@ -685,6 +675,12 @@ defmodule Reach.Visualize.ControlFlow do
   end
 
   defp converge_edge(_, _), do: nil
+
+  defp any_clause_has_body?(clauses) do
+    Enum.any?(clauses, fn clause ->
+      clause.children != nil and length(clause.children) > 2
+    end)
+  end
 
   defp dispatch_color(0), do: "#16a34a"
   defp dispatch_color(1), do: "#2563eb"

@@ -196,8 +196,16 @@ defmodule Reach.Visualize.BlockQualityTest do
         violations
       end
 
-    if length(exits) != 1 do
-      [{:entry_exit, name, "expected 1 exit, got #{length(exits)}"} | violations]
+    # Only CFG-based functions need exit nodes; dispatch functions don't
+    has_clause = Enum.any?(nodes, &(&1["type"] == "clause"))
+    has_branch = Enum.any?(nodes, &(&1["type"] in ["branch", "sequential"]))
+
+    if has_branch and not has_clause do
+      if length(exits) != 1 do
+        [{:entry_exit, name, "expected 1 exit for CFG function, got #{length(exits)}"} | violations]
+      else
+        violations
+      end
     else
       violations
     end
