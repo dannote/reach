@@ -4,6 +4,8 @@ defmodule Reach.Plugins.Phoenix do
 
   alias Reach.IR
 
+  import Reach.Plugins.Helpers, only: [find_vars_in: 1]
+
   @assign_modules [nil, Phoenix.Component, Phoenix.LiveView]
 
   @impl true
@@ -118,9 +120,5 @@ defmodule Reach.Plugins.Phoenix do
     node
     |> IR.all_nodes()
     |> Enum.filter(fn n -> n.type == :var and n.meta[:binding_role] == :definition end)
-  end
-
-  defp find_vars_in(node) do
-    node |> IR.all_nodes() |> Enum.filter(&(&1.type == :var))
   end
 end

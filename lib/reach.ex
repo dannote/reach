@@ -43,11 +43,13 @@ defmodule Reach do
       Reach.pure?(node)  #=> true
   """
 
-  alias Reach.{Effects, Frontend, SystemDependence}
+  alias Reach.{Effects, Frontend, Project, SystemDependence}
   alias Reach.IR.{Counter, Node}
 
   @typedoc "A program dependence graph. Built by `string_to_graph/2`, `file_to_graph/2`, etc."
-  @type graph :: struct()
+  @type graph :: SystemDependence.t() | Project.t()
+
+  @type node_id :: Node.id()
 
   # --- Building ---
 
@@ -175,6 +177,8 @@ defmodule Reach do
     end
   end
 
+  def compiled_to_graph(_, _opts), do: {:error, :invalid_input}
+
   @doc """
   Builds a graph from an already-parsed Elixir AST.
 
@@ -295,9 +299,10 @@ defmodule Reach do
 
   The backward slice answers: "what does this expression depend on?"
   """
+  @spec backward_slice(graph(), node_id()) :: [term()]
   def backward_slice(%SystemDependence{graph: g}, node_id) do
-    if Elixir.Graph.has_vertex?(g, node_id) do
-      Elixir.Graph.reaching(g, [node_id]) -- [node_id]
+    if Graph.has_vertex?(g, node_id) do
+      Graph.reaching(g, [node_id]) -- [node_id]
     else
       []
     end
@@ -308,9 +313,10 @@ defmodule Reach do
 
   The forward slice answers: "what does this expression influence?"
   """
+  @spec forward_slice(graph(), node_id()) :: [term()]
   def forward_slice(%SystemDependence{graph: g}, node_id) do
-    if Elixir.Graph.has_vertex?(g, node_id) do
-      Elixir.Graph.reachable(g, [node_id]) -- [node_id]
+    if Graph.has_vertex?(g, node_id) do
+      Graph.reachable(g, [node_id]) -- [node_id]
     else
       []
     end
@@ -321,6 +327,7 @@ defmodule Reach do
 
   The chop answers: "how does A influence B?"
   """
+  @spec chop(graph(), node_id(), node_id()) :: [node_id()]
   def chop(graph, source, sink) do
     fwd = forward_slice(graph, source) |> MapSet.new()
     bwd = backward_slice(graph, sink) |> MapSet.new()
@@ -339,6 +346,7 @@ defmodule Reach do
 
   Independent expressions can be safely reordered.
   """
+  @spec independent?(graph(), node_id(), node_id()) :: boolean()
   def independent?(%SystemDependence{graph: g, nodes: node_map} = sdg, id_x, id_y) do
     data_only = build_data_graph(g)
 
@@ -384,6 +392,7 @@ defmodule Reach do
       Reach.nodes(graph, type: :call, module: Enum)
       Reach.nodes(graph, type: :call, module: Enum, function: :map, arity: 2)
   """
+  @spec nodes(graph(), keyword()) :: [Node.t()]
   def nodes(graph, opts \\ [])
 
   def nodes(%{nodes: node_map}, opts) do
@@ -414,6 +423,7 @@ defmodule Reach do
   @doc """
   Returns true if `controller` has a control-dependence edge to `target`.
   """
+  @spec controls?(graph(), node_id(), node_id()) :: boolean()
   def controls?(graph, controller_id, target_id) do
     control_deps(graph, target_id)
     |> Enum.any?(fn {id, _label} -> id == controller_id end)
@@ -422,6 +432,7 @@ defmodule Reach do
   @doc """
   Returns true if there's any dependence path between two nodes.
   """
+  @spec depends?(graph(), node_id(), node_id()) :: boolean()
   def depends?(graph, id_a, id_b) do
     id_b in forward_slice(graph, id_a) or id_a in forward_slice(graph, id_b)
   end
@@ -429,6 +440,7 @@ defmodule Reach do
   @doc """
   Returns true if the node has data dependents (its value is used elsewhere).
   """
+  @spec has_dependents?(graph(), node_id()) :: boolean()
   def has_dependents?(graph, node_id) do
     forward_slice(graph, node_id) != []
   end
@@ -440,6 +452,7 @@ defmodule Reach do
   Useful for taint analysis — check if sanitization occurs between
   a source and sink.
   """
+  @spec passes_through?(graph(), node_id(), node_id(), (Node.t() -> boolean())) :: boolean()
   def passes_through?(graph, source_id, sink_id, predicate) do
     chop(graph, source_id, sink_id)
     |> Enum.any?(fn id ->
@@ -472,9 +485,9 @@ defmodule Reach do
   @doc """
   Returns all dependence edges in the graph.
   """
-  @spec edges(graph()) :: [Elixir.Graph.Edge.t()]
-  def edges(%SystemDependence{graph: g}), do: Elixir.Graph.edges(g)
-  def edges(%Reach.Project{graph: g}), do: Elixir.Graph.edges(g)
+  @spec edges(graph()) :: [Graph.Edge.t()]
+  def edges(%SystemDependence{graph: g}), do: Graph.edges(g)
+  def edges(%Reach.Project{graph: g}), do: Graph.edges(g)
 
   @doc """
   Returns the control dependencies of a node.
@@ -484,7 +497,7 @@ defmodule Reach do
   @spec control_deps(graph(), Node.id()) :: [{Node.id(), term()}]
   def control_deps(%SystemDependence{graph: g}, node_id) do
     g
-    |> Elixir.Graph.in_edges(node_id)
+    |> Graph.in_edges(node_id)
     |> Enum.filter(fn e -> match?({:control, _}, e.label) end)
     |> Enum.map(fn e -> {e.v1, e.label} end)
   end
@@ -497,7 +510,7 @@ defmodule Reach do
   @spec data_deps(graph(), Node.id()) :: [{Node.id(), atom()}]
   def data_deps(%SystemDependence{graph: g}, node_id) do
     g
-    |> Elixir.Graph.in_edges(node_id)
+    |> Graph.in_edges(node_id)
     |> Enum.filter(fn e -> match?({:data, _}, e.label) end)
     |> Enum.map(fn e ->
       {:data, var} = e.label
@@ -525,15 +538,15 @@ defmodule Reach do
 
   Vertices are `{module, function, arity}` tuples.
   """
-  @spec call_graph(graph()) :: Elixir.Graph.t()
+  @spec call_graph(graph()) :: Graph.t()
   def call_graph(%SystemDependence{call_graph: cg}), do: cg
 
   @doc """
   Exports the graph to DOT format for Graphviz visualization.
   """
   @spec to_dot(graph()) :: {:ok, String.t()}
-  def to_dot(%SystemDependence{graph: g}), do: Elixir.Graph.to_dot(g)
-  def to_dot(%Reach.Project{graph: g}), do: Elixir.Graph.to_dot(g)
+  def to_dot(%SystemDependence{graph: g}), do: Graph.to_dot(g)
+  def to_dot(%Reach.Project{graph: g}), do: Graph.to_dot(g)
 
   @doc """
   Returns the underlying `Graph.t()` (libgraph) for direct traversal.
@@ -568,14 +581,14 @@ defmodule Reach do
   def neighbors(graph, node_id, label \\ nil)
 
   def neighbors(%SystemDependence{graph: g}, node_id, nil) do
-    in_ids = g |> Elixir.Graph.in_neighbors(node_id)
-    out_ids = g |> Elixir.Graph.out_neighbors(node_id)
+    in_ids = g |> Graph.in_neighbors(node_id)
+    out_ids = g |> Graph.out_neighbors(node_id)
     Enum.uniq(in_ids ++ out_ids)
   end
 
   def neighbors(%SystemDependence{graph: g}, node_id, label) do
-    in_edges = Elixir.Graph.in_edges(g, node_id)
-    out_edges = Elixir.Graph.out_edges(g, node_id)
+    in_edges = Graph.in_edges(g, node_id)
+    out_edges = Graph.out_edges(g, node_id)
 
     (in_edges ++ out_edges)
     |> Enum.filter(&match_label?(&1.label, label))
@@ -775,16 +788,16 @@ defmodule Reach do
 
   defp build_data_graph(graph) do
     graph
-    |> Elixir.Graph.edges()
+    |> Graph.edges()
     |> Enum.filter(fn e ->
       match?({:data, _}, e.label) or e.label in [:containment, :match_binding, :higher_order]
     end)
-    |> then(&Elixir.Graph.add_edges(Elixir.Graph.new(), &1))
+    |> then(&Graph.add_edges(Graph.new(), &1))
   end
 
   defp data_path?(data_graph, from, to) do
-    if Elixir.Graph.has_vertex?(data_graph, from) and Elixir.Graph.has_vertex?(data_graph, to) do
-      Elixir.Graph.get_shortest_path(data_graph, from, to) != nil
+    if Graph.has_vertex?(data_graph, from) and Graph.has_vertex?(data_graph, to) do
+      Graph.get_shortest_path(data_graph, from, to) != nil
     else
       false
     end

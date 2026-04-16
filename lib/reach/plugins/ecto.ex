@@ -4,6 +4,8 @@ defmodule Reach.Plugins.Ecto do
 
   alias Reach.IR
 
+  import Reach.Plugins.Helpers, only: [find_vars_in: 1]
+
   @repo_write_fns [
     :insert,
     :insert!,
@@ -87,9 +89,5 @@ defmodule Reach.Plugins.Ecto do
   defp repo_module?(mod) when is_atom(mod) do
     mod_str = Atom.to_string(mod)
     String.ends_with?(mod_str, "Repo") or String.ends_with?(mod_str, ".Repo")
-  end
-
-  defp find_vars_in(node) do
-    node |> IR.all_nodes() |> Enum.filter(&(&1.type == :var))
   end
 end

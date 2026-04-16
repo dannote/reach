@@ -4,6 +4,8 @@ defmodule Reach.Plugins.Jido do
 
   alias Reach.IR
 
+  import Reach.Plugins.Helpers, only: [find_vars_in: 1]
+
   @impl true
   def analyze(all_nodes, _opts) do
     action_run_edges(all_nodes) ++
@@ -215,9 +217,5 @@ defmodule Reach.Plugins.Jido do
         n.meta[:value]
       end
     end)
-  end
-
-  defp find_vars_in(node) do
-    node |> IR.all_nodes() |> Enum.filter(&(&1.type == :var))
   end
 end

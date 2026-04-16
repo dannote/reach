@@ -4,6 +4,8 @@ defmodule Reach.Plugins.OpenTelemetry do
 
   alias Reach.IR
 
+  import Reach.Plugins.Helpers, only: [find_vars_in: 1]
+
   @tracer_modules [OpenTelemetry.Tracer, :otel_tracer, nil]
 
   @impl true
@@ -144,9 +146,5 @@ defmodule Reach.Plugins.OpenTelemetry do
       |> IR.all_nodes()
       |> Enum.any?(&(&1.id == node.id))
     end)
-  end
-
-  defp find_vars_in(node) do
-    node |> IR.all_nodes() |> Enum.filter(&(&1.type == :var))
   end
 end
