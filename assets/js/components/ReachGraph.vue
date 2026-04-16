@@ -242,7 +242,6 @@ const sidebarModules = computed(() => {
   return cf.map((m) => ({
     name: m.module ?? "(top-level)",
     module: m.module,
-    preamble: m.preamble || null,
     functions: m.functions.map((f) => ({
       id: f.id,
       label: `${f.name}/${f.arity}`,
@@ -301,7 +300,6 @@ function highlightFunction(funcId) {
         <div class="sidebar-title">Functions</div>
         <div v-for="mod in sidebarModules" :key="mod.name" class="sidebar-module">
           <div class="sidebar-module-name">{{ mod.name }}</div>
-          <div v-if="mod.preamble" class="sidebar-preamble" v-html="mod.preamble" />
           <button
             v-for="func in mod.functions"
             :key="func.id"

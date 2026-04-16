@@ -17,13 +17,11 @@ defmodule Reach.Visualize.ControlFlow do
           |> Enum.filter(&(&1.type == :function_def))
           |> Enum.sort_by(&(span_field(&1, :start_line) || 0))
 
-        preamble = extract_preamble(mod, file)
         functions = Enum.map(func_nodes, &build_function(&1, file))
 
         %{
           module: inspect(mod.meta[:name]),
           file: file,
-          preamble: preamble,
           functions: functions
         }
       end)
@@ -36,7 +34,6 @@ defmodule Reach.Visualize.ControlFlow do
       top = %{
         module: nil,
         file: file,
-        preamble: nil,
         functions: Enum.map(top_funcs, &build_function(&1, file))
       }
 
@@ -44,51 +41,6 @@ defmodule Reach.Visualize.ControlFlow do
     else
       modules
     end
-  end
-
-  # ── Module preamble (use/import/alias/@attrs) ──
-
-  defp extract_preamble(mod, file) when is_binary(file) do
-    func_starts =
-      IR.all_nodes(mod)
-      |> Enum.filter(&(&1.type == :function_def))
-      |> Enum.map(&(span_field(&1, :start_line) || 999_999))
-
-    first_func_line = Enum.min(func_starts, fn -> 999_999 end)
-    mod_start = span_field(mod, :start_line) || 1
-
-    case File.read(file) do
-      {:ok, content} ->
-        lines = String.split(content, "\n")
-
-        preamble_end = max(mod_start, first_func_line - 2)
-
-        preamble_lines =
-          lines
-          |> Enum.slice(mod_start..preamble_end)
-          |> Enum.filter(&preamble_line?/1)
-
-        if preamble_lines == [] do
-          nil
-        else
-          Visualize.highlight_source(Enum.join(preamble_lines, "\n"))
-        end
-
-      _ ->
-        nil
-    end
-  end
-
-  defp extract_preamble(_, _), do: nil
-
-  defp preamble_line?(line) do
-    trimmed = String.trim(line)
-
-    String.starts_with?(trimmed, "@") or
-      String.starts_with?(trimmed, "use ") or
-      String.starts_with?(trimmed, "import ") or
-      String.starts_with?(trimmed, "alias ") or
-      String.starts_with?(trimmed, "require ")
   end
 
   # ── Function builder ──
