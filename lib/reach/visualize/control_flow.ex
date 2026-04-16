@@ -342,7 +342,10 @@ defmodule Reach.Visualize.ControlFlow do
          file,
          seq_edges
        ) do
-    if node.type == :sequential and mergeable?.(node.id) and {prev.id, node.id} in seq_edges do
+    prev_ids = [prev.id | Enum.filter(Map.keys(remap), fn k -> Map.get(remap, k) == prev.id end)]
+    connected? = Enum.any?(prev_ids, fn pid -> {pid, node.id} in seq_edges end)
+
+    if node.type == :sequential and mergeable?.(node.id) and connected? do
       combined = %{
         prev
         | end_line: node.end_line,
@@ -477,8 +480,14 @@ defmodule Reach.Visualize.ControlFlow do
             highlight_line(file, clause_line)
           )
 
+        same_line? = clause_body_inline?(body, clause_line, offset)
+
         {arm_nodes, arm_edges, arm_leaves} =
-          build_arm(body, clause_id, id, file, offset, case_end)
+          if same_line? do
+            {[], [], []}
+          else
+            build_arm(body, clause_id, id, file, offset, case_end)
+          end
 
         edge = branch_edge(id, clause_id, pattern_str, clause_color(idx))
         arm_edge = seq_edge(clause_id, first_id(arm_nodes))
@@ -492,7 +501,15 @@ defmodule Reach.Visualize.ControlFlow do
     {[branch_node | clause_nodes], clause_edges, clause_leaves}
   end
 
-  # ── Branch arm (shared by if/case) ──
+  defp clause_body_inline?(body, clause_line, offset) do
+    body_start = body_start_line(body, offset)
+    body_start == clause_line or (is_nil(body_start) and not match?({:__block__, _, _}, body))
+  end
+
+  defp body_start_line(body, offset) do
+    meta = extract_meta(body)
+    if meta[:line], do: meta[:line] + offset, else: nil
+  end
 
   defp build_arm(body, arm_id, _parent_id, file, offset, arm_line) do
     exprs =
