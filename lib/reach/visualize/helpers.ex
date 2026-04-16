@@ -164,10 +164,11 @@ defmodule Reach.Visualize.Helpers do
   defp render_map_field(node), do: render_pattern(node)
 
   def extract_clause_source(func, clause, all_clauses, file) do
-    clause_start = span_field(clause, :start_line)
+    clause_start = span_field(clause, :start_line) || min_child_line(clause)
 
     with true <- is_binary(file) and is_integer(clause_start),
-         end_line <- clause_end_line(func, clause_start, all_clauses, file) do
+         end_line <- clause_end_line(func, clause_start, all_clauses, file),
+         true <- is_integer(end_line) and end_line >= clause_start do
       case cached_file_lines(file) do
         nil ->
           nil
@@ -184,10 +185,22 @@ defmodule Reach.Visualize.Helpers do
     end
   end
 
+  defp min_child_line(node) do
+    node.children
+    |> Enum.flat_map(&collect_lines/1)
+    |> Enum.min(fn -> nil end)
+  end
+
+  defp collect_lines(node) do
+    line = span_field(node, :start_line)
+    child_lines = Enum.flat_map(node.children || [], &collect_lines/1)
+    if line, do: [line | child_lines], else: child_lines
+  end
+
   def clause_end_line(func, clause_start, all_clauses, file) do
     next_start =
       all_clauses
-      |> Enum.map(&(span_field(&1, :start_line) || 0))
+      |> Enum.map(&(span_field(&1, :start_line) || min_child_line(&1) || 0))
       |> Enum.filter(&(&1 > clause_start))
       |> Enum.min(fn -> nil end)
 
