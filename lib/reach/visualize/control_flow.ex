@@ -438,7 +438,21 @@ defmodule Reach.Visualize.ControlFlow do
     clause_label(clause_node || node)
   end
 
-  defp block_label(_, _, _block, _node_map, _cfg), do: nil
+  defp block_label(:sequential, node, block, node_map, _cfg) do
+    label = ir_label(node)
+    if length(block) > 1 do
+      last = Map.get(node_map, List.last(block))
+      if last && last != node do
+        "#{label}..#{ir_label(last)}"
+      else
+        label
+      end
+    else
+      label
+    end
+  end
+
+  defp block_label(_, node, _block, _node_map, _cfg), do: ir_label(node)
 
   defp find_case_node(block, node_map, cfg) do
     find_in_block(block, node_map) || find_in_predecessors(block, node_map, cfg)

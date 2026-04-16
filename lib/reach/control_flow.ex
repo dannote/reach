@@ -243,8 +243,24 @@ defmodule Reach.ControlFlow do
     build_sequential(graph, children, node.id)
   end
 
+  defp build_node(graph, %Node{type: :fn, children: clauses} = node, from)
+       when is_list(clauses) and clauses != [] do
+    graph = Graph.add_vertex(graph, node.id)
+    graph = Graph.add_edge(graph, from, node.id, label: :sequential)
+
+    all_exits =
+      clauses
+      |> Enum.with_index()
+      |> Enum.reduce({graph, []}, fn {clause, index}, {g, exits} ->
+        {g, clause_exits} = build_clause(g, clause, node.id, index)
+        {g, exits ++ clause_exits}
+      end)
+
+    {graph, exits} = all_exits
+    {graph, exits}
+  end
+
   defp build_node(graph, %Node{type: :fn} = node, from) do
-    # Anonymous functions: the fn node itself is the value, clauses are separate CFGs
     graph = Graph.add_vertex(graph, node.id)
     graph = Graph.add_edge(graph, from, node.id, label: :sequential)
     {graph, [node.id]}
