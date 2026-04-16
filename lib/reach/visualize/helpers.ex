@@ -97,11 +97,7 @@ defmodule Reach.Visualize.Helpers do
   end
 
   def render_pattern(%{type: :map, children: children}) do
-    pairs =
-      children
-      |> Enum.chunk_every(2)
-      |> Enum.map_join(", ", &render_map_pair/1)
-
+    pairs = Enum.map_join(children, ", ", &render_map_field/1)
     "%{#{pairs}}"
   end
 
@@ -112,24 +108,24 @@ defmodule Reach.Visualize.Helpers do
 
   def render_pattern(%{type: :struct, children: children, meta: meta}) do
     name = if meta[:name], do: inspect(meta[:name]), else: ""
-
-    fields =
-      children
-      |> Enum.chunk_every(2)
-      |> Enum.map_join(", ", &render_map_pair/1)
-
+    fields = Enum.map_join(children, ", ", &render_map_field/1)
     "%#{name}{#{fields}}"
   end
 
   def render_pattern(%{type: type}), do: to_string(type)
 
-  defp render_map_pair([%{type: :literal, meta: %{value: key}}, val]) do
+  defp render_map_field(%{
+         type: :map_field,
+         children: [%{type: :literal, meta: %{value: key}}, val]
+       }) do
     "#{key}: #{render_pattern(val)}"
   end
 
-  defp render_map_pair([key, _val]) do
+  defp render_map_field(%{type: :map_field, children: [key, _val]}) do
     "#{render_pattern(key)}: ..."
   end
+
+  defp render_map_field(node), do: render_pattern(node)
 
   def extract_clause_source(func, clause, all_clauses, file) do
     clause_start = span_field(clause, :start_line)
