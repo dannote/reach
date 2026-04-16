@@ -308,6 +308,7 @@ defmodule Reach.ControlFlow do
       end)
 
     case exits do
+      [] -> {graph, [current | extra_predecessors]}
       [single] -> build_sequential(graph, rest, single, [])
       multiple -> build_sequential(graph, rest, hd(multiple), tl(multiple))
     end
