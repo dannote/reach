@@ -321,6 +321,7 @@ function highlightFunction(funcId) {
         :default-edge-options="{ type: 'smoothstep' }"
         :min-zoom="0.1"
         :max-zoom="3"
+        :nodes-draggable="false"
         :class="['reach-flow', selectedFunction && 'has-selection']"
       >
         <template #pane>

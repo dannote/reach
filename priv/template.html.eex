@@ -39,7 +39,7 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Ro
 .code-table { border-collapse: collapse; width: 100%; }
 .code-table tr:hover { background: #f1f5f9; }
 .line-number { color: #94a3b8; text-align: right; padding: 0 8px 0 6px; user-select: none; white-space: nowrap; border-right: 1px solid #e2e8f0; background: #f8fafc; vertical-align: top; font-size: 11px; }
-.line-code { padding: 0 8px; white-space: pre; vertical-align: top; }
+.line-code { padding: 0 8px; white-space: pre; vertical-align: top; user-select: text; cursor: text; }
 .code-node-body { } .code-node-body .highlight { background: transparent; }
 .compact-node { padding: 6px 12px; border: 1.5px solid #94a3b8; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 11px; white-space: nowrap; }
 .compact-label { font-weight: 500; }

@@ -199,7 +199,7 @@ defmodule Reach.Visualize.ControlFlow do
           )
 
         {body_nodes, body_edges, body_leaves} =
-          walk_body(body_exprs, func_id, file, offset)
+          walk_body(body_exprs, func_id, file, offset, func_end - 1)
 
         entry_edge = seq_edge(entry.id, first_id(body_nodes))
 
@@ -238,18 +238,40 @@ defmodule Reach.Visualize.ControlFlow do
   # Walks a list of expressions, returns {nodes, edges, leaf_ids}.
   # leaf_ids are the IDs of nodes from which flow exits this body
   # (the last expression's leaves, or last sequential node).
-  defp walk_body([], _parent_id, _file, _offset), do: {[], [], []}
 
-  defp walk_body(exprs, parent_id, file, offset) do
-    starts = Enum.map(exprs, fn e -> (extract_meta(e)[:line] || 1) + offset end)
+  defp compute_starts(exprs, offset) do
+    {starts, _} =
+      Enum.map_reduce(exprs, nil, fn expr, prev_end ->
+        meta = extract_meta(expr)
+        line = meta[:line]
+        end_l = get_in(meta, [:end, :line]) || line
+
+        start =
+          cond do
+            line -> line + offset
+            prev_end -> prev_end + 1
+            true -> 1 + offset
+          end
+
+        actual_end = if end_l, do: end_l + offset, else: start
+        {start, actual_end}
+      end)
+
+    starts
+  end
+
+  defp walk_body([], _parent_id, _file, _offset, _body_end), do: {[], [], []}
+
+  defp walk_body(exprs, parent_id, file, offset, body_end) do
+    starts = compute_starts(exprs, offset)
     indexed = Enum.with_index(exprs)
 
     {all_nodes, all_edges, last_leaves} =
       Enum.reduce(indexed, {[], [], []}, fn {expr, idx}, {nodes_acc, edges_acc, prev_leaves} ->
         meta = extract_meta(expr)
-        line = (meta[:line] || 1) + offset
+        line = Enum.at(starts, idx)
         next_start = Enum.at(starts, idx + 1)
-        end_line = expr_end_line(meta, offset, next_start, line)
+        end_line = expr_end_line(meta, offset, next_start || (body_end && body_end + 1), line)
 
         expr_id = "#{parent_id}_e#{idx}"
 
@@ -456,7 +478,7 @@ defmodule Reach.Visualize.ControlFlow do
         single -> [single]
       end
 
-    walk_body(exprs, arm_id, file, offset)
+    walk_body(exprs, arm_id, file, offset, nil)
   end
 
   # ── Leaf collection ──
