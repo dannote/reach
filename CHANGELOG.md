@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.1.1
+
+### Fixed
+
+- Crash (`FunctionClauseError`) on macro definitions that look like `if/unless`
+  calls with non-keyword-list branches (e.g. `defmacro if(condition, clauses)`
+  in Elixir's own `Kernel`).
+- Crash when `case/cond/receive` do-blocks contain `unquote` splices instead
+  of a normal clause list (macro-heavy code like `Macro`, `ExUnit.Callbacks`).
+- `hd([])` crash in control-flow builder on code with empty exit sets
+  (e.g. single-clause `cond do true -> :ok end`).
+- Struct/map pattern rendering crash with field bindings (from PR #2).
+
+### Tested
+
+Smoke-tested on 3,024 files across 8 major Elixir projects with zero failures:
+elixir, phoenix, ecto, oban, plausible, livebook, blockscout, firezone.
+
 ## 1.1.0
 
 ### New
