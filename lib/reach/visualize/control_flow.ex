@@ -173,6 +173,14 @@ defmodule Reach.Visualize.ControlFlow do
     source = Visualize.extract_func_source(func)
     func_end = func_end_line(func, file)
 
+    if func_end <= func_start do
+      fallback_single_block(func, source, func_start)
+    else
+      build_multi_line_function(func, file, source, func_start, func_end)
+    end
+  end
+
+  defp build_multi_line_function(func, file, source, func_start, func_end) do
     case parse_function_ast(source) do
       {:ok, body_exprs} ->
         offset = func_start - 1
@@ -199,7 +207,7 @@ defmodule Reach.Visualize.ControlFlow do
           )
 
         {body_nodes, body_edges, body_leaves} =
-          walk_body(body_exprs, func_id, file, offset, func_end - 1)
+          walk_body(body_exprs, func_id, file, offset, max(func_start, func_end - 1))
 
         entry_edge = seq_edge(entry.id, first_id(body_nodes))
 
@@ -228,6 +236,14 @@ defmodule Reach.Visualize.ControlFlow do
     prev_leaves |> Enum.map(&edge_fn.(&1, target)) |> Enum.reject(&is_nil/1)
   end
 
+  defp resolve_start(line, _prev_end, _fallback, offset) when is_integer(line), do: line + offset
+
+  defp resolve_start(nil, prev_end, _fallback, _offset) when is_integer(prev_end),
+    do: prev_end + 1
+
+  defp resolve_start(nil, nil, fallback, _offset) when is_integer(fallback), do: fallback
+  defp resolve_start(nil, nil, _fallback, offset), do: 1 + offset
+
   defp expr_end_line(meta, offset, next_start, line) do
     case get_in(meta, [:end, :line]) do
       nil -> if next_start, do: next_start - 1, else: line
@@ -239,20 +255,12 @@ defmodule Reach.Visualize.ControlFlow do
   # leaf_ids are the IDs of nodes from which flow exits this body
   # (the last expression's leaves, or last sequential node).
 
-  defp compute_starts(exprs, offset) do
+  defp compute_starts(exprs, offset, fallback_line) do
     {starts, _} =
       Enum.map_reduce(exprs, nil, fn expr, prev_end ->
         meta = extract_meta(expr)
-        line = meta[:line]
-        end_l = get_in(meta, [:end, :line]) || line
-
-        start =
-          cond do
-            line -> line + offset
-            prev_end -> prev_end + 1
-            true -> 1 + offset
-          end
-
+        start = resolve_start(meta[:line], prev_end, fallback_line, offset)
+        end_l = get_in(meta, [:end, :line]) || meta[:line]
         actual_end = if end_l, do: end_l + offset, else: start
         {start, actual_end}
       end)
@@ -263,7 +271,7 @@ defmodule Reach.Visualize.ControlFlow do
   defp walk_body([], _parent_id, _file, _offset, _body_end), do: {[], [], []}
 
   defp walk_body(exprs, parent_id, file, offset, body_end) do
-    starts = compute_starts(exprs, offset)
+    starts = compute_starts(exprs, offset, body_end)
     indexed = Enum.with_index(exprs)
 
     {all_nodes, all_edges, last_leaves} =
@@ -271,7 +279,8 @@ defmodule Reach.Visualize.ControlFlow do
         meta = extract_meta(expr)
         line = Enum.at(starts, idx)
         next_start = Enum.at(starts, idx + 1)
-        end_line = expr_end_line(meta, offset, next_start || (body_end && body_end + 1), line)
+        last_boundary = if(is_nil(next_start) and body_end, do: body_end + 1, else: next_start)
+        end_line = expr_end_line(meta, offset, last_boundary, line)
 
         expr_id = "#{parent_id}_e#{idx}"
 
@@ -293,13 +302,20 @@ defmodule Reach.Visualize.ControlFlow do
     edge_sources = Enum.frequencies_by(edges, & &1.source)
     seq_ids = MapSet.new(nodes |> Enum.filter(&(&1.type == :sequential)) |> Enum.map(& &1.id))
 
+    seq_edges =
+      MapSet.new(
+        edges
+        |> Enum.filter(&(&1.edge_type == :sequential))
+        |> Enum.map(&{&1.source, &1.target})
+      )
+
     mergeable? = fn id ->
       id in seq_ids and Map.get(edge_targets, id, 0) == 1 and Map.get(edge_sources, id, 0) <= 1
     end
 
     {merged_nodes, id_map} =
       Enum.reduce(nodes, {[], %{}}, fn node, {acc, remap} ->
-        try_merge_node(node, acc, remap, mergeable?, file)
+        try_merge_node(node, acc, remap, mergeable?, file, seq_edges)
       end)
 
     merged_nodes = Enum.reverse(merged_nodes)
@@ -318,8 +334,15 @@ defmodule Reach.Visualize.ControlFlow do
     {merged_nodes, merged_edges, merged_leaves}
   end
 
-  defp try_merge_node(node, [%{type: :sequential} = prev | rest], remap, mergeable?, file) do
-    if node.type == :sequential and mergeable?.(node.id) do
+  defp try_merge_node(
+         node,
+         [%{type: :sequential} = prev | rest],
+         remap,
+         mergeable?,
+         file,
+         seq_edges
+       ) do
+    if node.type == :sequential and mergeable?.(node.id) and {prev.id, node.id} in seq_edges do
       combined = %{
         prev
         | end_line: node.end_line,
@@ -332,7 +355,7 @@ defmodule Reach.Visualize.ControlFlow do
     end
   end
 
-  defp try_merge_node(node, acc, remap, _mergeable?, _file), do: {[node | acc], remap}
+  defp try_merge_node(node, acc, remap, _mergeable?, _file, _seq_edges), do: {[node | acc], remap}
 
   defp remap_id(map, id), do: Map.get(map, id, id)
 
@@ -407,12 +430,12 @@ defmodule Reach.Visualize.ControlFlow do
     do_body = blocks[:do]
     else_body = blocks[:else]
 
-    {do_nodes, do_edges, do_leaves} = build_arm(do_body, "#{id}_do", id, file, offset)
+    {do_nodes, do_edges, do_leaves} = build_arm(do_body, "#{id}_do", id, file, offset, if_end)
     do_edge = branch_edge(id, first_id(do_nodes), "true", "#16a34a")
 
     {else_nodes, else_edges, else_leaves, else_edge} =
       if else_body do
-        {en, ee, el} = build_arm(else_body, "#{id}_else", id, file, offset)
+        {en, ee, el} = build_arm(else_body, "#{id}_else", id, file, offset, if_end)
         {en, ee, el, branch_edge(id, first_id(en), "false", "#dc2626")}
       else
         {[], [], [id], nil}
@@ -454,7 +477,8 @@ defmodule Reach.Visualize.ControlFlow do
             highlight_line(file, clause_line)
           )
 
-        {arm_nodes, arm_edges, arm_leaves} = build_arm(body, clause_id, id, file, offset)
+        {arm_nodes, arm_edges, arm_leaves} =
+          build_arm(body, clause_id, id, file, offset, case_end)
 
         edge = branch_edge(id, clause_id, pattern_str, clause_color(idx))
         arm_edge = seq_edge(clause_id, first_id(arm_nodes))
@@ -470,7 +494,7 @@ defmodule Reach.Visualize.ControlFlow do
 
   # ── Branch arm (shared by if/case) ──
 
-  defp build_arm(body, arm_id, _parent_id, file, offset) do
+  defp build_arm(body, arm_id, _parent_id, file, offset, arm_line) do
     exprs =
       case body do
         {:__block__, _, es} -> es
@@ -478,7 +502,7 @@ defmodule Reach.Visualize.ControlFlow do
         single -> [single]
       end
 
-    walk_body(exprs, arm_id, file, offset, nil)
+    walk_body(exprs, arm_id, file, offset, arm_line)
   end
 
   # ── Leaf collection ──
