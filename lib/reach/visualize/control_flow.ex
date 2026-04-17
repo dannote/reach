@@ -418,23 +418,20 @@ defmodule Reach.Visualize.ControlFlow do
   end
 
   defp blocks_to_viz_nodes(blocks, vertex_ranges, branch_vertices, node_map, file, cfg) do
+    all_starts =
+      blocks
+      |> Enum.map(fn block -> elem(Map.fetch!(vertex_ranges, hd(block)), 0) end)
+      |> Enum.sort()
+
     blocks
-    |> Enum.with_index()
-    |> Enum.map(fn {block, idx} ->
+    |> Enum.map(fn block ->
       first_v = hd(block)
       {start_l, _} = Map.fetch!(vertex_ranges, first_v)
       {_, raw_end_l} = Map.fetch!(vertex_ranges, List.last(block))
 
-      # Clamp end_line to not overlap with next block's start
-      end_l =
-        if idx + 1 < length(blocks) do
-          next_block = Enum.at(blocks, idx + 1)
-          next_first = hd(next_block)
-          {next_start, _} = Map.fetch!(vertex_ranges, next_first)
-          if next_start > start_l, do: min(raw_end_l, next_start - 1), else: raw_end_l
-        else
-          raw_end_l
-        end
+      # Clamp end_line so it does not overlap with any other block
+      min_next = all_starts |> Enum.filter(&(&1 > start_l)) |> Enum.min(fn -> nil end)
+      end_l = if min_next, do: min(raw_end_l, min_next - 1), else: raw_end_l
 
       node = Map.get(node_map, first_v)
       type = block_type(block, branch_vertices, node_map)
