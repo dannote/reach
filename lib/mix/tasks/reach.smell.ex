@@ -64,6 +64,7 @@ defmodule Mix.Tasks.Reach.Smell do
         |> Reach.IR.all_nodes()
         |> Enum.filter(fn n ->
           n.type == :call and n.meta[:module] in [Enum, Stream] and
+            n.meta[:kind] != :fun_ref and
             n.meta[:function] != nil
         end)
         |> Enum.filter(& &1.source_span)
@@ -138,7 +139,8 @@ defmodule Mix.Tasks.Reach.Smell do
   end
 
   defp reverse_pair?(a, b) do
-    a.meta[:function] == :reverse and b.meta[:function] == :reverse
+    a.meta[:function] == :reverse and b.meta[:function] == :reverse and
+      a.meta[:arity] == 1 and b.meta[:arity] == 1
   end
 
   defp filter_count?(a, b) do
