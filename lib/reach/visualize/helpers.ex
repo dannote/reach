@@ -185,6 +185,13 @@ defmodule Reach.Visualize.Helpers do
     end
   end
 
+  def min_line_in_subtree(node) do
+    line = span_field(node, :start_line)
+    child_lines = Enum.flat_map(node.children, &collect_lines/1)
+    all = if line, do: [line | child_lines], else: child_lines
+    Enum.min(all, fn -> nil end)
+  end
+
   defp min_child_line(node) do
     node.children
     |> Enum.flat_map(&collect_lines/1)
@@ -193,7 +200,7 @@ defmodule Reach.Visualize.Helpers do
 
   defp collect_lines(node) do
     line = span_field(node, :start_line)
-    child_lines = Enum.flat_map(node.children || [], &collect_lines/1)
+    child_lines = Enum.flat_map(node.children, &collect_lines/1)
     if line, do: [line | child_lines], else: child_lines
   end
 

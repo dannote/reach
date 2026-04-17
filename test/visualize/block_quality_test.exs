@@ -1,8 +1,6 @@
 defmodule Reach.Visualize.BlockQualityTest do
   use ExUnit.Case, async: true
 
-  alias Reach.Visualize.Helpers
-
   @tag timeout: 120_000
   test "block quality audit across real codebases" do
     dirs = [
@@ -47,54 +45,42 @@ defmodule Reach.Visualize.BlockQualityTest do
     end
   end
 
-  defp audit_function(func, module, all_ir_nodes, file) do
+  defp audit_function(func, module, _all_ir_nodes, file) do
     name = "#{module}.#{func["name"]}/#{func["arity"]}"
     nodes = func["nodes"]
-    edges = func["edges"] || []
     source_lines = file && read_lines(file)
 
     func_start = find_entry_end(nodes)
     func_end = find_exit_start(nodes)
 
     []
-
     # R1: Every source line of function body appears in at least one block
     |> check_coverage(name, nodes, func_start, func_end, source_lines)
-
     # R2: No two blocks share the same source line range (excluding entry/exit overlap)
     |> check_disjointness(name, nodes)
-
-    # R3-R4: Branch boundaries handled by CFG builder (structural)
-    # Checked indirectly via R1/R2/R5
-
     # R5: No empty blocks — every non-entry/exit block has source_html
-    |> check_source_html(name, nodes, all_ir_nodes)
-
+    |> check_source_html(name, nodes)
     # R6: No nil labels
     |> check_labels(name, nodes)
-
     # R7: Entry/exit structure
     |> check_entry_exit(name, nodes)
   end
 
-  # R1: Coverage — every line between def and end should appear in some block
-  defp check_coverage(violations, name, nodes, func_start, func_end, nil) do
-    violations
-  end
+  # R1: Coverage — every line between def and end should appear in some block.
+  # Allow ≤5 missing lines per function (compiler limitation with pipe chains and heredocs).
+  defp check_coverage(violations, _name, _nodes, _func_start, _func_end, nil), do: violations
 
-  defp check_coverage(violations, name, nodes, func_start, func_end, source_lines)
-       when is_nil(func_start) or is_nil(func_end) do
-    violations
-  end
+  defp check_coverage(violations, _name, _nodes, func_start, func_end, _source_lines)
+       when is_nil(func_start) or is_nil(func_end),
+       do: violations
 
   defp check_coverage(violations, name, nodes, func_start, func_end, source_lines) do
     body_blocks = Enum.reject(nodes, &(&1["type"] == "exit"))
-
     covered_lines = collect_covered_lines(body_blocks, nodes)
     expected_lines = collect_expected_lines(func_start, func_end, source_lines)
     missing = MapSet.difference(expected_lines, covered_lines)
 
-    missing_list = MapSet.to_list(missing) |> Enum.sort()
+    missing_list = missing |> MapSet.to_list() |> Enum.sort()
 
     if length(missing_list) > 5 do
       [{:coverage, name, "missing lines: #{Enum.join(missing_list, ", ")}"} | violations]
@@ -103,21 +89,24 @@ defmodule Reach.Visualize.BlockQualityTest do
     end
   end
 
+  # Issue #9: build MapSet once, conditionally add exit line
   defp collect_covered_lines(body_blocks, nodes) do
-    lines =
-      Enum.flat_map(body_blocks, fn b ->
+    lines_set =
+      body_blocks
+      |> Enum.flat_map(fn b ->
         s = b["start_line"]
         e = b["end_line"]
         if s && e && s > 0 && e >= s, do: Range.new(s, e), else: []
       end)
+      |> MapSet.new()
 
-    exit_block = Enum.find(nodes, &(&1["type"] == "exit"))
+    exit_line =
+      case Enum.find(nodes, &(&1["type"] == "exit")) do
+        %{"start_line" => l} when is_integer(l) -> l
+        _ -> nil
+      end
 
-    if exit_block && exit_block["start_line"] do
-      MapSet.put(MapSet.new(lines), exit_block["start_line"])
-    else
-      MapSet.new(lines)
-    end
+    if exit_line, do: MapSet.put(lines_set, exit_line), else: lines_set
   end
 
   defp collect_expected_lines(func_start, func_end, source_lines) do
@@ -158,7 +147,7 @@ defmodule Reach.Visualize.BlockQualityTest do
   end
 
   # R5: No empty blocks
-  defp check_source_html(violations, name, nodes, all_ir_nodes) do
+  defp check_source_html(violations, name, nodes) do
     empty =
       nodes
       |> Enum.filter(fn n ->
@@ -194,7 +183,6 @@ defmodule Reach.Visualize.BlockQualityTest do
         violations
       end
 
-    # Only CFG-based functions need exit nodes; dispatch functions don't
     has_clause = Enum.any?(nodes, &(&1["type"] == "clause"))
     has_branch = Enum.any?(nodes, &(&1["type"] in ["branch", "sequential"]))
 

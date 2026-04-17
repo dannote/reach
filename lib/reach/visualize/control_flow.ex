@@ -160,7 +160,7 @@ defmodule Reach.Visualize.ControlFlow do
         highlight_line(file, func_start)
       )
 
-    {exit_node, exit_edges} = build_exit_node(func, cfg, block_for_vertex, file, func_id)
+    {exit_node, exit_edges} = build_exit_node(cfg, block_for_vertex, file, func_id, func_end)
 
     all_nodes = [entry | viz_nodes] ++ [exit_node]
     all_edges = dispatch_edges ++ viz_edges ++ exit_edges
@@ -176,11 +176,8 @@ defmodule Reach.Visualize.ControlFlow do
         |> Enum.min(fn -> nil end)
 
       if child_start && child_start > func_start do
-        Map.put(
-          ranges,
-          clause.id,
-          {child_start, elem(Map.get(ranges, clause.id, {child_start, func_end}), 1)}
-        )
+        {_, current_end} = Map.get(ranges, clause.id, {child_start, func_end})
+        Map.put(ranges, clause.id, {child_start, current_end})
       else
         ranges
       end
@@ -188,61 +185,59 @@ defmodule Reach.Visualize.ControlFlow do
   end
 
   defp build_dispatch_edges(clauses, block_for_vertex, func_id) do
-    clauses
-    |> Enum.with_index()
-    |> Enum.flat_map(fn {clause, idx} ->
-      target_block = Map.get(block_for_vertex, clause.id)
-
-      if target_block do
-        [
-          %{
-            id: "dispatch_#{func_id}_#{clause.id}",
-            source: func_id,
-            target: target_block,
-            label: clause_pattern(clause),
-            edge_type: :branch,
-            color: dispatch_color(idx)
-          }
-        ]
-      else
-        []
-      end
-    end)
+    for {clause, idx} <- Enum.with_index(clauses),
+        target_block = Map.get(block_for_vertex, clause.id),
+        target_block != nil do
+      %{
+        id: "dispatch_#{func_id}_#{clause.id}",
+        source: func_id,
+        target: target_block,
+        label: clause_pattern(clause),
+        edge_type: :branch,
+        color: dispatch_color(idx)
+      }
+    end
   end
 
-  defp build_exit_node(func, cfg, block_for_vertex, file, func_id) do
-    exit_line = func_end_line(func, file)
-
-    exit_src = highlight_line(file, exit_line)
-    exit_src = if source_blank?(exit_src), do: Visualize.highlight_source("end"), else: exit_src
+  defp build_exit_node(cfg, block_for_vertex, file, func_id, exit_line) do
+    exit_id = "#{func_id}_exit"
 
     exit_node =
       make_node(
-        "#{func_id}_exit",
+        exit_id,
         :exit,
         "end",
         exit_line,
         exit_line,
-        exit_src
+        exit_source_html(file, exit_line)
       )
 
-    exit_id = "#{func_id}_exit"
-    exit_targets = find_exit_predecessors(cfg, block_for_vertex)
-
-    exit_edges =
-      if length(exit_targets) > 1 do
-        Enum.map(exit_targets, &converge_edge(&1, exit_id))
-      else
-        Enum.map(exit_targets, &seq_edge(&1, exit_id))
-      end
-      |> Enum.reject(&is_nil/1)
+    exit_edges = build_exit_edges(find_exit_predecessors(cfg, block_for_vertex), exit_id)
 
     {exit_node, exit_edges}
   end
 
+  defp exit_source_html(file, line) do
+    file
+    |> highlight_line(line)
+    |> fallback_html("end")
+  end
+
+  defp fallback_html(html, text) do
+    if source_blank?(html), do: Visualize.highlight_source(text), else: html
+  end
+
+  defp build_exit_edges(exit_targets, exit_id) do
+    case exit_targets do
+      [_, _ | _] -> Enum.map(exit_targets, &converge_edge(&1, exit_id))
+      _ -> Enum.map(exit_targets, &seq_edge(&1, exit_id))
+    end
+    |> Enum.reject(&is_nil/1)
+  end
+
   defp collect_span_lines(node) do
     line = span_field(node, :start_line)
-    child_lines = Enum.flat_map(node.children || [], &collect_span_lines/1)
+    child_lines = Enum.flat_map(node.children, &collect_span_lines/1)
     if line, do: [line | child_lines], else: child_lines
   end
 
@@ -299,33 +294,10 @@ defmodule Reach.Visualize.ControlFlow do
           highlight_line(file, func_start)
         )
 
-      exit_source = highlight_line(file, func_end)
-
-      exit_source =
-        if source_blank?(exit_source), do: Visualize.highlight_source("end"), else: exit_source
-
-      exit_node =
-        make_node(
-          "#{func.id}_exit",
-          :exit,
-          "end",
-          func_end,
-          func_end,
-          exit_source
-        )
+      {exit_node, exit_edges} = build_exit_node(cfg, block_for_vertex, file, func_id, func_end)
 
       first_block_id = find_entry_target(cfg, block_for_vertex)
       entry_edge = if first_block_id, do: seq_edge(func_id, first_block_id)
-
-      exit_targets = find_exit_predecessors(cfg, block_for_vertex)
-
-      exit_edges =
-        if length(exit_targets) > 1 do
-          Enum.map(exit_targets, &converge_edge(&1, "#{func.id}_exit"))
-        else
-          Enum.map(exit_targets, &seq_edge(&1, "#{func.id}_exit"))
-        end
-        |> Enum.reject(&is_nil/1)
 
       all_nodes = [entry | viz_nodes] ++ [exit_node]
       all_edges = Enum.reject([entry_edge | viz_edges] ++ exit_edges, &is_nil/1)
@@ -337,7 +309,7 @@ defmodule Reach.Visualize.ControlFlow do
     lines =
       Enum.map(ir_vertices, fn v ->
         n = Map.fetch!(node_map, v)
-        span_field(n, :start_line) || func_start
+        min_line_in_subtree(n) || func_start
       end)
 
     ir_vertices
@@ -351,31 +323,29 @@ defmodule Reach.Visualize.ControlFlow do
   end
 
   defp detect_branches(cfg) do
-    # Vertices that emit clause_match or true/false branch edges
-    edge_branches =
-      cfg
-      |> Graph.edges()
-      |> Enum.filter(fn e ->
-        match?({:clause_match, _}, e.label) or e.label in [:true_branch, :false_branch]
+    edges = Graph.edges(cfg)
+
+    {edge_sources, clause_targets} =
+      Enum.reduce(edges, {[], []}, fn e, {srcs, tgts} ->
+        cond do
+          match?({:clause_match, _}, e.label) ->
+            {[e.v1 | srcs], [e.v2 | tgts]}
+
+          e.label in [:true_branch, :false_branch] ->
+            {[e.v1 | srcs], tgts}
+
+          true ->
+            {srcs, tgts}
+        end
       end)
-      |> Enum.map(& &1.v1)
 
-    # Clause targets are also block boundaries (each clause starts its own block)
-    clause_targets =
-      cfg
-      |> Graph.edges()
-      |> Enum.filter(fn e -> match?({:clause_match, _}, e.label) end)
-      |> Enum.map(& &1.v2)
-
-    # Any vertex with multiple outgoing edges is a branch point
     multi_out =
-      cfg
-      |> Graph.edges()
+      edges
       |> Enum.group_by(& &1.v1)
-      |> Enum.filter(fn {_, edges} -> length(edges) > 1 end)
+      |> Enum.filter(fn {_, es} -> match?([_, _ | _], es) end)
       |> Enum.map(fn {v, _} -> v end)
 
-    MapSet.new(edge_branches ++ clause_targets ++ multi_out)
+    MapSet.new(edge_sources ++ clause_targets ++ multi_out)
   end
 
   defp build_viz_blocks(ir_vertices, cfg, _vertex_ranges, branch_vertices) do
@@ -454,7 +424,6 @@ defmodule Reach.Visualize.ControlFlow do
         [single ++ absorbed]
 
       {_multiple, _} ->
-        # Multiple branch blocks on same line — merge all into one
         [List.flatten(group)]
     end
   end
@@ -473,7 +442,6 @@ defmodule Reach.Visualize.ControlFlow do
       raw_end_l =
         block |> Enum.map(fn v -> elem(Map.fetch!(vertex_ranges, v), 1) end) |> Enum.max()
 
-      # Clamp end_line so it does not overlap with any other block
       min_next = all_starts |> Enum.filter(&(&1 > start_l)) |> Enum.min(fn -> nil end)
       end_l = if min_next, do: min(raw_end_l, min_next - 1), else: raw_end_l
 
@@ -587,7 +555,6 @@ defmodule Reach.Visualize.ControlFlow do
   defp clause_label(%{meta: %{kind: :false_branch}}), do: "false"
 
   defp clause_label(%{meta: %{kind: :case_clause}} = node) do
-    # Children are [patterns...] ++ [guards...] ++ [body] — take all except last (body)
     patterns = if length(node.children) > 1, do: Enum.drop(node.children, -1), else: node.children
 
     patterns
