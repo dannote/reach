@@ -16,9 +16,10 @@ defmodule Mix.Tasks.Reach.Otp do
 
   @shortdoc "Show OTP state machine analysis"
 
-  @switches [format: :string]
+  @switches [format: :string, graph: :boolean]
   @aliases [f: :format]
 
+  alias Reach.CLI.BoxartGraph
   alias Reach.CLI.Format
   alias Reach.CLI.Project
   alias Reach.IR
@@ -36,7 +37,7 @@ defmodule Mix.Tasks.Reach.Otp do
     case format do
       "json" -> Format.render(result, "reach.otp", format: "json", pretty: true)
       "oneline" -> render_oneline(result)
-      _ -> render_text(result)
+      _ -> render_text(result, opts)
     end
   end
 
@@ -369,13 +370,14 @@ defmodule Mix.Tasks.Reach.Otp do
     end)
   end
 
-  defp render_text(result) do
+  defp render_text(result, opts) do
     IO.puts(Format.header("OTP Analysis"))
 
     if result.behaviours == [] do
       IO.puts("No OTP behaviours detected.\n")
     else
-      Enum.each(result.behaviours, &render_behaviour/1)
+      graph_mode = opts[:graph] || false
+      Enum.each(result.behaviours, &render_behaviour(&1, graph_mode))
     end
 
     render_ets_coupling(result.hidden_coupling.ets)
@@ -384,8 +386,13 @@ defmodule Mix.Tasks.Reach.Otp do
     render_supervision(result.supervision)
   end
 
-  defp render_behaviour(gs) do
+  defp render_behaviour(gs, graph_mode) do
     IO.puts(Format.section("#{gs.module} #{Format.faint("(" <> gs.behaviour <> ")")}"))
+
+    if graph_mode and BoxartGraph.available?() do
+      BoxartGraph.render_otp_state_diagram(gs.state_transforms)
+    end
+
     IO.puts("  Callbacks:")
 
     gs.state_transforms

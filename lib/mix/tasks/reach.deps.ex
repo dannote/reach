@@ -17,9 +17,10 @@ defmodule Mix.Tasks.Reach.Deps do
 
   @shortdoc "Show function dependencies (callers, callees, shared state)"
 
-  @switches [format: :string, depth: :integer]
+  @switches [format: :string, depth: :integer, graph: :boolean]
   @aliases [f: :format]
 
+  alias Reach.CLI.BoxartGraph
   alias Reach.CLI.Format
   alias Reach.CLI.Project
 
@@ -52,10 +53,22 @@ defmodule Mix.Tasks.Reach.Deps do
       shared_state_writers: shared
     }
 
-    case format do
-      "json" -> Format.render(result, "reach.deps", format: "json", pretty: true)
-      "oneline" -> render_oneline(result)
-      _ -> render_text(result)
+    render_output(format, result, project, target, depth, opts)
+  end
+
+  defp render_output(format, result, project, target, depth, opts) do
+    if opts[:graph] do
+      if BoxartGraph.available?() do
+        BoxartGraph.render_call_graph(project, target, depth)
+      else
+        Mix.raise("boxart is required for --graph. Add {:boxart, \"~> 0.1\"} to your deps.")
+      end
+    else
+      case format do
+        "json" -> Format.render(result, "reach.deps", format: "json", pretty: true)
+        "oneline" -> render_oneline(result)
+        _ -> render_text(result)
+      end
     end
   end
 
