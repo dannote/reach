@@ -811,17 +811,25 @@ defmodule Reach do
   end
 
   defp collect_cond_condition_ids(all_nodes) do
-    all_nodes
-    |> Enum.filter(fn n ->
-      n.type == :clause and n.meta[:kind] == :cond_clause
-    end)
-    |> Enum.flat_map(fn clause ->
-      case clause.children do
-        [condition | _] -> Reach.IR.all_nodes(condition)
-        _ -> []
-      end
-    end)
-    |> MapSet.new(& &1.id)
+    cond_conditions =
+      all_nodes
+      |> Enum.filter(fn n ->
+        n.type == :clause and n.meta[:kind] == :cond_clause
+      end)
+      |> Enum.flat_map(fn clause ->
+        case clause.children do
+          [condition | _] -> Reach.IR.all_nodes(condition)
+          _ -> []
+        end
+      end)
+
+    # Comprehension filter expressions
+    filter_ids =
+      all_nodes
+      |> Enum.filter(&(&1.type == :filter))
+      |> Enum.flat_map(&Reach.IR.all_nodes/1)
+
+    MapSet.new(cond_conditions ++ filter_ids, & &1.id)
   end
 
   defp collect_impure_ids(all_nodes) do
@@ -837,7 +845,7 @@ defmodule Reach do
 
   defp candidate_for_dead?(%Node{type: t} = node)
        when t in [:call, :binary_op, :unary_op, :match] do
-    pure?(node) and not attribute_or_typespec?(node)
+    pure?(node) and not attribute_or_typespec?(node) and not pattern_context?(node)
   end
 
   defp candidate_for_dead?(_), do: false
@@ -849,6 +857,16 @@ defmodule Reach do
   defp attribute_or_typespec?(%{type: :call, meta: %{kind: :attribute}}), do: true
 
   defp attribute_or_typespec?(_), do: false
+
+  defp pattern_context?(%{type: :binary_op, meta: %{operator: :<>}, children: children}) do
+    Enum.any?(children, fn
+      %{type: :var, meta: %{binding_role: :definition}} -> true
+      %{type: :var, meta: %{name: name}} -> Atom.to_string(name) |> String.starts_with?("_")
+      _ -> false
+    end)
+  end
+
+  defp pattern_context?(_), do: false
 
   defp filter_nodes(nodes, []), do: nodes
 
