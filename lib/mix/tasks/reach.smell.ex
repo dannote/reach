@@ -38,7 +38,6 @@ defmodule Mix.Tasks.Reach.Smell do
     findings =
       detect_pipeline_waste(project) ++
         detect_redundant_computation(project) ++
-        detect_unused_results(project) ++
         detect_eager_patterns(project)
 
     case format do
@@ -339,54 +338,6 @@ defmodule Mix.Tasks.Reach.Smell do
 
   # --- Unused results: pure call whose return value is discarded ---
 
-  defp detect_unused_results(project) do
-    nodes = Map.values(project.nodes)
-    graph = project.graph
-
-    nodes
-    |> Enum.filter(fn n ->
-      n.type == :call and
-        Effects.classify(n) == :pure and
-        n.meta[:function] != nil and
-        n.source_span != nil and
-        not trivial_call?(n) and
-        Graph.has_vertex?(graph, n.id) and
-        Graph.out_degree(graph, n.id) == 0
-    end)
-    |> Enum.reject(fn n ->
-      return_value?(n, nodes)
-    end)
-    |> Enum.take(20)
-    |> Enum.map(fn n ->
-      %{
-        kind: :unused_result,
-        message: "#{call_name(n)} result is unused",
-        location: Format.location(n)
-      }
-    end)
-  end
-
-  defp trivial_call?(node) do
-    node.meta[:function] in [:@, :__aliases__, :__MODULE__, :to_string, :inspect] or
-      (is_atom(node.meta[:module]) and to_string(node.meta[:module]) =~ "Reach.CLI")
-  end
-
-  defp return_value?(node, all_nodes) do
-    all_nodes
-    |> Enum.filter(&(&1.type == :clause))
-    |> Enum.any?(fn clause ->
-      List.last(clause.children) == node or
-        clause.children |> List.last() |> children_contain?(node)
-    end)
-  end
-
-  defp children_contain?(parent, target) do
-    parent != nil and
-      Enum.any?(parent.children || [], fn child ->
-        child.id == target.id or children_contain?(child, target)
-      end)
-  end
-
   # --- Eager patterns: Enum.map |> List.first, Enum.sort |> Enum.take ---
 
   defp detect_eager_patterns(project) do
@@ -459,7 +410,6 @@ defmodule Mix.Tasks.Reach.Smell do
       render_group(Map.get(grouped, :redundant_traversal, []), "Redundant traversals")
       render_group(Map.get(grouped, :suboptimal, []), "Suboptimal patterns")
       render_group(Map.get(grouped, :redundant_computation, []), "Redundant computations")
-      render_group(Map.get(grouped, :unused_result, []), "Unused computation results")
       render_group(Map.get(grouped, :eager_pattern, []), "Eager where lazy suffices")
 
       IO.puts("#{length(findings)} finding(s)\n")
