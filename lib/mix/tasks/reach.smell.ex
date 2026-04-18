@@ -215,19 +215,83 @@ defmodule Mix.Tasks.Reach.Smell do
     |> Enum.take(20)
   end
 
+  @type_check_fns [
+    :is_atom,
+    :is_binary,
+    :is_bitstring,
+    :is_boolean,
+    :is_exception,
+    :is_float,
+    :is_function,
+    :is_integer,
+    :is_list,
+    :is_map,
+    :is_map_key,
+    :is_nil,
+    :is_number,
+    :is_pid,
+    :is_port,
+    :is_reference,
+    :is_struct,
+    :is_tuple
+  ]
+
   defp find_redundant_calls_in_func(func) do
+    # Walk each sequential block and find duplicate calls within
+    # the same execution path (not across case/fn/cond clauses)
     func
-    |> IR.all_nodes()
-    |> Enum.filter(fn n ->
-      n.type == :call and
-        Effects.pure?(n) and
-        n.meta[:function] != nil and
-        n.source_span != nil
-    end)
+    |> collect_sequential_blocks()
+    |> Enum.flat_map(&find_redundant_in_block/1)
+  end
+
+  defp find_redundant_in_block(block_calls) do
+    block_calls
     |> Enum.group_by(fn n -> {n.meta[:module], n.meta[:function], n.meta[:arity]} end)
     |> Enum.flat_map(fn {_key, group} ->
       if length(group) > 1, do: find_same_arg_calls(group), else: []
     end)
+  end
+
+  defp collect_sequential_blocks(node) do
+    # For clause/block nodes, collect calls from the sequential body
+    # (recursing into match/etc but not into case/fn branches)
+    calls = collect_block_calls(node, []) |> Enum.reverse()
+
+    # Recurse into case/fn/clause children to process each branch separately
+    nested =
+      (node.children || [])
+      |> Enum.flat_map(fn child ->
+        case child.type do
+          t when t in [:case, :fn] ->
+            child.children
+            |> Enum.filter(&(&1.type == :clause))
+            |> Enum.flat_map(&collect_sequential_blocks/1)
+
+          :clause ->
+            collect_sequential_blocks(child)
+
+          _ ->
+            []
+        end
+      end)
+
+    if calls != [], do: [calls | nested], else: nested
+  end
+
+  defp collect_block_calls(node, acc) do
+    acc =
+      if node.type == :call and Effects.pure?(node) and
+           node.meta[:function] != nil and
+           node.meta[:function] not in @type_check_fns and
+           node.source_span != nil do
+        [node | acc]
+      else
+        acc
+      end
+
+    node.children
+    |> Enum.reject(&(&1.type in [:case, :fn, :clause]))
+    |> Enum.reduce(acc, &collect_block_calls/2)
   end
 
   defp find_same_arg_calls(calls) do
@@ -255,15 +319,17 @@ defmodule Mix.Tasks.Reach.Smell do
   end
 
   defp same_args?(a, b) do
-    a_children = Enum.filter(a.children, &(&1.type == :var))
-    b_children = Enum.filter(b.children, &(&1.type == :var))
-
-    length(a_children) == length(b_children) and
-      Enum.zip(a_children, b_children)
-      |> Enum.all?(fn {ac, bc} ->
-        ac.meta[:name] == bc.meta[:name]
-      end)
+    length(a.children) == length(b.children) and a.children != [] and
+      Enum.zip(a.children, b.children)
+      |> Enum.all?(fn {ac, bc} -> same_node?(ac, bc) end)
   end
+
+  defp same_node?(%{type: :var, meta: am}, %{type: :var, meta: bm}), do: am[:name] == bm[:name]
+
+  defp same_node?(%{type: :literal, meta: am}, %{type: :literal, meta: bm}),
+    do: am[:value] == bm[:value]
+
+  defp same_node?(_, _), do: false
 
   defp call_name(node) do
     mod = node.meta[:module]
