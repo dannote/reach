@@ -108,7 +108,7 @@ defmodule Reach.CLI.Format do
   def location(node) do
     case node.source_span do
       %{file: f, start_line: l} ->
-        faint(f) <> ":" <> cyan(to_string(l))
+        faint(f <> ":" <> to_string(l))
 
       _ ->
         "unknown"
@@ -123,11 +123,11 @@ defmodule Reach.CLI.Format do
   end
 
   def loc(file, line) when is_binary(file) and is_integer(line) do
-    faint(file) <> ":" <> cyan(to_string(line))
+    faint(file <> ":" <> to_string(line))
   end
 
   def loc(file, line) when is_binary(file) do
-    faint(file) <> ":" <> cyan(to_string(line))
+    faint(file <> ":" <> to_string(line))
   end
 
   def loc(raw, _), do: faint(to_string(raw))
