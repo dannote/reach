@@ -244,6 +244,8 @@ defmodule Reach.Effects do
       :unknown
   end
 
+  # Both Elixir (GenServer) and Erlang (:gen_server) atoms are listed
+  # since the IR uses whichever form appears in the source code.
   @impure_modules [
     Process,
     Port,

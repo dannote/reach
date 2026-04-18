@@ -103,6 +103,7 @@ defmodule ReachTest do
       dynamic = Reach.nodes(graph, type: :call) |> Enum.filter(&(&1.meta[:kind] == :dynamic))
       assert [call] = dynamic
       assert call.meta[:arity] == 1
+      assert call.meta[:function] == nil
     end
 
     test "emits call nodes for local fn variable dispatch" do
@@ -117,6 +118,7 @@ defmodule ReachTest do
       dynamic = Reach.nodes(graph, type: :call) |> Enum.filter(&(&1.meta[:kind] == :dynamic))
       assert [call] = dynamic
       assert call.meta[:arity] == 1
+      assert call.meta[:function] == nil
     end
 
     test "dynamic call has callee as first child" do
@@ -569,6 +571,106 @@ defmodule ReachTest do
       dead = Reach.dead_code(graph)
       dead_fns = Enum.map(dead, & &1.meta[:function])
       refute :to_string in dead_fns
+    end
+
+    test "cond conditions are not flagged as dead" do
+      graph =
+        Reach.string_to_graph!("""
+        def foo(x) do
+          cond do
+            x > 0 -> :positive
+            true -> :negative
+          end
+        end
+        """)
+
+      dead = Reach.dead_code(graph)
+      dead_ops = Enum.map(dead, & &1.meta[:operator])
+      refute :> in dead_ops
+    end
+
+    test "comprehension filters are not flagged as dead" do
+      graph =
+        Reach.string_to_graph!("""
+        def foo(list) do
+          for x <- list, x > 0, do: x * 2
+        end
+        """)
+
+      dead = Reach.dead_code(graph)
+      dead_ops = Enum.map(dead, & &1.meta[:operator])
+      refute :> in dead_ops
+    end
+
+    test "intermediate match with used variable is not dead" do
+      graph =
+        Reach.string_to_graph!("""
+        def foo(x) do
+          result = case x do
+            :a -> String.upcase("a")
+            :b -> String.upcase("b")
+          end
+          result
+        end
+        """)
+
+      dead = Reach.dead_code(graph)
+      dead_fns = Enum.map(dead, & &1.meta[:function])
+      refute :upcase in dead_fns
+    end
+
+    test "ETS operations are not flagged as dead" do
+      graph =
+        Reach.string_to_graph!("""
+        def foo(table) do
+          :ets.new(table, [:named_table])
+          :ets.insert(table, {:key, :val})
+          :ok
+        end
+        """)
+
+      dead = Reach.dead_code(graph)
+      dead_fns = Enum.map(dead, & &1.meta[:function])
+      refute :new in dead_fns
+      refute :insert in dead_fns
+    end
+
+    test "fn clause tails are not flagged as dead" do
+      graph =
+        Reach.string_to_graph!("""
+        def foo(list) do
+          Enum.map(list, fn x -> String.upcase(x) end)
+        end
+        """)
+
+      dead = Reach.dead_code(graph)
+      dead_fns = Enum.map(dead, & &1.meta[:function])
+      refute :upcase in dead_fns
+    end
+
+    test "raise arguments are not flagged as dead" do
+      graph =
+        Reach.string_to_graph!("""
+        def foo(x) do
+          raise "error: " <> inspect(x)
+        end
+        """)
+
+      dead = Reach.dead_code(graph)
+      dead_fns = Enum.map(dead, & &1.meta[:function])
+      refute :inspect in dead_fns
+    end
+
+    test "typespec calls are not flagged as dead" do
+      graph =
+        Reach.string_to_graph!("""
+        @spec foo(String.t()) :: :ok
+        def foo(_x), do: :ok
+        """)
+
+      dead = Reach.dead_code(graph)
+      dead_fns = Enum.map(dead, & &1.meta[:function])
+      refute :t in dead_fns
     end
   end
 

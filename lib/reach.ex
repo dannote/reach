@@ -769,24 +769,24 @@ defmodule Reach do
         end
       end)
 
-    # Second pass: for match nodes where the LHS variable is alive,
-    # mark the RHS (and its tail expressions) as alive too
+    # Second pass: mark all sub-expressions of alive match nodes alive,
+    # since a match requires evaluating both sides
     Enum.reduce(all_nodes, ids, fn node, ids ->
       expand_match_children(node, ids)
     end)
   end
 
-  defp expand_match_children(%{type: :match, id: id, children: children}, ids) do
-    if MapSet.member?(ids, id) do
+  defp expand_match_children(%{type: :match, id: id, children: children}, alive) do
+    if MapSet.member?(alive, id) do
       children
       |> Enum.flat_map(&Reach.IR.all_nodes/1)
-      |> Enum.reduce(ids, fn child, ids -> MapSet.put(ids, child.id) end)
+      |> Enum.reduce(alive, fn child, acc -> MapSet.put(acc, child.id) end)
     else
-      ids
+      alive
     end
   end
 
-  defp expand_match_children(_, ids), do: ids
+  defp expand_match_children(_, alive), do: alive
 
   defp find_dead_nodes(all_nodes, alive_ids) do
     impure_ids = collect_impure_ids(all_nodes)

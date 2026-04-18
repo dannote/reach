@@ -48,7 +48,7 @@ defmodule Reach.Visualize.Helpers do
   end
 
   def cached_file_lines(file) do
-    if source_file?(file), do: do_cached_file_lines(file)
+    if source_file?(file), do: do_cached_file_lines(file), else: nil
   end
 
   defp do_cached_file_lines(file) do
@@ -248,10 +248,8 @@ defmodule Reach.Visualize.Helpers do
     end
   end
 
-  defp source_file?(nil), do: false
+  @source_extensions [".ex", ".exs", ".erl", ".hrl", ".gleam"]
 
-  defp source_file?(file) do
-    ext = Path.extname(file)
-    ext in [".ex", ".exs", ".erl", ".hrl", ".gleam"]
-  end
+  defp source_file?(nil), do: false
+  defp source_file?(file), do: Path.extname(file) in @source_extensions
 end

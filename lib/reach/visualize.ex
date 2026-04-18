@@ -333,8 +333,7 @@ defmodule Reach.Visualize do
       String.ends_with?(file, ".gleam") ->
         build_gleam_def_map(file)
 
-      String.ends_with?(file, ".beam") or
-          not String.ends_with?(file, [".ex", ".exs", ".erl", ".hrl"]) ->
+      not source_file?(file) ->
         %{}
 
       true ->
@@ -381,6 +380,9 @@ defmodule Reach.Visualize do
       {:error, :glance_not_available}
     end
   end
+
+  @source_extensions [".ex", ".exs", ".erl", ".hrl", ".gleam"]
+  defp source_file?(file), do: String.ends_with?(file, @source_extensions)
 
   defp collect_def_ranges(ast) do
     {_, ranges} =
