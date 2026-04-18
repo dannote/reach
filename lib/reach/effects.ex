@@ -244,6 +244,39 @@ defmodule Reach.Effects do
       :unknown
   end
 
+  @impure_modules [
+    Process,
+    Port,
+    :erlang,
+    :code,
+    :os,
+    :file,
+    :gen_server,
+    :gen_statem,
+    :gen_event,
+    :supervisor,
+    :net_kernel,
+    :global,
+    :pg,
+    :rpc,
+    :public_key,
+    :ssl,
+    :gen_tcp,
+    :gen_udp,
+    :inet,
+    System,
+    Mix.Project,
+    Mix,
+    Agent,
+    Task,
+    DynamicSupervisor,
+    Registry,
+    GenServer,
+    Supervisor
+  ]
+
+  defp classify_from_spec(module, _function, _arity) when module in @impure_modules, do: nil
+
   defp classify_from_spec(module, function, arity) when is_atom(module) do
     case Code.Typespec.fetch_specs(module) do
       {:ok, specs} ->

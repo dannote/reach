@@ -634,10 +634,19 @@ defmodule Reach do
   end
 
   defp return_node_ids(graph) do
-    nodes(graph, type: :clause)
-    |> Enum.filter(&(&1.meta[:kind] == :function_clause))
-    |> Enum.flat_map(&tail_expressions/1)
-    |> MapSet.new(& &1.id)
+    all_clauses = nodes(graph, type: :clause)
+
+    function_tails =
+      all_clauses
+      |> Enum.filter(&(&1.meta[:kind] == :function_clause))
+      |> Enum.flat_map(&tail_expressions/1)
+
+    fn_tails =
+      all_clauses
+      |> Enum.filter(&(&1.meta[:kind] == :fn_clause))
+      |> Enum.flat_map(&tail_expressions/1)
+
+    MapSet.new(function_tails ++ fn_tails, & &1.id)
   end
 
   defp tail_expressions(node) do
@@ -648,10 +657,24 @@ defmodule Reach do
       end
 
     case last do
-      nil -> []
-      %{type: :case, children: [_ | clauses]} -> Enum.flat_map(clauses, &tail_expressions/1)
-      %{type: :try, children: children} -> Enum.flat_map(children, &tail_expressions/1)
-      leaf -> [leaf]
+      nil ->
+        []
+
+      %{type: t} when t in [:block, :clause] ->
+        tail_expressions(last)
+
+      %{type: :case, children: children} ->
+        clauses = Enum.filter(children, &(&1.type == :clause))
+        Enum.flat_map(clauses, &tail_expressions/1)
+
+      %{type: :try, children: children} ->
+        Enum.flat_map(children, &tail_expressions/1)
+
+      %{type: :fn, children: clauses} ->
+        Enum.flat_map(clauses, &tail_expressions/1)
+
+      leaf ->
+        [leaf]
     end
   end
 
@@ -734,27 +757,49 @@ defmodule Reach do
   defp match_label?(_, _), do: false
 
   defp expand_alive_to_parents(all_nodes, alive_ids) do
-    Enum.reduce(all_nodes, alive_ids, fn node, ids ->
-      child_ids = Enum.map(node.children, & &1.id)
+    # First pass: mark parent nodes alive if any child is alive
+    ids =
+      Enum.reduce(all_nodes, alive_ids, fn node, ids ->
+        child_ids = Enum.map(node.children, & &1.id)
 
-      if Enum.any?(child_ids, &MapSet.member?(ids, &1)) do
-        MapSet.put(ids, node.id)
-      else
-        ids
-      end
+        if Enum.any?(child_ids, &MapSet.member?(ids, &1)) do
+          MapSet.put(ids, node.id)
+        else
+          ids
+        end
+      end)
+
+    # Second pass: for match nodes where the LHS variable is alive,
+    # mark the RHS (and its tail expressions) as alive too
+    Enum.reduce(all_nodes, ids, fn node, ids ->
+      expand_match_children(node, ids)
     end)
   end
+
+  defp expand_match_children(%{type: :match, id: id, children: children}, ids) do
+    if MapSet.member?(ids, id) do
+      children
+      |> Enum.flat_map(&Reach.IR.all_nodes/1)
+      |> Enum.reduce(ids, fn child, ids -> MapSet.put(ids, child.id) end)
+    else
+      ids
+    end
+  end
+
+  defp expand_match_children(_, ids), do: ids
 
   defp find_dead_nodes(all_nodes, alive_ids) do
     impure_ids = collect_impure_ids(all_nodes)
     guard_ids = collect_guard_ids(all_nodes)
+    cond_ids = collect_cond_condition_ids(all_nodes)
 
     all_nodes
     |> Enum.filter(&candidate_for_dead?/1)
     |> Enum.reject(fn node ->
       MapSet.member?(impure_ids, node.id) or
         MapSet.member?(alive_ids, node.id) or
-        MapSet.member?(guard_ids, node.id)
+        MapSet.member?(guard_ids, node.id) or
+        MapSet.member?(cond_ids, node.id)
     end)
   end
 
@@ -762,6 +807,20 @@ defmodule Reach do
     all_nodes
     |> Enum.filter(&(&1.type == :guard))
     |> Enum.flat_map(&Reach.IR.all_nodes/1)
+    |> MapSet.new(& &1.id)
+  end
+
+  defp collect_cond_condition_ids(all_nodes) do
+    all_nodes
+    |> Enum.filter(fn n ->
+      n.type == :clause and n.meta[:kind] == :cond_clause
+    end)
+    |> Enum.flat_map(fn clause ->
+      case clause.children do
+        [condition | _] -> Reach.IR.all_nodes(condition)
+        _ -> []
+      end
+    end)
     |> MapSet.new(& &1.id)
   end
 
@@ -780,8 +839,10 @@ defmodule Reach do
   defp candidate_for_dead?(_), do: false
 
   defp attribute_or_typespec?(%{type: :call, meta: %{function: f}})
-       when f in [:@, :__aliases__],
+       when f in [:@, :__aliases__, :t],
        do: true
+
+  defp attribute_or_typespec?(%{type: :call, meta: %{kind: :attribute}}), do: true
 
   defp attribute_or_typespec?(_), do: false
 
