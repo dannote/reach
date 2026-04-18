@@ -157,9 +157,15 @@ defmodule Mix.Tasks.Reach.Smell do
     }
   end
 
-  defp data_connected?(first, second, graph) do
-    Graph.has_vertex?(graph, first.id) and Graph.has_vertex?(graph, second.id) and
-      first.id in Graph.reaching(graph, [second.id])
+  defp data_connected?(first, second, _graph) do
+    # Check structural connection: in a pipe like `a |> b`, `a` becomes
+    # the first child of `b` (via desugaring). For nested calls like
+    # `b(a(...))`, `a` is also a child. We check if the first call is
+    # a direct or near-direct child of the second.
+    first.id in Enum.map(second.children, & &1.id) or
+      Enum.any?(second.children, fn child ->
+        first.id in Enum.map(child.children, & &1.id)
+      end)
   rescue
     _ -> false
   end
@@ -178,7 +184,20 @@ defmodule Mix.Tasks.Reach.Smell do
   end
 
   defp map_map?(a, b) do
-    a.meta[:function] == :map and b.meta[:function] == :map
+    a.meta[:function] == :map and b.meta[:function] == :map and
+      a.meta[:module] == b.meta[:module] and
+      callbacks_pure?(a) and callbacks_pure?(b)
+  end
+
+  defp callbacks_pure?(call) do
+    call.children
+    |> Enum.filter(&(&1.type in [:fn, :call]))
+    |> Enum.all?(fn child ->
+      child
+      |> Reach.IR.all_nodes()
+      |> Enum.filter(&(&1.type == :call))
+      |> Enum.all?(&Reach.Effects.pure?/1)
+    end)
   end
 
   defp filter_filter?(a, b) do
