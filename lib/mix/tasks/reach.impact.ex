@@ -180,7 +180,7 @@ defmodule Mix.Tasks.Reach.Impact do
 
   defp render_text(project, result) do
     target_str = Format.func_id_to_string(result.target)
-    IO.puts("If you change #{target_str}:\n")
+    IO.puts("If you change #{target_str}:")
 
     render_caller_section(
       project,

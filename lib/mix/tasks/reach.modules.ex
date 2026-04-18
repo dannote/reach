@@ -32,7 +32,7 @@ defmodule Mix.Tasks.Reach.Modules do
 
     project = Project.load()
     modules = analyze_modules(project)
-    modules = sort_modules(modules, sort)
+    modules = modules |> Enum.reject(&(&1.total_functions == 0)) |> sort_modules(sort)
 
     case format do
       "json" ->

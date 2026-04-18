@@ -197,13 +197,19 @@ defmodule Mix.Tasks.Reach.Slice do
     loc = Format.location(node)
 
     IO.puts(Format.header("#{direction} slice of #{target_desc} (#{loc})"))
-    IO.puts("#{length(result)} statements:\n")
 
-    Enum.each(result, fn stmt ->
-      IO.puts("  #{Path.basename(stmt.file)}:#{stmt.line}  #{stmt.description}")
-    end)
+    if result == [] do
+      hint = if forward?, do: "", else: " Try --forward to see where this value flows."
+      IO.puts("No dependencies found.#{hint}")
+    else
+      Enum.each(result, fn stmt ->
+        IO.puts(
+          "  #{Format.faint(Path.basename(stmt.file) <> ":" <> to_string(stmt.line))}  #{stmt.description}"
+        )
+      end)
 
-    files = result |> Enum.map(& &1.file) |> Enum.uniq() |> length()
-    IO.puts("\n#{length(result)} statements, #{files} file(s)\n")
+      files = result |> Enum.map(& &1.file) |> Enum.uniq() |> length()
+      IO.puts("\n#{Format.count(length(result))} statements, #{files} file(s)")
+    end
   end
 end

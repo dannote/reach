@@ -51,6 +51,7 @@ defmodule Mix.Tasks.Reach.DeadCode do
       )
       |> Enum.flat_map(fn {:ok, results} -> results end)
       |> Enum.sort_by(&{&1.file, &1.line})
+      |> Enum.uniq_by(&{&1.file, &1.line})
 
     case format do
       "json" ->
@@ -103,15 +104,29 @@ defmodule Mix.Tasks.Reach.DeadCode do
         "#{node.meta[:operator]} result unused"
 
       :match ->
-        "match result unused"
+        match_description(node)
 
       _ ->
         "#{node.type} unused"
     end
   end
 
+  defp match_description(node) do
+    case node.children do
+      [%{type: :var, meta: %{name: name}}, %{type: :call} = rhs] ->
+        mod = if rhs.meta[:module], do: inspect(rhs.meta[:module]) <> ".", else: ""
+        "#{name} = #{mod}#{rhs.meta[:function]} is unused"
+
+      [%{type: :var, meta: %{name: name}} | _] ->
+        "#{name} = ... is unused"
+
+      _ ->
+        "match result unused"
+    end
+  end
+
   defp render_text([]) do
-    IO.puts("No dead code found.")
+    IO.puts("  (none found)")
   end
 
   defp render_text(findings) do
