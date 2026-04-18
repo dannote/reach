@@ -672,6 +672,49 @@ defmodule ReachTest do
       dead_fns = Enum.map(dead, & &1.meta[:function])
       refute :t in dead_fns
     end
+
+    test "intermediate variable used later is not dead" do
+      graph =
+        Reach.string_to_graph!("""
+        def foo(x) do
+          y = String.upcase(x)
+          String.downcase(y)
+        end
+        """)
+
+      dead = Reach.dead_code(graph)
+      dead_fns = Enum.map(dead, & &1.meta[:function])
+      refute :upcase in dead_fns
+    end
+
+    test "comprehension generator expressions are not dead" do
+      graph =
+        Reach.string_to_graph!("""
+        def foo(n) do
+          for i <- 0..(n - 1), do: i * 2
+        end
+        """)
+
+      dead = Reach.dead_code(graph)
+      dead_ops = Enum.map(dead, & &1.meta[:operator])
+      refute :- in dead_ops
+      refute :.. in dead_ops
+    end
+
+    test "string match pattern in with is not dead" do
+      graph =
+        Reach.string_to_graph!("""
+        def foo(header) do
+          with "Bearer " <> token <- header do
+            token
+          end
+        end
+        """)
+
+      dead = Reach.dead_code(graph)
+      dead_ops = Enum.map(dead, & &1.meta[:operator])
+      refute :<> in dead_ops
+    end
   end
 
   describe "higher-order function resolution" do

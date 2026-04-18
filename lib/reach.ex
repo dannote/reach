@@ -757,7 +757,11 @@ defmodule Reach do
   defp match_label?(_, _), do: false
 
   defp expand_alive_to_parents(all_nodes, alive_ids) do
-    # First pass: mark parent nodes alive if any child is alive
+    expand_alive_to_parents(all_nodes, alive_ids, MapSet.size(alive_ids))
+  end
+
+  defp expand_alive_to_parents(all_nodes, alive_ids, prev_size) do
+    # Mark parent nodes alive if any child is alive
     ids =
       Enum.reduce(all_nodes, alive_ids, fn node, ids ->
         child_ids = Enum.map(node.children, & &1.id)
@@ -769,11 +773,18 @@ defmodule Reach do
         end
       end)
 
-    # Second pass: mark all sub-expressions of alive match nodes alive,
-    # since a match requires evaluating both sides
-    Enum.reduce(all_nodes, ids, fn node, ids ->
-      expand_match_children(node, ids)
-    end)
+    # Mark all sub-expressions of alive match nodes alive
+    ids =
+      Enum.reduce(all_nodes, ids, fn node, ids ->
+        expand_match_children(node, ids)
+      end)
+
+    # Iterate until stable
+    if MapSet.size(ids) == prev_size do
+      ids
+    else
+      expand_alive_to_parents(all_nodes, ids, MapSet.size(ids))
+    end
   end
 
   defp expand_match_children(%{type: :match, id: id, children: children}, alive) do
@@ -823,13 +834,13 @@ defmodule Reach do
         end
       end)
 
-    # Comprehension filter expressions
-    filter_ids =
+    # Comprehension generators and filters
+    comprehension_ids =
       all_nodes
-      |> Enum.filter(&(&1.type == :filter))
+      |> Enum.filter(&(&1.type in [:filter, :generator, :comprehension]))
       |> Enum.flat_map(&Reach.IR.all_nodes/1)
 
-    MapSet.new(cond_conditions ++ filter_ids, & &1.id)
+    MapSet.new(cond_conditions ++ comprehension_ids, & &1.id)
   end
 
   defp collect_impure_ids(all_nodes) do
@@ -862,6 +873,7 @@ defmodule Reach do
     Enum.any?(children, fn
       %{type: :var, meta: %{binding_role: :definition}} -> true
       %{type: :var, meta: %{name: name}} -> Atom.to_string(name) |> String.starts_with?("_")
+      %{type: :literal, meta: %{value: v}} when is_binary(v) -> true
       _ -> false
     end)
   end
