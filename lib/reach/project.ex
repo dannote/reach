@@ -223,15 +223,21 @@ defmodule Reach.Project do
   defp build_module_sdgs(parsed_modules, opts) do
     summaries = Keyword.get(opts, :summaries, %{})
 
-    Map.new(parsed_modules, fn {module_name, _path, ir_nodes} ->
-      sdg =
-        Reach.SystemDependence.build(ir_nodes,
-          module: module_name,
-          summaries: summaries
-        )
+    parsed_modules
+    |> Task.async_stream(
+      fn {module_name, _path, ir_nodes} ->
+        sdg =
+          Reach.SystemDependence.build(ir_nodes,
+            module: module_name,
+            summaries: summaries
+          )
 
-      {module_name, sdg}
-    end)
+        {module_name, sdg}
+      end,
+      max_concurrency: System.schedulers_online(),
+      ordered: false
+    )
+    |> Map.new(fn {:ok, result} -> result end)
   end
 
   defp merge_project(module_sdgs, opts) do

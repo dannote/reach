@@ -113,9 +113,7 @@ defmodule Reach.SystemDependence do
 
       merged = Graph.add_edges(control_deps, Graph.edges(data_deps))
 
-      pdg = %{graph: merged, nodes: node_map}
-
-      {func_id, pdg}
+      {func_id, %{graph: merged, nodes: node_map}}
     end)
   end
 
