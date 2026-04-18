@@ -57,7 +57,7 @@ defmodule Reach.MixProject do
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:jason, "~> 1.0", optional: true},
-      {:boxart, "~> 0.2", optional: true},
+      {:boxart, "~> 0.3", optional: true},
       {:makeup, "~> 1.0", optional: true},
       {:makeup_elixir, "~> 1.0", optional: true},
       {:volt, "~> 0.4", only: :dev, runtime: false},
