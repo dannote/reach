@@ -27,20 +27,15 @@ defmodule Reach.CLI.BoxartGraph do
         Graph.add_vertex(g, v, style)
       end)
 
-    graph =
-      Enum.reduce(edges, graph, fn {from, to}, g ->
-        Graph.add_edge(g, from, to)
-      end)
+    graph = Enum.reduce(edges, graph, fn {from, to}, g -> Graph.add_edge(g, from, to) end)
 
     IO.puts(Boxart.Render.Mindmap.render(graph, []))
   end
 
   def render_otp_state_diagram(callbacks) do
-    graph = Graph.new()
-
     graph =
-      Enum.reduce(callbacks, graph, fn %{callback: {name, arity}, action: action}, g ->
-        label = to_string(name) <> "/" <> to_string(arity) <> "\n" <> to_string(action)
+      Enum.reduce(callbacks, Graph.new(), fn %{callback: {name, arity}, action: action}, g ->
+        label = "#{name}/#{arity}\n#{action}"
         Graph.add_vertex(g, {name, arity}, label: label, shape: :rounded)
       end)
 
@@ -49,11 +44,7 @@ defmodule Reach.CLI.BoxartGraph do
     graph =
       if init do
         Enum.reduce(callbacks, graph, fn %{callback: {name, arity}}, g ->
-          if name != :init do
-            Graph.add_edge(g, init.callback, {name, arity})
-          else
-            g
-          end
+          if name != :init, do: Graph.add_edge(g, init.callback, {name, arity}), else: g
         end)
       else
         graph
@@ -63,65 +54,59 @@ defmodule Reach.CLI.BoxartGraph do
   end
 
   def render_cfg(func_node, file) do
-    cfg = Reach.ControlFlow.build(func_node)
-
-    node_map =
-      func_node
-      |> Reach.IR.all_nodes()
-      |> Map.new(&{&1.id, &1})
-
-    vertices =
-      cfg
-      |> Graph.vertices()
-      |> Enum.filter(fn v -> v != :entry and v != :exit end)
-
-    # Merge vertices that share the same source line
-    line_map =
-      vertices
-      |> Enum.group_by(fn v ->
-        case Map.get(node_map, v) do
-          %{source_span: %{start_line: l}} when is_integer(l) -> l
-          _ -> v
-        end
-      end)
-
-    canonical =
-      line_map
-      |> Enum.flat_map(fn {_line, [first | rest]} ->
-        Enum.map(rest, &{&1, first})
-      end)
-      |> Map.new()
-
-    unique_vertices = line_map |> Map.values() |> Enum.map(&hd/1)
-
-    graph = Graph.new()
+    viz = Reach.Visualize.ControlFlow.build_function(func_node, file)
 
     graph =
-      Enum.reduce([:entry | unique_vertices] ++ [:exit], graph, fn v, g ->
-        attrs = vertex_attrs(v, node_map, file)
-        Graph.add_vertex(g, v, attrs)
+      Enum.reduce(viz.nodes, Graph.new(), fn node, g ->
+        Graph.add_vertex(g, node.id, viz_node_to_attrs(node, file))
       end)
 
     graph =
-      cfg
-      |> Graph.edges()
-      |> Enum.reduce(graph, fn e, g ->
-        from = Map.get(canonical, e.v1, e.v1)
-        to = Map.get(canonical, e.v2, e.v2)
-
-        if from != to do
-          label = edge_label(e.label)
-          opts = if label, do: [label: label], else: []
-          Graph.add_edge(g, from, to, opts)
-        else
-          g
-        end
+      Enum.reduce(viz.edges, graph, fn edge, g ->
+        opts = if edge.label != "", do: [label: edge.label], else: []
+        Graph.add_edge(g, edge.source, edge.target, opts)
       end)
 
     IO.puts(Boxart.render(graph, direction: :td, theme: :default, max_width: term_width()))
   end
 
-  # ── Helpers ──
+  # ── Private ──
+
+  defp viz_node_to_attrs(node, file) do
+    case node.type do
+      t when t in [:entry, :exit] ->
+        [label: node.label, shape: :stadium]
+
+      _ ->
+        source = read_lines_range(file, node.start_line, node.end_line)
+
+        if source do
+          [source: source, start_line: node.start_line, language: :elixir]
+        else
+          [label: node.label || to_string(node.type)]
+        end
+    end
+  end
+
+  defp read_lines_range(file, start_line, end_line)
+       when is_binary(file) and is_integer(start_line) and is_integer(end_line) do
+    case Reach.Visualize.Helpers.cached_file_lines(file) do
+      nil ->
+        nil
+
+      lines ->
+        lines
+        |> Enum.slice((start_line - 1)..(end_line - 1)//1)
+        |> Enum.join("\n")
+        |> String.trim()
+        |> case do
+          "" -> nil
+          s -> s
+        end
+    end
+  end
+
+  defp read_lines_range(_, _, _), do: nil
 
   defp collect_subgraph(cg, roots, depth) do
     collect_subgraph(cg, roots, depth, MapSet.new(), [])
@@ -143,82 +128,10 @@ defmodule Reach.CLI.BoxartGraph do
           end
 
         new_edges = Enum.map(out, &{v, &1})
-
         unvisited = Enum.reject(out, &MapSet.member?(vis, &1))
         {front ++ unvisited, MapSet.union(vis, MapSet.new(out)), edg ++ new_edges}
       end)
 
     collect_subgraph(cg, new_frontier, depth - 1, new_visited, new_edges)
   end
-
-  defp vertex_attrs(:entry, _node_map, _file), do: [label: "entry", shape: :stadium]
-  defp vertex_attrs(:exit, _node_map, _file), do: [label: "exit", shape: :stadium]
-
-  defp vertex_attrs(v, node_map, file) when is_integer(v) do
-    case Map.get(node_map, v) do
-      nil ->
-        [label: inspect(v)]
-
-      node ->
-        line = node.source_span && node.source_span.start_line
-
-        if line && file do
-          source = read_source_block(file, node)
-
-          if source do
-            [source: source, start_line: line, language: :elixir]
-          else
-            [label: ir_label(node)]
-          end
-        else
-          [label: ir_label(node)]
-        end
-    end
-  end
-
-  defp vertex_attrs(v, _node_map, _file), do: [label: inspect(v)]
-
-  defp read_source_block(file, node) do
-    start_line = node.source_span && node.source_span.start_line
-    end_line = node.source_span && node.source_span[:end_line]
-
-    if start_line do
-      lines = Reach.Visualize.Helpers.cached_file_lines(file)
-
-      if lines do
-        last = end_line || start_line
-
-        lines
-        |> Enum.slice((start_line - 1)..min(last - 1, start_line + 3))
-        |> Enum.join("\n")
-        |> String.trim()
-        |> case do
-          "" -> nil
-          s -> s
-        end
-      end
-    end
-  end
-
-  defp edge_label(:sequential), do: nil
-  defp edge_label(:true_branch), do: "true"
-  defp edge_label(:false_branch), do: "false"
-  defp edge_label({:clause_match, _}), do: "match"
-  defp edge_label({:clause_fail, _}), do: "fail"
-  defp edge_label(:return), do: "return"
-  defp edge_label(:guard_success), do: "guard ok"
-  defp edge_label(:guard_fail), do: "guard fail"
-  defp edge_label(_), do: nil
-
-  defp ir_label(%{type: :call, meta: %{function: f, module: m}}) when m != nil,
-    do: "#{inspect(m)}.#{f}"
-
-  defp ir_label(%{type: :call, meta: %{function: f}}), do: to_string(f)
-  defp ir_label(%{type: :case, meta: %{desugared_from: :if}}), do: "if"
-  defp ir_label(%{type: :case, meta: %{desugared_from: :cond}}), do: "cond"
-  defp ir_label(%{type: :case}), do: "case"
-  defp ir_label(%{type: :var, meta: %{name: n}}), do: to_string(n)
-  defp ir_label(%{type: :match}), do: "="
-  defp ir_label(%{type: :binary_op, meta: %{operator: op}}), do: to_string(op)
-  defp ir_label(%{type: t}), do: to_string(t)
 end

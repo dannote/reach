@@ -45,7 +45,8 @@ defmodule Reach.Visualize.ControlFlow do
 
   # ── Function builder ──
 
-  defp build_function(func, file) do
+  @doc false
+  def build_function(func, file) do
     start_line = span_field(func, :start_line) || 1
     Visualize.ensure_def_cache(file)
 
