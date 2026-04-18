@@ -21,6 +21,7 @@ defmodule Mix.Tasks.Reach.Slice do
   @switches [format: :string, forward: :boolean, variable: :string, graph: :boolean]
   @aliases [f: :format]
 
+  alias Reach.CLI.BoxartGraph
   alias Reach.CLI.Format
   alias Reach.CLI.Project
 
@@ -52,8 +53,8 @@ defmodule Mix.Tasks.Reach.Slice do
     slice_ids = compute_slice(project.graph, node.id, forward?)
     result = filter_and_format(project, slice_ids, var_name)
 
-    if opts[:graph] and Reach.CLI.BoxartGraph.available?() do
-      Reach.CLI.BoxartGraph.render_slice_graph(project, node.id, forward?)
+    if opts[:graph] and BoxartGraph.available?() do
+      BoxartGraph.render_slice_graph(project, node.id, forward?)
     else
       render(format, node, result, forward?, target)
     end

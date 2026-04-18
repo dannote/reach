@@ -2,6 +2,13 @@ defmodule Reach.CLI.BoxartGraph do
   @moduledoc false
 
   alias Reach.CLI.Format
+  alias Reach.CLI.Project
+  alias Reach.IR
+  alias Reach.Visualize.ControlFlow
+  alias Reach.Visualize.Helpers
+
+  @dialyzer {:nowarn_function, render_caller_graph: 3}
+  @dialyzer {:nowarn_function, render_boxart: 1}
 
   defp term_width do
     case :io.columns() do
@@ -16,7 +23,7 @@ defmodule Reach.CLI.BoxartGraph do
 
   def render_call_graph(project, target, depth) do
     cg = project.call_graph
-    variants = Reach.CLI.Project.all_variants(cg, target)
+    variants = Project.all_variants(cg, target)
 
     {vertices, edges} = collect_subgraph(cg, variants, depth)
 
@@ -29,7 +36,7 @@ defmodule Reach.CLI.BoxartGraph do
 
     graph = Enum.reduce(edges, graph, fn {from, to}, g -> Graph.add_edge(g, from, to) end)
 
-    IO.puts(Boxart.Render.Mindmap.render(graph, []))
+    IO.puts(render_mindmap(graph))
   end
 
   def render_otp_state_diagram(callbacks) do
@@ -43,20 +50,13 @@ defmodule Reach.CLI.BoxartGraph do
     # Not actual state transitions — just "these callbacks exist".
     init = Enum.find(callbacks, fn %{callback: {name, _}} -> name == :init end)
 
-    graph =
-      if init do
-        Enum.reduce(callbacks, graph, fn %{callback: {name, arity}}, g ->
-          if name != :init, do: Graph.add_edge(g, init.callback, {name, arity}), else: g
-        end)
-      else
-        graph
-      end
+    graph = add_init_edges(graph, init, callbacks)
 
     IO.puts(render_boxart(graph))
   end
 
   def render_cfg(func_node, file) do
-    viz = Reach.Visualize.ControlFlow.build_function(func_node, file)
+    viz = ControlFlow.build_function(func_node, file)
 
     graph =
       Enum.reduce(viz.nodes, Graph.new(), fn node, g ->
@@ -65,8 +65,7 @@ defmodule Reach.CLI.BoxartGraph do
 
     graph =
       Enum.reduce(viz.edges, graph, fn edge, g ->
-        opts = if edge.label != "", do: [label: edge.label], else: []
-        Graph.add_edge(g, edge.source, edge.target, opts)
+        Graph.add_edge(g, edge.source, edge.target, edge_opts(edge))
       end)
 
     IO.puts(render_boxart(graph))
@@ -74,7 +73,7 @@ defmodule Reach.CLI.BoxartGraph do
 
   def render_caller_graph(project, target, depth) do
     cg = project.call_graph
-    variants = Reach.CLI.Project.all_variants(cg, target)
+    variants = Project.all_variants(cg, target)
 
     # Collect callers by traversing in-neighbors (reverse direction)
     callers = collect_callers(cg, variants, depth)
@@ -94,7 +93,7 @@ defmodule Reach.CLI.BoxartGraph do
         end
       end)
 
-    IO.puts(apply(Boxart.Render.Mindmap, :render, [graph, []]))
+    IO.puts(render_mindmap(graph))
   end
 
   defp collect_callers(cg, variants, depth) do
@@ -110,7 +109,7 @@ defmodule Reach.CLI.BoxartGraph do
       frontier
       |> Enum.flat_map(fn v ->
         if Graph.has_vertex?(cg, v) do
-          Graph.in_neighbors(cg, v) |> Enum.filter(&Reach.CLI.Project.mfa?/1)
+          Graph.in_neighbors(cg, v) |> Enum.filter(&Project.mfa?/1)
         else
           []
         end
@@ -137,24 +136,8 @@ defmodule Reach.CLI.BoxartGraph do
     internal = MapSet.new(modules, & &1.meta[:name])
 
     module_edges =
-      Enum.flat_map(modules, fn mod ->
-        mod_name = mod.meta[:name]
-
-        mod
-        |> Reach.IR.all_nodes()
-        |> Enum.filter(
-          &(&1.type == :call and &1.meta[:kind] == :remote and &1.meta[:module] != nil)
-        )
-        |> Enum.flat_map(fn call ->
-          target = call.meta[:module]
-
-          if target != mod_name and MapSet.member?(internal, target) do
-            [{mod_name, target}]
-          else
-            []
-          end
-        end)
-      end)
+      modules
+      |> Enum.flat_map(&module_deps(&1, internal))
       |> Enum.uniq()
 
     if module_edges == [] do
@@ -211,7 +194,7 @@ defmodule Reach.CLI.BoxartGraph do
     slice_id_set = MapSet.new(slice_nodes, & &1.id)
 
     viz_graph =
-      slice_ids
+      MapSet.to_list(slice_id_set)
       |> Enum.flat_map(fn id ->
         if Graph.has_vertex?(graph, id) do
           Graph.out_edges(graph, id)
@@ -237,12 +220,39 @@ defmodule Reach.CLI.BoxartGraph do
   defp slice_node_label(%{type: :match}), do: "="
   defp slice_node_label(%{type: t}), do: to_string(t)
 
+  # credo:disable-for-next-line Credo.Check.Refactor.Apply
+  defp render_mindmap(graph) do
+    Boxart.Render.Mindmap.render(graph, [])
+  end
+
   defp render_boxart(graph) do
     opts = [direction: :td, theme: :default, max_width: term_width()]
-    apply(Boxart, :render, [graph, opts])
+    Boxart.render(graph, opts)
   end
 
   # ── Private ──
+
+  defp add_init_edges(graph, nil, _callbacks), do: graph
+
+  defp add_init_edges(graph, init, callbacks) do
+    Enum.reduce(callbacks, graph, fn %{callback: {name, arity}}, g ->
+      if name != :init, do: Graph.add_edge(g, init.callback, {name, arity}), else: g
+    end)
+  end
+
+  defp edge_opts(%{label: label}) when label != "", do: [label: label]
+  defp edge_opts(_), do: []
+
+  defp module_deps(mod, internal) do
+    mod_name = mod.meta[:name]
+
+    mod
+    |> IR.all_nodes()
+    |> Enum.filter(&(&1.type == :call and &1.meta[:kind] == :remote and &1.meta[:module] != nil))
+    |> Enum.map(& &1.meta[:module])
+    |> Enum.filter(&(&1 != mod_name and MapSet.member?(internal, &1)))
+    |> Enum.map(&{mod_name, &1})
+  end
 
   defp viz_node_to_attrs(node, file) do
     case node.type do
@@ -262,14 +272,14 @@ defmodule Reach.CLI.BoxartGraph do
 
   defp read_lines_range(file, start_line, end_line)
        when is_binary(file) and is_integer(start_line) and is_integer(end_line) do
-    case Reach.Visualize.Helpers.cached_file_lines(file) do
+    case Helpers.cached_file_lines(file) do
       nil ->
         nil
 
       lines ->
         lines
         |> Enum.slice((start_line - 1)..(end_line - 1)//1)
-        |> Reach.Visualize.Helpers.dedent()
+        |> Helpers.dedent()
         |> Enum.join("\n")
         |> String.trim()
         |> case do
@@ -295,7 +305,7 @@ defmodule Reach.CLI.BoxartGraph do
 
         out =
           if Graph.has_vertex?(cg, v) do
-            Graph.out_neighbors(cg, v) |> Enum.filter(&Reach.CLI.Project.mfa?/1)
+            Graph.out_neighbors(cg, v) |> Enum.filter(&Project.mfa?/1)
           else
             []
           end

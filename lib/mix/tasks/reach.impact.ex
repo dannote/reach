@@ -19,6 +19,7 @@ defmodule Mix.Tasks.Reach.Impact do
   @switches [format: :string, depth: :integer, graph: :boolean]
   @aliases [f: :format]
 
+  alias Reach.CLI.BoxartGraph
   alias Reach.CLI.Format
   alias Reach.CLI.Project
   alias Reach.IR
@@ -38,14 +39,16 @@ defmodule Mix.Tasks.Reach.Impact do
       Mix.raise("Function not found: #{hd(target_args)}")
     end
 
-    format = opts[:format] || "text"
     depth = opts[:depth] || 4
     result = analyze(project, target, depth)
+    render_result(project, target, depth, result, opts)
+  end
 
-    if opts[:graph] and Reach.CLI.BoxartGraph.available?() do
-      Reach.CLI.BoxartGraph.render_caller_graph(project, target, depth)
+  defp render_result(project, target, depth, result, opts) do
+    if opts[:graph] and BoxartGraph.available?() do
+      BoxartGraph.render_caller_graph(project, target, depth)
     else
-      case format do
+      case opts[:format] do
         "json" -> Format.render(result, "reach.impact", format: "json", pretty: true)
         "oneline" -> render_oneline(result)
         _ -> render_text(project, result)

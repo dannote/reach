@@ -76,7 +76,7 @@ defmodule Mix.Tasks.Reach.Graph do
     func_node =
       Enum.find(nodes, fn n ->
         n.type == :function_def and n.meta[:name] == fun and n.meta[:arity] == arity and
-          (mod == nil or n.meta[:module] == nil or n.meta[:module] == mod)
+          ((mod == nil and n.meta[:module] == nil) or n.meta[:module] == mod)
       end)
 
     unless func_node do

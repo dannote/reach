@@ -16,6 +16,7 @@ defmodule Mix.Tasks.Reach.Modules do
 
   use Mix.Task
 
+  alias Reach.CLI.BoxartGraph
   alias Reach.CLI.Format
   alias Reach.CLI.Project
 
@@ -34,24 +35,27 @@ defmodule Mix.Tasks.Reach.Modules do
     modules = analyze_modules(project)
     modules = modules |> Enum.reject(&(&1.total_functions == 0)) |> sort_modules(sort)
 
-    if opts[:graph] and Reach.CLI.BoxartGraph.available?() do
-      Reach.CLI.BoxartGraph.render_module_graph(project)
+    if opts[:graph] and BoxartGraph.available?() do
+      BoxartGraph.render_module_graph(project)
     else
-      case format do
-        "json" ->
-          Format.render(%{modules: modules}, "reach.modules", format: "json", pretty: true)
-
-        "oneline" ->
-          Enum.each(modules, fn m ->
-            IO.puts(
-              "#{m.name} #{m.public_count} public #{m.private_count} private complexity=#{m.total_complexity}"
-            )
-          end)
-
-        _ ->
-          render_text(modules)
-      end
+      render_format(modules, format)
     end
+  end
+
+  defp render_format(modules, "json") do
+    Format.render(%{modules: modules}, "reach.modules", format: "json", pretty: true)
+  end
+
+  defp render_format(modules, "oneline") do
+    Enum.each(modules, fn m ->
+      IO.puts(
+        "#{m.name} #{m.public_count} public #{m.private_count} private complexity=#{m.total_complexity}"
+      )
+    end)
+  end
+
+  defp render_format(modules, _) do
+    render_text(modules)
   end
 
   defp analyze_modules(project) do
