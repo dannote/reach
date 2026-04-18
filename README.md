@@ -128,6 +128,27 @@ mix reach.otp
 mix reach.smell
 ```
 
+
+### Terminal graphs
+
+With the optional `boxart` dependency, render graphs directly in the terminal:
+
+```bash
+# Control flow graph with source code
+mix reach.graph MyApp.Server.handle_call/3
+
+# Call graph as a tree
+mix reach.graph MyApp.Server.handle_call/3 --call-graph
+
+# Any command with --graph
+mix reach.deps MyApp.Accounts.register/2 --graph
+mix reach.impact MyApp.Accounts.register/2 --graph
+mix reach.modules --graph
+mix reach.otp --graph
+```
+
+Requires `{:boxart, "~> 0.3"}` in your deps.
+
 ## Core workflows
 
 ### Slicing

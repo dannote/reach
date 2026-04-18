@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.4.0
+
+### New
+
+- **Terminal graph rendering** via optional `boxart` dependency:
+  - `mix reach.graph Mod.fun/arity` — control flow graph with syntax-highlighted
+    source code and line numbers in each node
+  - `mix reach.graph Mod.fun/arity --call-graph` — callee tree as mindmap
+  - `mix reach.deps Mod.fun/arity --graph` — callee tree visualization
+  - `mix reach.impact Mod.fun/arity --graph` — caller tree visualization
+  - `mix reach.modules --graph` — module dependency graph (internal only)
+  - `mix reach.otp --graph` — GenServer state diagrams per module
+  - `mix reach.slice file:line --graph` — slice subgraph
+
+### Improved
+
+- CFG rendering reuses `Visualize.ControlFlow.build_function/2` — same
+  line ranges, block merging, and source extraction as the HTML visualization
+- Graph output clamped to terminal width via `Boxart.render max_width`
+- CFG code blocks dedented to match HTML visualization indentation
+- Same-line CFG vertices merged (no more duplicate nodes)
+
 ## 1.3.0
 
 ### New
