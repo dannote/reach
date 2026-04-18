@@ -224,6 +224,17 @@ defmodule Reach.Effects do
 
   # --- Call classification ---
 
+  @classify_cache :reach_classify_cache
+
+  @doc false
+  def ensure_cache do
+    if :ets.whereis(@classify_cache) == :undefined do
+      :ets.new(@classify_cache, [:set, :public, :named_table, read_concurrency: true])
+    end
+
+    :ok
+  end
+
   defp classify_call(nil, function, _arity) do
     cond do
       function in @pure_kernel_functions -> :pure
@@ -233,19 +244,35 @@ defmodule Reach.Effects do
     end
   end
 
-  # Process-local cache — assumes no hot code reloads (CLI tool, not a server)
+  # Shared ETS cache — survives across Task.async_stream workers.
+  # Assumes no hot code reloads (CLI tool, not a server).
   defp classify_call(module, function, arity) do
     key = {module, function, arity}
 
-    case Process.get({:reach_classify, key}) do
-      nil ->
-        result = do_classify_call(module, function, arity)
-        Process.put({:reach_classify, key}, result)
+    case lookup_cache(key) do
+      {:ok, result} ->
         result
 
-      result ->
+      :miss ->
+        result = do_classify_call(module, function, arity)
+        put_cache(key, result)
         result
     end
+  end
+
+  defp lookup_cache(key) do
+    case :ets.lookup(@classify_cache, key) do
+      [{^key, result}] -> {:ok, result}
+      [] -> :miss
+    end
+  rescue
+    ArgumentError -> :miss
+  end
+
+  defp put_cache(key, result) do
+    :ets.insert(@classify_cache, {key, result})
+  rescue
+    ArgumentError -> :ok
   end
 
   defp do_classify_call(module, function, arity) do

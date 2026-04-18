@@ -221,6 +221,7 @@ defmodule Reach.Project do
   end
 
   defp build_module_sdgs(parsed_modules, opts) do
+    Reach.Effects.ensure_cache()
     summaries = Keyword.get(opts, :summaries, %{})
 
     parsed_modules
