@@ -233,6 +233,8 @@ defmodule Reach.Effects do
     end
 
     :ok
+  rescue
+    ArgumentError -> :ok
   end
 
   defp classify_call(nil, function, _arity) do
@@ -254,6 +256,7 @@ defmodule Reach.Effects do
         result
 
       :miss ->
+        ensure_cache()
         result = do_classify_call(module, function, arity)
         put_cache(key, result)
         result
