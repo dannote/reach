@@ -74,7 +74,9 @@ defmodule Reach.Plugin do
     {Oban, Reach.Plugins.Oban},
     {GenStage, Reach.Plugins.GenStage},
     {Jido.Action, Reach.Plugins.Jido},
-    {OpenTelemetry.Tracer, Reach.Plugins.OpenTelemetry}
+    {OpenTelemetry.Tracer, Reach.Plugins.OpenTelemetry},
+    {Jason, Reach.Plugins.JSON},
+    {Poison, Reach.Plugins.JSON}
   ]
 
   @doc """
