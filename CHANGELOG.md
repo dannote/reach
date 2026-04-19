@@ -1,19 +1,20 @@
 # Changelog
 
-## Unreleased
+## 1.5.0
 
 ### New
 
 - **7 analysis commands** for codebase-level insights:
   - `mix reach.coupling` — module-level coupling metrics (afferent/efferent
     coupling, Martin's instability metric, circular dependency detection).
-    `--graph` renders the module dependency graph via boxart.
+    `--graph` renders the module dependency graph via boxart. `--orphans`
+    shows unreferenced modules.
   - `mix reach.hotspots` — functions ranked by complexity × caller count,
-    surfacing the highest-risk refactoring targets.
+    with clause breakdown for multi-clause dispatchers.
   - `mix reach.depth` — functions ranked by dominator tree depth (control
     flow nesting). `--graph` renders the CFG of the deepest function.
   - `mix reach.effects` — effect classification distribution across the
-    codebase and top unclassified calls. `--module` restricts to one module.
+    codebase and top unclassified calls. `--graph` renders a pie chart.
   - `mix reach.xref` — cross-function data flow via the system dependence
     graph (parameter, return, state, and call edges between functions).
   - `mix reach.boundaries` — functions with multiple distinct side effects
@@ -22,39 +23,81 @@
     spawn/link chains, and supervisor topology.
 - **Plugin `classify_effect/1` callback** — plugins can now teach the
   effect classifier about framework-specific calls. Implemented for all
-  6 built-in plugins (Phoenix, Ecto, Oban, GenStage, Jido, OpenTelemetry).
+  8 built-in plugins (Phoenix, Ecto, Oban, GenStage, Jido, OpenTelemetry,
+  JSON).
+- **Positional path filter** on all analysis commands — scope output to
+  specific files or directories (e.g. `mix reach.hotspots lib/my_app/`).
+- **Elixir 1.19+ inferred type classification** — reads ExCk BEAM chunk
+  for compiler-inferred type signatures. Functions returning data types
+  are classified as `:pure`. Gracefully disabled on older Elixir versions.
 
 ### Improved
 
+- **Alias resolution** — `alias Plausible.Ingestion.Event` then
+  `Event.build()` now correctly resolves to `Plausible.Ingestion.Event`.
+  Handles simple aliases, `:as` aliases, and multi-alias `{}` syntax.
+  Scoped per module — aliases don't leak across `defmodule` boundaries.
+- **Import resolution** — `import Ecto.Query` then bare `from(...)` now
+  resolves to `Ecto.Query.from`. Handles `:only` and `:except` options.
+  Gracefully skips unloaded modules.
 - **Field access detection** — `socket.assigns`, `conn.params`, `state.count`
-  are now recognized as field access (`kind: :field_access`) instead of
+  are recognized as field access (`kind: :field_access`) instead of
   remote calls with a fake module name. Classified as `:pure`.
 - **Compile-time noise filtering** — `@doc`, `@spec`, `@type`, `use`,
   `import`, `alias`, `require`, `::`, `__aliases__`, typespec names, and
   binary syntax are classified as `:pure` instead of `:unknown`.
-- **Local function effect inference** — after building the project graph,
-  Reach walks all function bodies and infers effects from their callees.
-  Functions that only call pure functions are classified as pure. This
-  propagates transitively via fixed-point iteration.
+- **Local function effect inference** — fixed-point iteration over function
+  bodies infers effects from callees. Propagates across module boundaries
+  via module-qualified cache keys.
 - **Expanded pure modules** — `Access`, `Calendar`, `Date`, `DateTime`,
-  `NaiveDateTime`, `Time` added. `Kernel.to_string` and other builtins
-  now classified correctly when module is explicit.
-- **`Enum.each` classified as `:io`** — previously fell through to
-  `:unknown` despite being in `@effectful_in_pure_modules`.
-- **`Application.get_env` classified as `:read`**.
-- **Phoenix plugin**: route helpers (`*Routes`, `*.VerifiedRoutes`) → `:pure`.
-- **Ecto plugin**: Repo reads → `:read`, Repo writes → `:write`, query DSL
-  and changeset/schema macros → `:pure`.
-- **Oban plugin**: `Oban.insert` → `:write`.
-- **GenStage plugin**: `GenStage.call/cast` → `:send`, Broadway message
-  transforms → `:pure`.
-- **Jido plugin**: updated to v2 API. Signal dispatch → `:send`, directives
-  → `:io`/`:send`, AgentServer → `:send`/`:read`, Thread → `:pure`.
-- **OpenTelemetry plugin**: Tracer spans/attributes → `:io`, context
-  operations → `:read`/`:write`, `:telemetry.execute` → `:io`.
-- Unknown call ratio dropped from **~89% to ~20%** across real codebases
-  (Plausible, Livebook, Ecto, Oban). With plugins active: ~18% Plausible.
-- Upgraded boxart to 0.3.1.
+  `NaiveDateTime`, `Time`.
+- **Reclassified stdlib functions**:
+  - `Kernel.to_string` and other builtins classified correctly when module
+    is explicit.
+  - `Enum.each` → `:io` (was `:unknown`).
+  - `Application.get_env`, `System.get_env` → `:read`.
+  - `System.monotonic_time`, `Mix.env` → `:read`.
+  - `GenServer.start_link`, `Supervisor.start_link` → `:io`.
+  - `Supervisor.child_spec` → `:pure`.
+  - `:atomics`/`:counters` → `:read`/`:write` (was `:nif`).
+  - `:persistent_term` → `:read`/`:write` (was `:nif`).
+  - `:no_return` and `:string` recognized as pure return types in specs.
+- **Plugin effect classification**:
+  - Phoenix: route helpers, `assign`, `push_event`, `attr`, `slot`,
+    `sigil_H`, router DSL → `:pure`.
+  - Ecto: query DSL → `:pure`, Repo reads → `:read`, writes → `:write`,
+    changeset/schema macros → `:pure`.
+  - Oban: `Oban.insert` → `:write`, `start_link`/`drain_queue` → `:io`.
+  - GenStage: `call`/`cast` → `:send`, Broadway.Message → `:pure`.
+  - Jido: updated to v2 API. Signal dispatch → `:send`, directives →
+    `:io`/`:send`, Thread → `:pure`, memory → `:read`/`:write`.
+  - OpenTelemetry: Tracer spans → `:io`, context → `:read`/`:write`,
+    `:telemetry.execute` → `:io`.
+  - JSON: all Jason/Poison functions → `:pure`.
+- **Boxart integration**:
+  - `reach.otp --graph` uses `Boxart.Render.StateDiagram` for GenServer
+    state machines.
+  - `reach.effects --graph` uses `Boxart.Render.PieChart` for effect
+    distribution.
+  - Upgraded boxart to 0.3.2.
+- **Clause breakdown** in `reach.hotspots` and `reach.depth` — multi-clause
+  functions show dispatch labels (e.g. "53 clauses: save, delete, ...").
+- **Shared helpers** — `Reach.IR.Helpers.clause_labels/1` and
+  `Format.threshold_color/3` extracted from duplicated code.
+- **Unknown call ratio dropped from ~89% to ~11%** across real codebases
+  (tested on Plausible, Livebook, Tymeslot, OpenPace, Beacon, Ecto, Oban).
+
+### Performance
+
+- **~30% faster project analysis** (Plausible 466 files: 2.7s → 1.9s).
+- `Reach.Graph.merge/1` — direct map merge instead of per-edge
+  `Graph.add_edges` loop.
+- `HigherOrder.add_edges` — moved `pure_call?` typespec check from hot
+  path to one-time catalog build.
+- Eliminated redundant `IR.all_nodes` traversals in SDG build and effect
+  inference.
+- Stored `func_def` directly in PDG map, avoiding linear scan in
+  `build_external_sdg_map`.
 
 ## 1.4.1
 
