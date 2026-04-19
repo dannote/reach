@@ -45,7 +45,7 @@ defmodule Mix.Tasks.Reach.Impact do
   end
 
   defp render_result(project, target, depth, result, opts) do
-    if opts[:graph] and BoxartGraph.available?() do
+    if opts[:graph] && BoxartGraph.available?() do
       BoxartGraph.render_caller_graph(project, target, depth)
     else
       case opts[:format] do
