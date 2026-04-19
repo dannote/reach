@@ -53,7 +53,7 @@ defmodule Mix.Tasks.Reach.Slice do
     slice_ids = compute_slice(project.graph, node.id, forward?)
     result = filter_and_format(project, slice_ids, var_name)
 
-    if opts[:graph] and BoxartGraph.available?() do
+    if opts[:graph] && BoxartGraph.available?() do
       BoxartGraph.render_slice_graph(project, node.id, forward?)
     else
       render(format, node, result, forward?, target)

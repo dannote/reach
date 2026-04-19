@@ -35,7 +35,7 @@ defmodule Mix.Tasks.Reach.Modules do
     modules = analyze_modules(project)
     modules = modules |> Enum.reject(&(&1.total_functions == 0)) |> sort_modules(sort)
 
-    if opts[:graph] and BoxartGraph.available?() do
+    if opts[:graph] && BoxartGraph.available?() do
       BoxartGraph.render_module_graph(project)
     else
       render_format(modules, format)
