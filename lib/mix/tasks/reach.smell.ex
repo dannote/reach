@@ -30,8 +30,9 @@ defmodule Mix.Tasks.Reach.Smell do
 
   @impl Mix.Task
   def run(args) do
-    {opts, _args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
+    {opts, args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
     format = opts[:format] || "text"
+    path = List.first(args)
 
     project = Project.load()
 
@@ -39,6 +40,11 @@ defmodule Mix.Tasks.Reach.Smell do
       detect_pipeline_waste(project) ++
         detect_redundant_computation(project) ++
         detect_eager_patterns(project)
+
+    findings =
+      if path,
+        do: Enum.filter(findings, &String.contains?(to_string(&1.location), path)),
+        else: findings
 
     case format do
       "json" ->

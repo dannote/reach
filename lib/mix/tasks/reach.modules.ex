@@ -27,13 +27,19 @@ defmodule Mix.Tasks.Reach.Modules do
 
   @impl Mix.Task
   def run(args) do
-    {opts, _args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
+    {opts, args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
     format = opts[:format] || "text"
     sort = opts[:sort] || "name"
+    path = List.first(args)
 
     project = Project.load()
     modules = analyze_modules(project)
-    modules = modules |> Enum.reject(&(&1.total_functions == 0)) |> sort_modules(sort)
+
+    modules =
+      modules
+      |> Enum.reject(&(&1.total_functions == 0))
+      |> Enum.filter(&Project.file_matches?(&1.file, path))
+      |> sort_modules(sort)
 
     if opts[:graph] && BoxartGraph.available?() do
       BoxartGraph.render_module_graph(project)

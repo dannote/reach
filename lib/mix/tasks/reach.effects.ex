@@ -52,11 +52,12 @@ defmodule Mix.Tasks.Reach.Effects do
 
   @impl Mix.Task
   def run(args) do
-    {opts, _args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
+    {opts, args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
     format = opts[:format] || "text"
+    path = List.first(args)
 
     project = Project.load()
-    result = analyze(project, opts[:module])
+    result = analyze(project, opts[:module] || path)
 
     if opts[:graph] do
       render_graph(result)

@@ -24,12 +24,12 @@ defmodule Mix.Tasks.Reach.DeadCode do
 
   @impl Mix.Task
   def run(args) do
-    {opts, _args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
+    {opts, args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
     format = opts[:format] || "text"
 
     Mix.Task.run("compile", ["--no-warnings-as-errors"])
 
-    files = collect_files(opts[:path])
+    files = collect_files(opts[:path] || List.first(args))
     Mix.shell().info("Analyzing #{length(files)} file(s)...")
 
     findings =

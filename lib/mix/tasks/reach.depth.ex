@@ -39,12 +39,14 @@ defmodule Mix.Tasks.Reach.Depth do
 
   @impl Mix.Task
   def run(args) do
-    {opts, _args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
+    {opts, args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
     format = opts[:format] || "text"
     top = opts[:top] || 20
+    path = List.first(args)
 
     project = Project.load()
     result = analyze(project, top)
+    result = Enum.filter(result, &Project.file_matches?(&1.file, path))
 
     if opts[:graph] && result != [] do
       render_graph(project, hd(result))

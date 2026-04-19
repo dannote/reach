@@ -32,12 +32,14 @@ defmodule Mix.Tasks.Reach.Hotspots do
 
   @impl Mix.Task
   def run(args) do
-    {opts, _args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
+    {opts, args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
     format = opts[:format] || "text"
     top = opts[:top] || 20
+    path = List.first(args)
 
     project = Project.load()
     hotspots = analyze(project, top)
+    hotspots = Enum.filter(hotspots, &Project.file_matches?(&1.file, path))
 
     case format do
       "json" ->

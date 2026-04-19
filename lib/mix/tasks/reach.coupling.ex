@@ -34,12 +34,19 @@ defmodule Mix.Tasks.Reach.Coupling do
 
   @impl Mix.Task
   def run(args) do
-    {opts, _args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
+    {opts, args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
     format = opts[:format] || "text"
     sort = opts[:sort] || "instability"
+    path = List.first(args)
 
     project = Project.load()
     result = analyze(project, sort)
+
+    result = %{
+      result
+      | modules: Enum.filter(result.modules, &Project.file_matches?(&1.file, path))
+    }
+
     result = if opts[:orphans], do: filter_orphans(result), else: result
 
     if opts[:graph] do

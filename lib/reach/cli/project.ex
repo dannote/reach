@@ -197,4 +197,13 @@ defmodule Reach.CLI.Project do
       [%{id: callee, depth: current_depth, children: children}]
     end
   end
+
+  def file_matches?(_file, nil), do: true
+  def file_matches?(nil, _path), do: false
+
+  def file_matches?(file, path) do
+    file == path or
+      String.ends_with?(file, "/" <> path) or
+      String.starts_with?(file, path)
+  end
 end

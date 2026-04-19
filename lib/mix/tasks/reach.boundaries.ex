@@ -32,12 +32,14 @@ defmodule Mix.Tasks.Reach.Boundaries do
 
   @impl Mix.Task
   def run(args) do
-    {opts, _args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
+    {opts, args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
     format = opts[:format] || "text"
     min = opts[:min] || 2
+    path = List.first(args)
 
     project = Project.load()
     findings = analyze(project, min)
+    findings = Enum.filter(findings, &Project.file_matches?(&1.file, path))
 
     case format do
       "json" ->
@@ -90,7 +92,7 @@ defmodule Mix.Tasks.Reach.Boundaries do
       [
         %{
           module: inspect(mod_name),
-          function: "\#{f.meta[:name]}/\#{f.meta[:arity]}",
+          function: "#{f.meta[:name]}/#{f.meta[:arity]}",
           effects: MapSet.to_list(effects) |> Enum.sort(),
           calls: effect_calls,
           file: if(f.source_span, do: f.source_span.file),
