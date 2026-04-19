@@ -56,51 +56,7 @@ defmodule Mix.Tasks.Reach.Boundaries do
     mod_defs = Enum.filter(nodes, &(&1.type == :module_def))
 
     mod_defs
-    |> Enum.flat_map(fn m ->
-      mod_name = m.meta[:name]
-      funcs = m |> IR.all_nodes() |> Enum.filter(&(&1.type == :function_def))
-
-      Enum.flat_map(funcs, fn f ->
-        calls = f |> IR.all_nodes() |> Enum.filter(&(&1.type == :call))
-
-        effects =
-          calls
-          |> Enum.map(&Effects.classify/1)
-          |> MapSet.new()
-          |> MapSet.delete(:pure)
-          |> MapSet.delete(:unknown)
-
-        if MapSet.size(effects) >= min do
-          file = if f.source_span, do: f.source_span.file, else: nil
-          line = if f.source_span, do: f.source_span.start_line, else: nil
-
-          effect_calls =
-            calls
-            |> Enum.reject(&(Effects.classify(&1) in [:pure, :unknown]))
-            |> Enum.map(fn c ->
-              %{
-                effect: Effects.classify(c),
-                call: call_name(c)
-              }
-            end)
-            |> Enum.uniq_by(& &1.call)
-            |> Enum.sort_by(&to_string(&1.effect))
-
-          [
-            %{
-              module: inspect(mod_name),
-              function: "#{f.meta[:name]}/#{f.meta[:arity]}",
-              effects: MapSet.to_list(effects) |> Enum.sort(),
-              calls: effect_calls,
-              file: file,
-              line: line
-            }
-          ]
-        else
-          []
-        end
-      end)
-    end)
+    |> Enum.flat_map(&analyze_module(&1, min))
     |> Enum.sort_by(fn f -> -length(f.effects) end)
   end
 

@@ -14,7 +14,7 @@ defmodule Reach.MixProject do
       aliases: aliases(),
       dialyzer: [
         plt_file: {:no_warn, "_build/dev/dialyxir_plt.plt"},
-        plt_add_apps: [:mix, :eex]
+        plt_add_apps: [:mix, :eex, :boxart]
       ],
       name: "Reach",
       description: "Program dependence graph for Elixir and Erlang",

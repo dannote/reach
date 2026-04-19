@@ -7,8 +7,14 @@ defmodule Reach.CLI.BoxartGraph do
   alias Reach.Visualize.ControlFlow
   alias Reach.Visualize.Helpers
 
-  @dialyzer {:nowarn_function, render_caller_graph: 3}
-  @dialyzer {:nowarn_function, render_boxart: 1}
+  @dialyzer {:nowarn_function,
+             render_call_graph: 3,
+             render_otp_state_diagram: 1,
+             render_cfg: 2,
+             render_caller_graph: 3,
+             render_module_graph: 1,
+             render_slice_graph: 3,
+             render_boxart: 1}
 
   defp term_width do
     case :io.columns() do

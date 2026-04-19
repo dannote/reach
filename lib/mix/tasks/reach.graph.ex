@@ -23,6 +23,8 @@ defmodule Mix.Tasks.Reach.Graph do
 
   @shortdoc "Render control flow graph in terminal (requires boxart)"
 
+  @dialyzer {:nowarn_function, render_cfg: 2, render_cfg_from_mfa: 2, render_cfg_from_location: 3}
+
   @switches [call_graph: :boolean]
 
   @impl Mix.Task
