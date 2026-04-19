@@ -2,13 +2,48 @@ defmodule Reach.Plugins.GenStage do
   @moduledoc false
   @behaviour Reach.Plugin
 
+  alias Reach.IR.Node
+
+  @impl true
+  def classify_effect(%Node{type: :call, meta: %{module: GenStage, function: fun}})
+      when fun in [:call, :cast],
+      do: :send
+
+  def classify_effect(%Node{type: :call, meta: %{module: GenStage, function: fun}})
+      when fun in [:start_link, :stop, :async_info],
+      do: :io
+
+  def classify_effect(%Node{type: :call, meta: %{module: GenStage, function: fun}})
+      when fun in [:demand, :estimate_buffered_count],
+      do: :read
+
+  # Broadway
+  def classify_effect(%Node{type: :call, meta: %{module: Broadway, function: fun}})
+      when fun in [:start_link, :stop, :push_messages],
+      do: :io
+
+  def classify_effect(%Node{type: :call, meta: %{module: Broadway, function: fun}})
+      when fun in [:producer_names, :topology, :all_running, :get_rate_limiting],
+      do: :read
+
+  def classify_effect(%Node{type: :call, meta: %{module: Broadway, function: fun}})
+      when fun in [:test_message, :test_batch, :update_rate_limiting],
+      do: :write
+
+  # Broadway.Message — pure struct transforms
+  def classify_effect(%Node{type: :call, meta: %{module: Broadway.Message, function: fun}})
+      when fun in [:update_data, :put_data, :put_batcher, :put_batch_key,
+                   :put_batch_mode, :configure_ack, :failed, :ack_immediately],
+      do: :pure
+
+  def classify_effect(_), do: nil
+
   @impl true
   def analyze(all_nodes, _opts) do
     demand_to_events_edges(all_nodes) ++
       broadway_message_edges(all_nodes)
   end
 
-  # handle_demand return value → handle_events first param
   defp demand_to_events_edges(all_nodes) do
     demand_fns =
       Enum.filter(all_nodes, fn n ->
@@ -28,7 +63,6 @@ defmodule Reach.Plugins.GenStage do
     end
   end
 
-  # Broadway: handle_message return → handle_batch second param
   defp broadway_message_edges(all_nodes) do
     msg_fns =
       Enum.filter(all_nodes, fn n ->
