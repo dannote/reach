@@ -7,6 +7,8 @@ Reach builds a Program Dependence Graph from Elixir/Erlang source code and visua
 Key modules:
 - `Reach.Frontend.Elixir` — AST → IR translation
 - `Reach.ControlFlow` — IR → CFG (per-function DAG, never cyclic)
+- `Reach.Dominator` — immediate dominator/post-dominator, dominator tree, dominance frontier
+- `Reach.Effects` — per-call side-effect classification (pure/io/read/write/send/exception/nif/unknown)
 - `Reach.Visualize.ControlFlow` — CFG → visualization blocks/edges
 - `Reach.Visualize.Helpers` — source extraction, pattern rendering, line helpers
 - `assets/js/components/ReachGraph.vue` — frontend (Vue Flow + ELK layout)
@@ -61,6 +63,27 @@ done
 dirs = ["/tmp/phoenix/lib", "/tmp/ecto/lib", "/tmp/oban/lib", "/tmp/elixir/lib"]
 # Check: zero crashes on to_json, verify block quality metrics
 ```
+
+## CLI Commands
+
+Analysis commands (all support `--format text|json|oneline`):
+
+| Command | Purpose |
+|---|---|
+| `mix reach` | Interactive HTML report with CFG/call graph/data flow views |
+| `mix reach.modules` | Module listing with complexity metrics |
+| `mix reach.coupling` | Module-level coupling (afferent/efferent/instability/circular deps) |
+| `mix reach.hotspots` | Functions ranked by complexity × callers (refactoring targets) |
+| `mix reach.depth` | Functions ranked by dominator tree depth (control nesting) |
+| `mix reach.effects` | Effect classification distribution and unknown-effect calls |
+| `mix reach.impact` | Change impact for a specific function (callers, return deps) |
+| `mix reach.deps` | Function dependencies (callers, callees, shared state) |
+| `mix reach.dead_code` | Unused pure expressions |
+| `mix reach.smell` | Pipeline waste, redundant computation, eager patterns |
+| `mix reach.flow` | Data flow / taint tracing (--from/--to or --variable) |
+| `mix reach.slice` | Program slicing (backward/forward from a line) |
+| `mix reach.graph` | Terminal CFG rendering (requires boxart) |
+| `mix reach.otp` | GenServer state machines, ETS/process-dict coupling, missing handlers |
 
 ## What NOT to Do
 

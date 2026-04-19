@@ -713,6 +713,37 @@ defmodule Reach.Frontend.Elixir do
     }
   end
 
+  # Field access: var.field (no parens, no args)
+  defp translate({{:., meta, [receiver, field]}, call_meta, []}, counter, file)
+       when is_atom(field) and call_meta != [] do
+    if call_meta[:no_parens] == true do
+      receiver_node = translate(receiver, counter, file)
+
+      %Node{
+        id: Counter.next(counter),
+        type: :call,
+        meta: %{
+          module: receiver_var_name(receiver),
+          function: field,
+          arity: 0,
+          kind: :field_access
+        },
+        children: [receiver_node],
+        source_span: span_from_meta(call_meta || meta, file)
+      }
+    else
+      {receiver_children, resolved_module} = translate_receiver(receiver, counter, file)
+
+      %Node{
+        id: Counter.next(counter),
+        type: :call,
+        meta: %{module: resolved_module, function: field, arity: 0, kind: :remote},
+        children: receiver_children,
+        source_span: span_from_meta(call_meta || meta, file)
+      }
+    end
+  end
+
   # Remote call: Module.function(args)
   defp translate({{:., meta, [module, fun_name]}, call_meta, args}, counter, file)
        when is_atom(fun_name) do
@@ -903,6 +934,11 @@ defmodule Reach.Frontend.Elixir do
   defp fun_params({:when, _, [{_, _, args} | _]}) when is_list(args), do: args
   defp fun_params({_, _, args}) when is_list(args), do: args
   defp fun_params(_), do: []
+
+
+  defp receiver_var_name({name, _meta, context}) when is_atom(name) and is_atom(context), do: name
+  defp receiver_var_name({{:., _, _}, _, _}), do: nil
+  defp receiver_var_name(_), do: nil
 
   defp translate_receiver({name, _meta, context} = var_ast, counter, file)
        when is_atom(name) and is_atom(context) do

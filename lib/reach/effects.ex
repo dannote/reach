@@ -23,6 +23,14 @@ defmodule Reach.Effects do
   @doc """
   Classifies the effect of an IR node.
   """
+  @compile_time_ops [
+    :@, :use, :import, :alias, :require, :defstruct, :defdelegate,
+    :doc, :moduledoc, :typedoc, :spec, :callback, :macrocallback, :impl,
+    :type, :typep, :opaque, :behaviour,
+    :"::", :defmacro, :defmacrop, :defguard, :defguardp,
+    :__aliases__
+  ]
+
   @spec classify(Node.t()) :: effect()
   def classify(%Node{type: :literal}), do: :pure
   def classify(%Node{type: :var}), do: :pure
@@ -44,6 +52,12 @@ defmodule Reach.Effects do
   def classify(%Node{type: :unary_op}), do: :pure
 
   def classify(%Node{type: :receive}), do: :receive
+
+  def classify(%Node{type: :call, meta: %{kind: :field_access}}), do: :pure
+
+  def classify(%Node{type: :call, meta: %{kind: :local, function: fun}})
+      when fun in @compile_time_ops,
+      do: :pure
 
   def classify(%Node{type: :call} = node) do
     classify_call(node.meta[:module], node.meta[:function], node.meta[:arity])

@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased
+
+### New
+
+- **4 analysis commands** for codebase-level insights:
+  - `mix reach.coupling` — module-level coupling metrics (afferent/efferent
+    coupling, Martin's instability metric, circular dependency detection).
+    `--graph` renders the module dependency graph via boxart.
+  - `mix reach.hotspots` — functions ranked by complexity × caller count,
+    surfacing the highest-risk refactoring targets.
+  - `mix reach.depth` — functions ranked by dominator tree depth (control
+    flow nesting). `--graph` renders the CFG of the deepest function.
+  - `mix reach.effects` — effect classification distribution across the
+    codebase and top unclassified calls. `--module` restricts to one module.
+
+### Improved
+
+- **Field access detection** — `socket.assigns`, `conn.params`, `state.count`
+  are now recognized as field access (`kind: :field_access`) instead of
+  remote calls with a fake module name. Classified as `:pure`.
+- **Compile-time noise filtering** — `@doc`, `@spec`, `@type`, `use`,
+  `import`, `alias`, `require`, `::`, `__aliases__` and other compile-time
+  constructs are now classified as `:pure` instead of `:unknown`.
+- Unknown call ratio dropped from ~89% to ~46% across real codebases
+  (Plausible, Livebook, Ecto, Oban).
+- Upgraded boxart to 0.3.1.
+
 ## 1.4.1
 
 ### Fixed
