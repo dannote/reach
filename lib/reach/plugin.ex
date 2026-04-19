@@ -2,9 +2,14 @@ defmodule Reach.Plugin do
   @moduledoc """
   Behaviour for library-specific analysis plugins.
 
-  Plugins add edges to the dependence graph that capture domain-specific
-  dependencies invisible to the language-level analysis — framework dispatch,
-  message routing, pipeline topology, etc.
+  Plugins extend Reach in two ways:
+
+  1. **Graph edges** — `analyze/2` and `analyze_project/3` add domain-specific
+     edges to the dependence graph (framework dispatch, message routing, etc.)
+
+  2. **Effect classification** — `classify_effect/1` teaches the effect
+     classifier about framework-specific calls (Ecto queries are pure,
+     Repo writes are `:write`, etc.)
 
   ## Implementing a plugin
 
@@ -12,18 +17,19 @@ defmodule Reach.Plugin do
         @behaviour Reach.Plugin
 
         @impl true
-        def analyze(all_nodes, _opts) do
-          # Return edge tuples: {from_node_id, to_node_id, label}
-          []
-        end
+        def analyze(all_nodes, _opts), do: []
+
+        @impl true
+        def classify_effect(%Reach.IR.Node{type: :call, meta: %{function: :my_pure_fn}}), do: :pure
+        def classify_effect(_), do: nil
       end
 
-  ## Using plugins
+  ## Built-in plugins
 
-  Plugins for Phoenix, Ecto, Oban, and GenStage are included and
-  auto-detected at runtime. Override with the `:plugins` option:
+  Plugins for Phoenix, Ecto, Oban, GenStage, Jido, and OpenTelemetry
+  are included and auto-detected at runtime. Override with the
+  `:plugins` option:
 
-      Reach.string_to_graph!(source, plugins: [Reach.Plugins.Phoenix])
       Reach.Project.from_mix_project(plugins: [Reach.Plugins.Ecto])
 
   Disable auto-detection:
@@ -43,7 +49,7 @@ defmodule Reach.Plugin do
   @doc """
   Analyzes IR nodes across all modules in a project.
 
-  Optional — only needed for cross-module patterns like router→controller
+  Only needed for cross-module patterns like router→controller
   dispatch or job enqueue→perform flow.
   """
   @callback analyze_project(
@@ -52,7 +58,15 @@ defmodule Reach.Plugin do
               opts :: keyword()
             ) :: [edge_spec()]
 
-  @optional_callbacks analyze_project: 3
+  @doc """
+  Classifies the effect of a call node.
+
+  Return an effect atom (`:pure`, `:read`, `:write`, `:io`, `:send`,
+  `:exception`) or `nil` to defer to the next classifier.
+  """
+  @callback classify_effect(node :: Node.t()) :: atom() | nil
+
+  @optional_callbacks analyze_project: 3, classify_effect: 1
 
   @known_plugins [
     {Phoenix.Router, Reach.Plugins.Phoenix},
@@ -63,7 +77,9 @@ defmodule Reach.Plugin do
     {OpenTelemetry.Tracer, Reach.Plugins.OpenTelemetry}
   ]
 
-  @doc false
+  @doc """
+  Returns the list of auto-detected plugins based on loaded dependencies.
+  """
   def detect do
     for {mod, plugin} <- @known_plugins,
         Code.ensure_loaded?(mod) do
@@ -71,13 +87,28 @@ defmodule Reach.Plugin do
     end
   end
 
-  @doc false
+  @doc """
+  Resolves plugins from options, falling back to auto-detection.
+  """
   def resolve(opts) do
     case Keyword.get(opts, :plugins) do
       nil -> detect()
       [] -> []
       list when is_list(list) -> list
     end
+  end
+
+  @doc """
+  Asks each plugin to classify a call node's effect.
+
+  Returns the first non-nil result, or `nil` if no plugin matches.
+  """
+  def classify_effect(plugins, node) do
+    Enum.find_value(plugins, fn plugin ->
+      if Code.ensure_loaded?(plugin) and function_exported?(plugin, :classify_effect, 1) do
+        plugin.classify_effect(node)
+      end
+    end)
   end
 
   @doc false

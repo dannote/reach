@@ -3,10 +3,35 @@ defmodule Reach.Plugins.Phoenix do
   @behaviour Reach.Plugin
 
   alias Reach.IR
+  alias Reach.IR.Node
 
   import Reach.Plugins.Helpers, only: [find_vars_in: 1]
 
   @assign_modules [nil, Phoenix.Component, Phoenix.LiveView]
+
+  @pure_local [
+    :assign, :assign_new, :push_event, :push_patch, :push_navigate,
+    :put_flash, :redirect, :render, :json, :text, :html,
+    :send_resp, :put_status, :put_resp_content_type, :put_resp_header,
+    :halt, :put_layout, :put_root_layout, :put_view, :put_new_layout,
+    :live_render, :live_component, :on_mount, :embed_templates,
+    :attr, :slot, :sigil_H, :sigil_p,
+    :plug, :get, :post, :put, :delete, :patch, :pipe_through,
+    :scope, :live, :resources, :forward
+  ]
+
+  @pure_remote_modules [Phoenix.Component, Phoenix.LiveView, Phoenix.Controller, Plug.Conn]
+
+  @impl true
+  def classify_effect(%Node{type: :call, meta: %{kind: :local, function: fun}})
+      when fun in @pure_local,
+      do: :pure
+
+  def classify_effect(%Node{type: :call, meta: %{kind: :remote, module: mod}})
+      when mod in @pure_remote_modules,
+      do: :pure
+
+  def classify_effect(_), do: nil
 
   @impl true
   def analyze(all_nodes, _opts) do
@@ -20,11 +45,8 @@ defmodule Reach.Plugins.Phoenix do
     plug_chain_edges(all_nodes)
   end
 
-  # conn params pattern var → enclosing function_def
-  # Marks the function as receiving untrusted input
   defp conn_param_to_action_edges(all_nodes) do
-    func_defs =
-      Enum.filter(all_nodes, &(&1.type == :function_def))
+    func_defs = Enum.filter(all_nodes, &(&1.type == :function_def))
 
     Enum.flat_map(func_defs, fn func ->
       clauses = Enum.filter(func.children, &(&1.type == :clause))
@@ -44,7 +66,6 @@ defmodule Reach.Plugins.Phoenix do
     end)
   end
 
-  # action_fallback — scoped: error tuples within each function_def
   defp action_fallback_edges(all_nodes) do
     fallbacks =
       Enum.filter(all_nodes, fn n ->
@@ -63,8 +84,6 @@ defmodule Reach.Plugins.Phoenix do
     end
   end
 
-  # socket assigns: assign(socket, :key, val)
-  # Also matches Phoenix.Component.assign and Phoenix.LiveView.assign
   defp socket_assign_edges(all_nodes) do
     assigns =
       Enum.filter(all_nodes, fn n ->
@@ -79,7 +98,6 @@ defmodule Reach.Plugins.Phoenix do
     end
   end
 
-  # Plug chains: pipe_through → route macros within the same scope block
   defp plug_chain_edges(all_nodes) do
     scope_blocks =
       Enum.filter(all_nodes, fn n ->

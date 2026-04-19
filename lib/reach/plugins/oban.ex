@@ -3,6 +3,18 @@ defmodule Reach.Plugins.Oban do
   @behaviour Reach.Plugin
 
   alias Reach.IR
+  alias Reach.IR.Node
+
+  @impl true
+  def classify_effect(%Node{type: :call, meta: %{module: Oban, function: fun}})
+      when fun in [:insert, :insert!, :insert_all, :insert_all!],
+      do: :write
+
+  def classify_effect(%Node{type: :call, meta: %{module: Oban, function: fun}})
+      when fun in [:start_link, :stop, :drain_queue],
+      do: :io
+
+  def classify_effect(_), do: nil
 
   @impl true
   def analyze(all_nodes, _opts) do
@@ -14,8 +26,6 @@ defmodule Reach.Plugins.Oban do
     enqueue_to_perform_edges(all_nodes)
   end
 
-  # Within a worker: job param in perform → first call that uses it
-  # Only matches the function parameter itself, not arbitrary vars named "job"
   defp job_args_edges(all_nodes) do
     perform_fns =
       Enum.filter(all_nodes, fn n ->
@@ -35,7 +45,6 @@ defmodule Reach.Plugins.Oban do
     end)
   end
 
-  # Cross-module: resolve worker module from MyWorker.new() call
   defp enqueue_to_perform_edges(all_nodes) do
     inserts =
       Enum.filter(all_nodes, fn n ->
@@ -63,7 +72,6 @@ defmodule Reach.Plugins.Oban do
     end
   end
 
-  # Extract the worker module from Oban.insert(MyWorker.new(%{...}))
   defp extract_worker_module(insert_call) do
     insert_call
     |> IR.all_nodes()

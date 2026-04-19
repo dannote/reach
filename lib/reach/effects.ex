@@ -61,7 +61,10 @@ defmodule Reach.Effects do
       do: :pure
 
   def classify(%Node{type: :call} = node) do
-    classify_call(node.meta[:module], node.meta[:function], node.meta[:arity])
+    case classify_call(node.meta[:module], node.meta[:function], node.meta[:arity]) do
+      :unknown -> Reach.Plugin.classify_effect(cached_plugins(), node) || :unknown
+      effect -> effect
+    end
   end
 
   def classify(_node), do: :unknown
@@ -376,6 +379,18 @@ defmodule Reach.Effects do
         result = do_classify_call(module, function, arity)
         put_cache(key, result)
         result
+    end
+  end
+
+  defp cached_plugins do
+    case :persistent_term.get(:reach_effect_plugins, nil) do
+      nil ->
+        plugins = Reach.Plugin.detect()
+        :persistent_term.put(:reach_effect_plugins, plugins)
+        plugins
+
+      plugins ->
+        plugins
     end
   end
 
