@@ -638,6 +638,77 @@ defmodule Reach.Frontend.ElixirTest do
     end
   end
 
+  describe "import resolution" do
+    test "import resolves local call to imported module" do
+      nodes =
+        IR.from_string!("""
+        defmodule MyApp do
+          import Enum, only: [map: 2]
+
+          def test(list), do: map(list, &to_string/1)
+        end
+        """)
+
+      calls =
+        nodes
+        |> IR.all_nodes()
+        |> Enum.filter(
+          &(&1.type == :call and &1.meta[:function] == :map and &1.meta[:arity] == 2)
+        )
+
+      assert [call] = calls
+      assert call.meta[:module] == Enum
+      assert call.meta[:kind] == :remote
+    end
+
+    test "non-imported call stays local" do
+      nodes =
+        IR.from_string!("""
+        defmodule MyApp do
+          import Enum, only: [map: 2]
+
+          def test, do: my_func()
+          defp my_func, do: :ok
+        end
+        """)
+
+      calls =
+        nodes
+        |> IR.all_nodes()
+        |> Enum.filter(&(&1.type == :call and &1.meta[:function] == :my_func))
+
+      assert [call] = calls
+      assert call.meta[:module] == nil
+      assert call.meta[:kind] == :local
+    end
+
+    test "import does not leak across modules" do
+      nodes =
+        IR.from_string!("""
+        defmodule A do
+          import Enum
+          def test, do: map([], &to_string/1)
+        end
+
+        defmodule B do
+          def test, do: map([], &to_string/1)
+        end
+        """)
+
+      calls =
+        nodes
+        |> IR.all_nodes()
+        |> Enum.filter(
+          &(&1.type == :call and &1.meta[:function] == :map and &1.meta[:arity] == 2)
+        )
+
+      assert length(calls) == 2
+      [call_a, call_b] = Enum.sort_by(calls, & &1.id)
+      assert call_a.meta[:module] == Enum
+      assert call_b.meta[:module] == nil
+    end
+  end
+
   describe "field access" do
     test "var.field is classified as field_access" do
       nodes =

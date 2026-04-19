@@ -118,13 +118,19 @@ defmodule Reach.Frontend.Elixir do
   # Module definition
   defp translate({:defmodule, meta, [alias_ast, [do: body]]}, counter, file) do
     prev_aliases = Process.get(:reach_alias_map, %{})
+    prev_imports = Process.get(:reach_import_map, %{})
+
     aliases = collect_aliases(body, module_name(alias_ast))
+    imports = collect_imports(body)
+
     Process.put(:reach_alias_map, Map.merge(prev_aliases, aliases))
+    Process.put(:reach_import_map, Map.merge(prev_imports, imports))
 
     body_node = translate(body, counter, file)
     merged_body = group_function_clauses(body_node)
 
     Process.put(:reach_alias_map, prev_aliases)
+    Process.put(:reach_import_map, prev_imports)
 
     %Node{
       id: Counter.next(counter),
@@ -770,15 +776,18 @@ defmodule Reach.Frontend.Elixir do
     }
   end
 
-  # Local call: function(args)
+  # Local call: function(args) — check if imported
   defp translate({fun_name, meta, args}, counter, file)
        when is_atom(fun_name) and is_list(args) do
     arg_nodes = Enum.map(args, &translate(&1, counter, file))
+    arity = length(args)
+
+    {module, kind} = resolve_import(fun_name, arity)
 
     %Node{
       id: Counter.next(counter),
       type: :call,
-      meta: %{function: fun_name, arity: length(args), kind: :local},
+      meta: %{function: fun_name, arity: arity, module: module, kind: kind},
       children: arg_nodes,
       source_span: span_from_meta(meta, file)
     }
@@ -977,6 +986,76 @@ defmodule Reach.Frontend.Elixir do
       aliases when map_size(aliases) > 0 -> Map.get(aliases, mod, mod)
       _ -> mod
     end
+  end
+
+  defp resolve_import(fun_name, arity) do
+    case Process.get(:reach_import_map, %{}) do
+      imports when map_size(imports) > 0 ->
+        case Map.get(imports, {fun_name, arity}) do
+          nil -> {nil, :local}
+          module -> {module, :remote}
+        end
+
+      _ ->
+        {nil, :local}
+    end
+  end
+
+  defp collect_imports(body) do
+    body
+    |> extract_import_forms()
+    |> Enum.reduce(%{}, fn {module, funs}, acc ->
+      Enum.reduce(funs, acc, fn {name, arity}, inner ->
+        Map.put_new(inner, {name, arity}, module)
+      end)
+    end)
+  end
+
+  defp extract_import_forms({:__block__, _, exprs}),
+    do: Enum.flat_map(exprs, &extract_import_forms/1)
+
+  defp extract_import_forms({:import, _, [{:__aliases__, _, parts}]}) when is_list(parts) do
+    if Enum.all?(parts, &is_atom/1) do
+      mod = Module.concat(parts)
+      [{mod, exported_functions(mod)}]
+    else
+      []
+    end
+  end
+
+  defp extract_import_forms({:import, _, [{:__aliases__, _, parts}, opts]})
+       when is_list(parts) and is_list(opts) do
+    if Enum.all?(parts, &is_atom/1) do
+      mod = Module.concat(parts)
+
+      funs =
+        case Keyword.get(opts, :only) do
+          nil ->
+            case Keyword.get(opts, :except) do
+              nil -> exported_functions(mod)
+              except -> exported_functions(mod) -- except
+            end
+
+          only ->
+            only
+        end
+
+      [{mod, funs}]
+    else
+      []
+    end
+  end
+
+  defp extract_import_forms(_), do: []
+
+  defp exported_functions(mod) do
+    if Code.ensure_loaded?(mod) do
+      mod.__info__(:functions) ++ mod.__info__(:macros)
+    else
+      []
+    end
+  rescue
+    _ -> []
   end
 
   defp collect_aliases(body, _current_module) do
