@@ -73,6 +73,7 @@ defmodule Mix.Tasks.Reach.Hotspots do
           branches: branches,
           callers: callers,
           score: branches * callers,
+          clauses: extract_clauses(f),
           file: file,
           line: line
         }
@@ -98,6 +99,30 @@ defmodule Mix.Tasks.Reach.Hotspots do
       0
     end
   end
+
+  defp extract_clauses(func_def) do
+    func_def.children
+    |> Enum.filter(&(&1.type == :clause))
+    |> Enum.map(fn clause ->
+      clause.children
+      |> Enum.take_while(fn c -> c.type not in [:guard, :block] end)
+      |> List.first()
+      |> clause_label()
+    end)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp clause_label(nil), do: nil
+  defp clause_label(%{type: :literal, meta: %{value: v}}) when is_binary(v), do: v
+  defp clause_label(%{type: :literal, meta: %{value: v}}) when is_atom(v), do: inspect(v)
+
+  defp clause_label(%{type: :tuple, children: [%{type: :literal, meta: %{value: v}} | _]})
+       when is_atom(v),
+       do: inspect(v)
+
+  defp clause_label(%{type: :var, meta: %{name: name}}), do: to_string(name)
+  defp clause_label(%{type: :match, children: [pattern | _]}), do: clause_label(pattern)
+  defp clause_label(_), do: nil
 
   # --- Rendering ---
 
