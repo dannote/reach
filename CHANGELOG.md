@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### New
+
+- **Ash Framework plugin** — effect classification and graph edges for the
+  Ash ecosystem. Covers Ash core CRUD (`Ash.create/read/update/destroy` and
+  bulk variants), `Ash.Changeset`, `Ash.Query`, `Ash.ActionInput`,
+  `AshPhoenix.Form`, `Ash.Notifier`, resource DSL macros, and
+  AshStateMachine DSL. Adds changeset-to-CRUD, query-to-read, form-to-submit,
+  ActionInput-to-run_action flow edges, cross-module dispatch edges for
+  `change`/`validate`/`prepare` callback modules, and code_interface
+  `define`-to-action resolution. Auto-detected when the target project
+  depends on `ash`.
+
 ## 1.5.0
 
 ### New
