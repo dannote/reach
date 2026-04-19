@@ -31,6 +31,13 @@ defmodule Reach.Plugins.Phoenix do
       when mod in @pure_remote_modules,
       do: :pure
 
+  def classify_effect(%Node{type: :call, meta: %{kind: :remote, module: mod}})
+      when is_atom(mod) and mod != nil do
+    mod_str = Atom.to_string(mod)
+    if String.ends_with?(mod_str, "Routes") or String.ends_with?(mod_str, ".VerifiedRoutes"),
+      do: :pure
+  end
+
   def classify_effect(_), do: nil
 
   @impl true

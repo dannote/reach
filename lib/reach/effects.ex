@@ -29,7 +29,12 @@ defmodule Reach.Effects do
     :type, :typep, :opaque, :behaviour,
     :"::", :defmacro, :defmacrop, :defguard, :defguardp,
     :__aliases__,
-    :<<>>, :|, :\\, :when, :sigil_H, :sigil_p, :sigil_w
+    :<<>>, :|, :\\, :when, :sigil_H, :sigil_p, :sigil_w,
+    :t, :integer, :string, :boolean, :atom, :float, :map, :list, :keyword,
+    :binary, :number, :pid, :term, :any, :none, :timeout, :mfa, :module,
+    :arity, :pos_integer, :non_neg_integer, :neg_integer, :iodata, :iolist,
+    :struct, :charlist, :byte, :char, :as_boolean, :struct!,
+    :unquote, :quote
   ]
 
   @spec classify(Node.t()) :: effect()
@@ -416,6 +421,7 @@ defmodule Reach.Effects do
       classify_state(module, function) ||
       classify_exception(module, function) ||
       classify_nif(module) ||
+      classify_config(module, function) ||
       classify_from_spec(module, function, arity) ||
       :unknown
   end
@@ -532,10 +538,10 @@ defmodule Reach.Effects do
   @effectful_in_pure_modules [{Enum, :each, 2}, {Enum, :each, 1}]
 
   defp classify_pure(module, function, arity) do
-    if {module, function, arity} in @effectful_in_pure_modules do
-      nil
-    else
-      if pure_module?(module) or pure_function?(module, function, arity), do: :pure
+    cond do
+      {module, function, arity} in @effectful_in_pure_modules -> :io
+      pure_module?(module) or pure_function?(module, function, arity) -> :pure
+      true -> nil
     end
   end
 
@@ -550,6 +556,13 @@ defmodule Reach.Effects do
       true -> nil
     end
   end
+
+  defp classify_config(Application, function)
+       when function in [:get_env, :fetch_env, :fetch_env!, :get_all_env,
+                         :compile_env, :compile_env!],
+       do: :read
+
+  defp classify_config(_, _), do: nil
 
   defp classify_state(module, function) do
     cond do
@@ -576,7 +589,7 @@ defmodule Reach.Effects do
 
   @doc false
   def pure_call?(module, function, arity) do
-    classify_pure(module, function, arity) != nil
+    classify_pure(module, function, arity) == :pure
   end
 
   defp pure_module?(module), do: module in @pure_modules
