@@ -316,7 +316,8 @@ defmodule Reach.Project do
   end
 
   defp find_func_def(pdg) do
-    pdg.nodes |> Map.values() |> Enum.find(&(&1.type == :function_def))
+    Map.get(pdg, :func_def) ||
+      pdg.nodes |> Map.values() |> Enum.find(&(&1.type == :function_def))
   end
 
   defp compute_param_flows(func_def) do

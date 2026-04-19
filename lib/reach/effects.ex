@@ -115,25 +115,34 @@ defmodule Reach.Effects do
   def infer_local_effects(node_map) do
     ensure_cache()
 
-    func_defs =
+    func_calls =
       node_map
       |> Map.values()
       |> Enum.filter(&(&1.type == :function_def))
-
-    func_calls =
-      Map.new(func_defs, fn f ->
+      |> Map.new(fn f ->
         calls =
-          f
-          |> Reach.IR.all_nodes()
-          |> Enum.filter(&(&1.type == :call and &1.meta[:kind] not in [:field_access]))
+          f.children
+          |> collect_calls()
+          |> Enum.reject(&(&1.meta[:kind] in [:field_access]))
           |> Enum.reject(&(&1.meta[:function] in @compile_time_ops))
 
-        key = {f.meta[:module], f.meta[:name], f.meta[:arity]}
-        {key, calls}
+        {{f.meta[:module], f.meta[:name], f.meta[:arity]}, calls}
       end)
 
     do_infer(func_calls, 0)
   end
+
+  defp collect_calls(nodes) when is_list(nodes), do: Enum.flat_map(nodes, &collect_calls/1)
+
+  defp collect_calls(%Reach.IR.Node{type: :call} = node) do
+    [node | Enum.flat_map(node.children, &collect_calls/1)]
+  end
+
+  defp collect_calls(%Reach.IR.Node{children: children}) do
+    Enum.flat_map(children, &collect_calls/1)
+  end
+
+  defp collect_calls(_), do: []
 
   defp do_infer(func_calls, prev_classified) do
     newly_classified =

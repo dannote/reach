@@ -113,7 +113,7 @@ defmodule Reach.SystemDependence do
 
       merged = Reach.Graph.merge([control_deps, data_deps])
 
-      {func_id, %{graph: merged, nodes: node_map}}
+      {func_id, %{graph: merged, nodes: node_map, func_def: func_node}}
     end)
   end
 
