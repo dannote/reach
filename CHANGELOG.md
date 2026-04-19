@@ -18,6 +18,9 @@
     graph (parameter, return, state, and call edges between functions).
   - `mix reach.concurrency` — Task.async/await pairing, process monitors,
     spawn/link chains, and supervisor topology.
+- **Plugin `classify_effect/1` callback** — plugins can now teach the
+  effect classifier about framework-specific calls. Implemented for all
+  6 built-in plugins (Phoenix, Ecto, Oban, GenStage, Jido, OpenTelemetry).
 
 ### Improved
 
@@ -25,16 +28,31 @@
   are now recognized as field access (`kind: :field_access`) instead of
   remote calls with a fake module name. Classified as `:pure`.
 - **Compile-time noise filtering** — `@doc`, `@spec`, `@type`, `use`,
-  `import`, `alias`, `require`, `::`, `__aliases__` and other compile-time
-  constructs are now classified as `:pure` instead of `:unknown`.
-- Unknown call ratio dropped from ~89% to ~46% across real codebases
-  (Plausible, Livebook, Ecto, Oban).
-- Upgraded boxart to 0.3.1.
+  `import`, `alias`, `require`, `::`, `__aliases__`, typespec names, and
+  binary syntax are classified as `:pure` instead of `:unknown`.
 - **Local function effect inference** — after building the project graph,
   Reach walks all function bodies and infers effects from their callees.
   Functions that only call pure functions are classified as pure. This
   propagates transitively via fixed-point iteration.
-- Unknown call ratio dropped further to ~30% (from ~89% at the start).
+- **Expanded pure modules** — `Access`, `Calendar`, `Date`, `DateTime`,
+  `NaiveDateTime`, `Time` added. `Kernel.to_string` and other builtins
+  now classified correctly when module is explicit.
+- **`Enum.each` classified as `:io`** — previously fell through to
+  `:unknown` despite being in `@effectful_in_pure_modules`.
+- **`Application.get_env` classified as `:read`**.
+- **Phoenix plugin**: route helpers (`*Routes`, `*.VerifiedRoutes`) → `:pure`.
+- **Ecto plugin**: Repo reads → `:read`, Repo writes → `:write`, query DSL
+  and changeset/schema macros → `:pure`.
+- **Oban plugin**: `Oban.insert` → `:write`.
+- **GenStage plugin**: `GenStage.call/cast` → `:send`, Broadway message
+  transforms → `:pure`.
+- **Jido plugin**: updated to v2 API. Signal dispatch → `:send`, directives
+  → `:io`/`:send`, AgentServer → `:send`/`:read`, Thread → `:pure`.
+- **OpenTelemetry plugin**: Tracer spans/attributes → `:io`, context
+  operations → `:read`/`:write`, `:telemetry.execute` → `:io`.
+- Unknown call ratio dropped from **~89% to ~20%** across real codebases
+  (Plausible, Livebook, Ecto, Oban). With plugins active: ~18% Plausible.
+- Upgraded boxart to 0.3.1.
 
 ## 1.4.1
 
