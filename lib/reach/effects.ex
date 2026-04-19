@@ -178,8 +178,9 @@ defmodule Reach.Effects do
         calls =
           f.children
           |> collect_calls()
-          |> Enum.reject(&(&1.meta[:kind] in [:field_access]))
-          |> Enum.reject(&(&1.meta[:function] in @compile_time_ops))
+          |> Enum.reject(fn c ->
+            c.meta[:kind] in [:field_access] or c.meta[:function] in @compile_time_ops
+          end)
 
         {{f.meta[:module], f.meta[:name], f.meta[:arity]}, calls}
       end)
@@ -190,26 +191,29 @@ defmodule Reach.Effects do
   defp build_module_func_map(all_nodes) do
     all_nodes
     |> Enum.filter(&(&1.type == :module_def))
-    |> Enum.reduce(%{}, fn mod_def, acc ->
-      mod_name = mod_def.meta[:name]
+    |> Enum.reduce(%{}, &add_module_functions/2)
+  end
 
-      mod_def.children
-      |> Enum.flat_map(fn child ->
-        case child.type do
-          :function_def -> [child]
-          :block -> Enum.filter(child.children, &(&1.type == :function_def))
-          _ -> []
-        end
-      end)
-      |> Enum.reduce(acc, fn func, inner ->
-        key = {nil, func.meta[:name], func.meta[:arity]}
+  defp add_module_functions(mod_def, acc) do
+    mod_name = mod_def.meta[:name]
 
-        Map.update(inner, key, [mod_name], fn mods ->
-          if mod_name in mods, do: mods, else: [mod_name | mods]
-        end)
+    mod_def.children
+    |> Enum.flat_map(&extract_func_defs/1)
+    |> Enum.reduce(acc, fn func, inner ->
+      key = {nil, func.meta[:name], func.meta[:arity]}
+
+      Map.update(inner, key, [mod_name], fn mods ->
+        if mod_name in mods, do: mods, else: [mod_name | mods]
       end)
     end)
   end
+
+  defp extract_func_defs(%{type: :function_def} = node), do: [node]
+
+  defp extract_func_defs(%{type: :block, children: children}),
+    do: Enum.filter(children, &(&1.type == :function_def))
+
+  defp extract_func_defs(_), do: []
 
   defp collect_calls(nodes) when is_list(nodes), do: Enum.flat_map(nodes, &collect_calls/1)
 
@@ -225,38 +229,40 @@ defmodule Reach.Effects do
 
   defp do_infer(func_calls, module_map, prev_classified) do
     newly_classified =
-      Enum.count(func_calls, fn {key, calls} ->
-        cached = lookup_cache(key)
-
-        if cached == :miss do
-          effects =
-            calls
-            |> Enum.map(&classify/1)
-            |> Enum.uniq()
-            |> Enum.reject(&(&1 == :pure))
-
-          case effects do
-            [] ->
-              cache_with_modules(key, :pure, module_map)
-              true
-
-            _ ->
-              if :unknown in effects do
-                false
-              else
-                cache_with_modules(key, merge_effects(effects), module_map)
-                true
-              end
-          end
-        else
-          false
-        end
-      end)
+      Enum.count(func_calls, &try_infer_function(&1, module_map))
 
     if newly_classified > 0 and newly_classified != prev_classified do
       do_infer(func_calls, module_map, newly_classified)
     else
       :ok
+    end
+  end
+
+  defp try_infer_function({key, calls}, module_map) do
+    if lookup_cache(key) != :miss do
+      false
+    else
+      effects =
+        calls
+        |> Enum.map(&classify/1)
+        |> Enum.uniq()
+        |> Enum.reject(&(&1 == :pure))
+
+      infer_from_effects(key, effects, module_map)
+    end
+  end
+
+  defp infer_from_effects(key, [], module_map) do
+    cache_with_modules(key, :pure, module_map)
+    true
+  end
+
+  defp infer_from_effects(key, effects, module_map) do
+    if :unknown in effects do
+      false
+    else
+      cache_with_modules(key, merge_effects(effects), module_map)
+      true
     end
   end
 
@@ -328,7 +334,7 @@ defmodule Reach.Effects do
     :filename,
     :re,
     NaiveDateTime,
-    Time,
+    Time
   ]
 
   @pure_kernel_functions [

@@ -83,8 +83,9 @@ defmodule Mix.Tasks.Reach.Effects do
     unknowns =
       call_nodes
       |> Enum.filter(&(Effects.classify(&1) == :unknown))
-      |> Enum.reject(&is_nil(&1.meta[:function]))
-      |> Enum.reject(&(&1.meta[:function] in @noise_functions))
+      |> Enum.reject(fn n ->
+        is_nil(n.meta[:function]) or n.meta[:function] in @noise_functions
+      end)
       |> Enum.map(fn n -> {n.meta[:module], n.meta[:function]} end)
       |> Enum.frequencies()
       |> Enum.sort_by(&elem(&1, 1), :desc)
@@ -129,9 +130,9 @@ defmodule Mix.Tasks.Reach.Effects do
       |> Enum.flat_map(&IR.all_nodes/1)
       |> MapSet.new(& &1.id)
 
-    nodes
-    |> Enum.filter(&(&1.type == :call))
-    |> Enum.filter(&MapSet.member?(project_mod_ids, &1.id))
+    Enum.filter(nodes, fn n ->
+      n.type == :call and MapSet.member?(project_mod_ids, n.id)
+    end)
   end
 
   # --- Rendering ---

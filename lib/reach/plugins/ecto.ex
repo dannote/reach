@@ -148,37 +148,20 @@ defmodule Reach.Plugins.Ecto do
       do: :pure
 
   def classify_effect(%Node{type: :call, meta: %{kind: :remote, module: mod, function: fun}})
+      when mod in [Ecto.Changeset, Ecto.Query, Ecto.Multi],
+      do: :pure
+
+  def classify_effect(%Node{type: :call, meta: %{kind: :remote, module: mod, function: fun}})
       when is_atom(mod) and mod != nil do
-    mod_str = Atom.to_string(mod)
-
-    cond do
-      (String.ends_with?(mod_str, "Repo") or String.ends_with?(mod_str, ".Repo")) and
-          fun in @repo_write_fns ->
-        :write
-
-      (String.ends_with?(mod_str, "Repo") or String.ends_with?(mod_str, ".Repo")) and
-          fun in @repo_read_fns ->
-        :read
-
-      (String.ends_with?(mod_str, "Repo") or String.ends_with?(mod_str, ".Repo")) and
-          fun in @repo_tx_fns ->
-        :write
-
-      mod == Ecto.Changeset ->
-        :pure
-
-      mod == Ecto.Query ->
-        :pure
-
-      mod == Ecto.Multi ->
-        :pure
-
-      true ->
-        nil
-    end
+    if repo_module?(mod), do: classify_repo_call(fun)
   end
 
   def classify_effect(_), do: nil
+
+  defp classify_repo_call(fun) when fun in @repo_write_fns, do: :write
+  defp classify_repo_call(fun) when fun in @repo_read_fns, do: :read
+  defp classify_repo_call(fun) when fun in @repo_tx_fns, do: :write
+  defp classify_repo_call(_), do: nil
 
   @impl true
   def analyze(all_nodes, _opts) do

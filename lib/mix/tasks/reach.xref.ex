@@ -153,7 +153,7 @@ defmodule Mix.Tasks.Reach.Xref do
       Enum.each(result, fn r ->
         IO.puts("  #{Format.bright(r.from)} → #{Format.bright(r.to)}")
 
-        labels_str = r.labels |> Enum.map(fn {l, c} -> "#{l}×#{c}" end) |> Enum.join(", ")
+        labels_str = Enum.map_join(r.labels, ", ", fn {l, c} -> "#{l}×#{c}" end)
         IO.puts("    #{r.edges} edges: #{Format.faint(labels_str)}")
 
         if r.variables != [] do
@@ -167,7 +167,7 @@ defmodule Mix.Tasks.Reach.Xref do
 
   defp render_oneline(result) do
     Enum.each(result, fn r ->
-      labels_str = r.labels |> Enum.map(fn {l, c} -> "#{l}×#{c}" end) |> Enum.join(",")
+      labels_str = Enum.map_join(r.labels, ",", fn {l, c} -> "#{l}×#{c}" end)
       IO.puts("#{r.from}\t#{r.to}\t#{r.edges}\t#{labels_str}")
     end)
   end
