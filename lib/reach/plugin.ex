@@ -71,6 +71,7 @@ defmodule Reach.Plugin do
   @known_plugins [
     {Phoenix.Router, Reach.Plugins.Phoenix},
     {Ecto, Reach.Plugins.Ecto},
+    {Ash, Reach.Plugins.Ash},
     {Oban, Reach.Plugins.Oban},
     {GenStage, Reach.Plugins.GenStage},
     {Jido.Action, Reach.Plugins.Jido},
