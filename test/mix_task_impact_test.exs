@@ -16,7 +16,9 @@ defmodule Mix.Tasks.Reach.ImpactTest do
   end
 
   test "json format" do
-    output = capture_io(fn -> Impact.run(["Reach.Project.from_mix_project/0", "--format", "json"]) end)
+    output =
+      capture_io(fn -> Impact.run(["Reach.Project.from_mix_project/0", "--format", "json"]) end)
+
     json = strip_info_lines(output)
     assert {:ok, data} = Jason.decode(json)
     assert is_list(data["direct_callers"])
