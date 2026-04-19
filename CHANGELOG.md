@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.1
+
+### Fixed
+
+- `mix reach.modules`, `mix reach.impact`, and `mix reach.slice` crash with
+  `BadBooleanError` when `--graph` is not passed (closes #6).
+
 ## 1.4.0
 
 ### New
