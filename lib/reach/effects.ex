@@ -328,7 +328,10 @@ defmodule Reach.Effects do
     :filename,
     :re,
     NaiveDateTime,
-    Time
+    Time,
+    Jason,
+    Jason.OrderedObject,
+    Poison
   ]
 
   @pure_kernel_functions [
@@ -410,6 +413,7 @@ defmodule Reach.Effects do
     {:erlang, :list_to_tuple, 1},
     {:erlang, :atom_to_binary, 1},
     {:erlang, :binary_to_atom, 1},
+    {:erlang, :binary_to_atom, 2},
     {:erlang, :integer_to_binary, 1},
     {:erlang, :binary_to_integer, 1},
     {:erlang, :float_to_binary, 1},
@@ -635,6 +639,8 @@ defmodule Reach.Effects do
   defp pure_return_type?({:type, _, :union, subtypes}),
     do: Enum.all?(subtypes, &pure_return_type?/1)
 
+  defp pure_return_type?({:type, _, :no_return, _}), do: true
+  defp pure_return_type?({:type, _, :string, _}), do: true
   defp pure_return_type?({:type, _, :range, _}), do: true
   defp pure_return_type?({tag, _, _}) when tag in [:remote_type, :var, :atom], do: true
   defp pure_return_type?({:user_type, _, _, _}), do: true
@@ -673,6 +679,32 @@ defmodule Reach.Effects do
               :compile_env!
             ],
        do: :read
+
+  defp classify_config(System, function)
+       when function in [:get_env, :fetch_env, :fetch_env!],
+       do: :read
+
+  defp classify_config(System, function)
+       when function in [
+              :monotonic_time,
+              :system_time,
+              :os_time,
+              :unique_integer,
+              :schedulers,
+              :schedulers_online,
+              :otp_release,
+              :version
+            ],
+       do: :read
+
+  defp classify_config(Mix, :env), do: :read
+  defp classify_config(Mix, :target), do: :read
+
+  defp classify_config(Supervisor, :child_spec), do: :pure
+
+  defp classify_config(GenServer, :start_link), do: :io
+  defp classify_config(GenServer, :start), do: :io
+  defp classify_config(Supervisor, :start_link), do: :io
 
   defp classify_config(_, _), do: nil
 
