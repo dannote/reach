@@ -604,7 +604,7 @@ defmodule Reach.Plugins.Ash do
   defp action_matches?(action_call, action_name) do
     case action_call.children do
       [%Node{type: :literal, meta: %{value: ^action_name}} | _] -> true
-      _ -> action_call.meta[:function] == action_name
+      _ -> false
     end
   end
 
