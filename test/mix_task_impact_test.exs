@@ -12,7 +12,7 @@ defmodule Mix.Tasks.Reach.ImpactTest do
 
   test "--graph flag" do
     output = capture_io(fn -> Impact.run(["Reach.Project.from_mix_project/0", "--graph"]) end)
-    assert output =~ "Analyzing"
+    assert output =~ "from_mix_project"
   end
 
   test "json format" do

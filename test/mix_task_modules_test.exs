@@ -12,7 +12,7 @@ defmodule Mix.Tasks.Reach.ModulesTest do
 
   test "--graph flag" do
     output = capture_io(fn -> Modules.run(["--graph"]) end)
-    assert output =~ "Analyzing"
+    assert output =~ "┌"
   end
 
   test "json format" do
