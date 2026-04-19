@@ -16,6 +16,7 @@ defmodule Mix.Tasks.Reach.Coupling do
     * `--format` — output format: `text` (default), `json`, `oneline`
     * `--sort` — sort by: `instability` (default), `afferent`, `efferent`,
       `name`
+    * `--orphans` — show only orphan modules (Ca=0, Ce>0, not an entry point)
 
   """
 
@@ -28,7 +29,7 @@ defmodule Mix.Tasks.Reach.Coupling do
 
   @shortdoc "Module coupling metrics (afferent, efferent, circular deps)"
 
-  @switches [format: :string, sort: :string, graph: :boolean]
+  @switches [format: :string, sort: :string, graph: :boolean, orphans: :boolean]
   @aliases [f: :format]
 
   @impl Mix.Task
@@ -39,6 +40,7 @@ defmodule Mix.Tasks.Reach.Coupling do
 
     project = Project.load()
     result = analyze(project, sort)
+    result = if opts[:orphans], do: filter_orphans(result), else: result
 
     if opts[:graph] do
       render_graph(project)
@@ -148,6 +150,35 @@ defmodule Mix.Tasks.Reach.Coupling do
           walk_cycle(graph, start, neighbor, [current | path], max)
       end
     end)
+  end
+
+  @entry_point_patterns [
+    "Controller",
+    "Live",
+    "Worker",
+    "Job",
+    "Router",
+    "Endpoint",
+    "Supervisor",
+    "Application",
+    "Mix.Tasks.",
+    "Channel",
+    "Socket",
+    "Plug.",
+    "Telemetry"
+  ]
+
+  defp filter_orphans(result) do
+    orphans =
+      Enum.filter(result.modules, fn m ->
+        m.afferent == 0 and m.efferent > 0 and not entry_point?(m.name)
+      end)
+
+    %{result | modules: orphans, circular_dependencies: []}
+  end
+
+  defp entry_point?(name) do
+    Enum.any?(@entry_point_patterns, &String.contains?(name, &1))
   end
 
   # --- Rendering ---

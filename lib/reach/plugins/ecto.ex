@@ -147,7 +147,7 @@ defmodule Reach.Plugins.Ecto do
              fun in @changeset_fns or fun in @schema_fns,
       do: :pure
 
-  def classify_effect(%Node{type: :call, meta: %{kind: :remote, module: mod, function: fun}})
+  def classify_effect(%Node{type: :call, meta: %{kind: :remote, module: mod, function: _fun}})
       when mod in [Ecto.Changeset, Ecto.Query, Ecto.Multi],
       do: :pure
 
