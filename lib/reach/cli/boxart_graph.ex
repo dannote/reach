@@ -46,19 +46,44 @@ defmodule Reach.CLI.BoxartGraph do
   end
 
   def render_otp_state_diagram(callbacks) do
-    graph =
-      Enum.reduce(callbacks, Graph.new(), fn %{callback: {name, arity}, action: action}, g ->
-        label = "#{name}/#{arity}\n#{action}"
-        Graph.add_vertex(g, {name, arity}, label: label, shape: :rounded)
+    alias Boxart.Render.StateDiagram, as: SDRenderer
+    alias Boxart.Render.StateDiagram.{State, Transition, StateDiagram}
+
+    states =
+      [%State{id: "start", type: :start}] ++
+        Enum.map(callbacks, fn %{callback: {name, arity}, action: action} ->
+          %State{id: "#{name}/#{arity}", label: "#{name}/#{arity} (#{action})"}
+        end) ++
+        [%State{id: "end", type: :end}]
+
+    init_id =
+      Enum.find_value(callbacks, fn
+        %{callback: {:init, a}} -> "init/#{a}"
+        _ -> nil
       end)
 
-    # Show init → other callbacks to indicate lifecycle order.
-    # Not actual state transitions — just "these callbacks exist".
-    init = Enum.find(callbacks, fn %{callback: {name, _}} -> name == :init end)
+    transitions =
+      if init_id do
+        [%Transition{from: "start", to: init_id}] ++
+          Enum.flat_map(callbacks, fn %{callback: {name, arity}, action: action} ->
+            id = "#{name}/#{arity}"
 
-    graph = add_init_edges(graph, init, callbacks)
+            if name != :init,
+              do: [%Transition{from: init_id, to: id, label: to_string(action)}],
+              else: []
+          end) ++
+          Enum.flat_map(callbacks, fn %{callback: {name, arity}} ->
+            id = "#{name}/#{arity}"
 
-    IO.puts(render_boxart(graph))
+            if name in [:terminate, :code_change],
+              do: [%Transition{from: id, to: "end"}],
+              else: []
+          end)
+      else
+        []
+      end
+
+    IO.puts(SDRenderer.render(%StateDiagram{states: states, transitions: transitions}))
   end
 
   def render_cfg(func_node, file) do
@@ -237,14 +262,6 @@ defmodule Reach.CLI.BoxartGraph do
   end
 
   # ── Private ──
-
-  defp add_init_edges(graph, nil, _callbacks), do: graph
-
-  defp add_init_edges(graph, init, callbacks) do
-    Enum.reduce(callbacks, graph, fn %{callback: {name, arity}}, g ->
-      if name != :init, do: Graph.add_edge(g, init.callback, {name, arity}), else: g
-    end)
-  end
 
   defp edge_opts(%{label: label}) when label != "", do: [label: label]
   defp edge_opts(_), do: []

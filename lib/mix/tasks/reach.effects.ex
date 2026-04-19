@@ -29,7 +29,7 @@ defmodule Mix.Tasks.Reach.Effects do
 
   @shortdoc "Effect classification distribution"
 
-  @switches [format: :string, module: :string]
+  @switches [format: :string, module: :string, graph: :boolean]
   @aliases [f: :format]
 
   @noise_functions [
@@ -58,10 +58,14 @@ defmodule Mix.Tasks.Reach.Effects do
     project = Project.load()
     result = analyze(project, opts[:module])
 
-    case format do
-      "json" -> Format.render(result, "reach.effects", format: "json", pretty: true)
-      "oneline" -> render_oneline(result)
-      _ -> render_text(result)
+    if opts[:graph] do
+      render_graph(result)
+    else
+      case format do
+        "json" -> Format.render(result, "reach.effects", format: "json", pretty: true)
+        "oneline" -> render_oneline(result)
+        _ -> render_text(result)
+      end
     end
   end
 
@@ -169,6 +173,28 @@ defmodule Mix.Tasks.Reach.Effects do
     Enum.each(result.unknown_calls, fn u ->
       IO.puts("unknown:#{u.module}.#{u.function}\t#{u.count}")
     end)
+  end
+
+  defp render_graph(result) do
+    unless Code.ensure_loaded?(Boxart.Render.PieChart) do
+      Mix.raise("boxart is required for --graph. Add {:boxart, \"~> 0.3\"} to your deps.")
+    end
+
+    alias Boxart.Render.PieChart
+    alias PieChart.PieChart, as: PC
+
+    slices =
+      result.distribution
+      |> Enum.reject(&(&1.count == 0))
+      |> Enum.map(&{&1.effect, &1.ratio * 100})
+
+    chart = %PC{
+      title: "Effect Distribution (#{result.total_calls} calls)",
+      slices: slices,
+      show_data: true
+    }
+
+    IO.puts(PieChart.render(chart))
   end
 
   defp effect_color("pure", text), do: Format.green(text)
