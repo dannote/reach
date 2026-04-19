@@ -25,6 +25,7 @@ defmodule Reach.HigherOrder do
 
   defp module_flows(mod) do
     for {{^mod, name, arity}, flows} <- Reach.Project.summarize_dependency(mod),
+        Reach.Effects.pure_call?(mod, name, arity),
         flowing = for({idx, true} <- flows, do: idx),
         flowing != [],
         into: %{} do
@@ -49,12 +50,9 @@ defmodule Reach.HigherOrder do
   defp maybe_add_flow(graph, call) do
     key = {call.meta[:module], call.meta[:function], call.meta[:arity] || 0}
 
-    with flowing when flowing != nil <- Map.get(catalog(), key),
-         true <-
-           Reach.Effects.pure_call?(call.meta[:module], call.meta[:function], call.meta[:arity]) do
-      add_synthetic_flows(graph, call, flowing)
-    else
-      _ -> graph
+    case Map.get(catalog(), key) do
+      nil -> graph
+      flowing -> add_synthetic_flows(graph, call, flowing)
     end
   end
 
