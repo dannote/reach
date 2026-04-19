@@ -270,9 +270,8 @@ defmodule Reach.Project do
     merged_graph =
       module_sdgs
       |> Map.values()
-      |> Enum.reduce(Graph.new(), fn sdg, acc ->
-        Graph.add_edges(acc, Graph.edges(sdg.graph))
-      end)
+      |> Enum.map(& &1.graph)
+      |> fast_merge_graphs()
 
     merged_nodes =
       module_sdgs
@@ -282,9 +281,8 @@ defmodule Reach.Project do
     merged_call_graph =
       module_sdgs
       |> Map.values()
-      |> Enum.reduce(Graph.new(), fn sdg, acc ->
-        Graph.add_edges(acc, Graph.edges(sdg.call_graph))
-      end)
+      |> Enum.map(& &1.call_graph)
+      |> fast_merge_graphs()
 
     # Run project-level plugins
     plugins = Reach.Plugin.resolve(opts)
@@ -305,6 +303,18 @@ defmodule Reach.Project do
       call_graph: merged_call_graph,
       summaries: summaries
     }
+  end
+
+  defp fast_merge_graphs(graphs) do
+    Enum.reduce(graphs, Graph.new(), fn g, acc ->
+      %Graph{acc |
+        vertices: Map.merge(acc.vertices, g.vertices),
+        edges: Map.merge(acc.edges, g.edges, fn _k, v1, v2 -> Map.merge(v1, v2) end),
+        out_edges: Map.merge(acc.out_edges, g.out_edges, fn _k, v1, v2 -> MapSet.union(v1, v2) end),
+        in_edges: Map.merge(acc.in_edges, g.in_edges, fn _k, v1, v2 -> MapSet.union(v1, v2) end),
+        vertex_labels: Map.merge(acc.vertex_labels, g.vertex_labels)
+      }
+    end)
   end
 
   defp build_external_sdg_map(module_sdgs) do
