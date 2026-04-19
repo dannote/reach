@@ -47,7 +47,7 @@ defmodule Reach.CLI.BoxartGraph do
 
   def render_otp_state_diagram(callbacks) do
     alias Boxart.Render.StateDiagram, as: SDRenderer
-    alias Boxart.Render.StateDiagram.{State, Transition, StateDiagram}
+    alias Boxart.Render.StateDiagram.{State, StateDiagram, Transition}
 
     states =
       [%State{id: "start", type: :start}] ++

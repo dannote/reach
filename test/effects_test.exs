@@ -156,4 +156,52 @@ defmodule Reach.EffectsTest do
       refute Effects.conflicting?(:read, :read)
     end
   end
+
+  describe "inferred type classification" do
+    if Version.match?(System.version(), ">= 1.19.0") do
+      test "Enum.map/2 is classified as pure via inferred types" do
+        node = %IR.Node{
+          type: :call,
+          id: 0,
+          children: [],
+          meta: %{module: Enum, function: :map, arity: 2}
+        }
+
+        assert Effects.classify(node) == :pure
+      end
+
+      test "Enum.each/2 is not classified as pure" do
+        node = %IR.Node{
+          type: :call,
+          id: 0,
+          children: [],
+          meta: %{module: Enum, function: :each, arity: 2}
+        }
+
+        assert Effects.classify(node) != :pure
+      end
+
+      test "String.trim/1 is classified as pure via inferred types" do
+        node = %IR.Node{
+          type: :call,
+          id: 0,
+          children: [],
+          meta: %{module: String, function: :trim, arity: 1}
+        }
+
+        assert Effects.classify(node) == :pure
+      end
+    end
+
+    test "classify_from_spec falls back gracefully for unknown modules" do
+      node = %IR.Node{
+        type: :call,
+        id: 0,
+        children: [],
+        meta: %{module: NonExistentModule, function: :foo, arity: 0}
+      }
+
+      assert Effects.classify(node) == :unknown
+    end
+  end
 end

@@ -536,7 +536,6 @@ defmodule Reach.Effects do
       classify_nif(module) ||
       classify_config(module, function) ||
       classify_from_spec(module, function, arity) ||
-      classify_from_inferred(module, function, arity) ||
       :unknown
   end
 
@@ -578,16 +577,19 @@ defmodule Reach.Effects do
   defp classify_from_spec(module, _function, _arity) when module in @impure_modules, do: nil
 
   defp classify_from_spec(module, function, arity) when is_atom(module) do
-    case Code.Typespec.fetch_specs(module) do
-      {:ok, specs} ->
-        case List.keyfind(specs, {function, arity}, 0) do
-          {_, clauses} -> infer_effect_from_spec(clauses)
-          nil -> nil
-        end
+    result =
+      case Code.Typespec.fetch_specs(module) do
+        {:ok, specs} ->
+          case List.keyfind(specs, {function, arity}, 0) do
+            {_, clauses} -> infer_effect_from_spec(clauses)
+            nil -> nil
+          end
 
-      :error ->
-        nil
-    end
+        :error ->
+          nil
+      end
+
+    result || classify_from_inferred(module, function, arity)
   rescue
     _ -> nil
   end
@@ -615,27 +617,13 @@ defmodule Reach.Effects do
     defp classify_from_inferred(_, _, _), do: nil
 
     defp read_inferred_sig(module, function, arity) do
-      case :code.which(module) do
-        path when is_list(path) ->
-          case :beam_lib.chunks(path, [~c"ExCk"]) do
-            {:ok, {_, [{~c"ExCk", chunk}]}} ->
-              case :erlang.binary_to_term(chunk) do
-                {_version, %{exports: exports}} ->
-                  case List.keyfind(exports, {function, arity}, 0) do
-                    {_, %{sig: sig}} -> sig
-                    _ -> nil
-                  end
-
-                _ ->
-                  nil
-              end
-
-            _ ->
-              nil
-          end
-
-        _ ->
-          nil
+      with path when is_list(path) <- :code.which(module),
+           {:ok, {_, [{~c"ExCk", chunk}]}} <- :beam_lib.chunks(path, [~c"ExCk"]),
+           {_version, %{exports: exports}} <- :erlang.binary_to_term(chunk),
+           {_, %{sig: sig}} <- List.keyfind(exports, {function, arity}, 0) do
+        sig
+      else
+        _ -> nil
       end
     end
 
