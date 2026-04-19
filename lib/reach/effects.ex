@@ -28,7 +28,8 @@ defmodule Reach.Effects do
     :doc, :moduledoc, :typedoc, :spec, :callback, :macrocallback, :impl,
     :type, :typep, :opaque, :behaviour,
     :"::", :defmacro, :defmacrop, :defguard, :defguardp,
-    :__aliases__
+    :__aliases__,
+    :<<>>, :|, :\\, :when, :sigil_H, :sigil_p, :sigil_w
   ]
 
   @spec classify(Node.t()) :: effect()
@@ -98,6 +99,10 @@ defmodule Reach.Effects do
   # --- Pure function database ---
 
   @pure_modules [
+    Access,
+    Calendar,
+    Date,
+    DateTime,
     Enum,
     Stream,
     Map,
@@ -131,7 +136,9 @@ defmodule Reach.Effects do
     :math,
     :unicode,
     :filename,
-    :re
+    :re,
+    NaiveDateTime,
+    Time
   ]
 
   @pure_kernel_functions [
@@ -252,6 +259,15 @@ defmodule Reach.Effects do
   end
 
   defp classify_call(nil, function, _arity) do
+    cond do
+      function in @pure_kernel_functions -> :pure
+      function in [:raise, :throw, :exit] -> :exception
+      function in [:send] -> :send
+      true -> :unknown
+    end
+  end
+
+  defp classify_call(Kernel, function, _arity) do
     cond do
       function in @pure_kernel_functions -> :pure
       function in [:raise, :throw, :exit] -> :exception
