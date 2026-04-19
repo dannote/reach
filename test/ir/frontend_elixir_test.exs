@@ -543,7 +543,11 @@ defmodule Reach.Frontend.ElixirTest do
         end
         """)
 
-      calls = nodes |> IR.all_nodes() |> Enum.filter(&(&1.type == :call and &1.meta[:function] == :build))
+      calls =
+        nodes
+        |> IR.all_nodes()
+        |> Enum.filter(&(&1.type == :call and &1.meta[:function] == :build))
+
       assert [call] = calls
       assert call.meta[:module] == Plausible.Ingestion.Event
     end
@@ -558,7 +562,9 @@ defmodule Reach.Frontend.ElixirTest do
         end
         """)
 
-      calls = nodes |> IR.all_nodes() |> Enum.filter(&(&1.type == :call and &1.meta[:function] == :run))
+      calls =
+        nodes |> IR.all_nodes() |> Enum.filter(&(&1.type == :call and &1.meta[:function] == :run))
+
       assert [call] = calls
       assert call.meta[:module] == Foo.Bar.Baz
     end
@@ -599,7 +605,11 @@ defmodule Reach.Frontend.ElixirTest do
         end
         """)
 
-      calls = nodes |> IR.all_nodes() |> Enum.filter(&(&1.type == :call and &1.meta[:function] == :call))
+      calls =
+        nodes
+        |> IR.all_nodes()
+        |> Enum.filter(&(&1.type == :call and &1.meta[:function] == :call))
+
       assert [call] = calls
       assert call.meta[:module] == Some.Other.Thing
     end
@@ -617,7 +627,9 @@ defmodule Reach.Frontend.ElixirTest do
         end
         """)
 
-      calls = nodes |> IR.all_nodes() |> Enum.filter(&(&1.type == :call and &1.meta[:function] == :run))
+      calls =
+        nodes |> IR.all_nodes() |> Enum.filter(&(&1.type == :call and &1.meta[:function] == :run))
+
       assert length(calls) == 2
 
       [call_a, call_b] = Enum.sort_by(calls, & &1.id)
@@ -635,7 +647,11 @@ defmodule Reach.Frontend.ElixirTest do
         end
         """)
 
-      calls = nodes |> IR.all_nodes() |> Enum.filter(&(&1.type == :call and &1.meta[:function] == :assigns))
+      calls =
+        nodes
+        |> IR.all_nodes()
+        |> Enum.filter(&(&1.type == :call and &1.meta[:function] == :assigns))
+
       assert [call] = calls
       assert call.meta[:kind] == :field_access
     end
@@ -648,7 +664,11 @@ defmodule Reach.Frontend.ElixirTest do
         end
         """)
 
-      calls = nodes |> IR.all_nodes() |> Enum.filter(&(&1.type == :call and &1.meta[:kind] == :field_access))
+      calls =
+        nodes
+        |> IR.all_nodes()
+        |> Enum.filter(&(&1.type == :call and &1.meta[:kind] == :field_access))
+
       assert length(calls) == 2
       fields = Enum.map(calls, & &1.meta[:function]) |> Enum.sort()
       assert fields == [:assigns, :user]
@@ -662,7 +682,9 @@ defmodule Reach.Frontend.ElixirTest do
         end
         """)
 
-      calls = nodes |> IR.all_nodes() |> Enum.filter(&(&1.type == :call and &1.meta[:function] == :get))
+      calls =
+        nodes |> IR.all_nodes() |> Enum.filter(&(&1.type == :call and &1.meta[:function] == :get))
+
       assert [call] = calls
       assert call.meta[:kind] == :remote
       assert call.meta[:module] == Map
@@ -676,7 +698,11 @@ defmodule Reach.Frontend.ElixirTest do
         end
         """)
 
-      calls = nodes |> IR.all_nodes() |> Enum.filter(&(&1.type == :call and &1.meta[:function] == :params))
+      calls =
+        nodes
+        |> IR.all_nodes()
+        |> Enum.filter(&(&1.type == :call and &1.meta[:function] == :params))
+
       assert [call] = calls
       assert Reach.Effects.classify(call) == :pure
     end
@@ -692,7 +718,9 @@ defmodule Reach.Frontend.ElixirTest do
         end
         """)
 
-      doc_calls = nodes |> IR.all_nodes() |> Enum.filter(&(&1.type == :call and &1.meta[:function] == :doc))
+      doc_calls =
+        nodes |> IR.all_nodes() |> Enum.filter(&(&1.type == :call and &1.meta[:function] == :doc))
+
       assert [call] = doc_calls
       assert Reach.Effects.classify(call) == :pure
     end
@@ -705,7 +733,9 @@ defmodule Reach.Frontend.ElixirTest do
         end
         """)
 
-      use_calls = nodes |> IR.all_nodes() |> Enum.filter(&(&1.type == :call and &1.meta[:function] == :use))
+      use_calls =
+        nodes |> IR.all_nodes() |> Enum.filter(&(&1.type == :call and &1.meta[:function] == :use))
+
       assert [call] = use_calls
       assert Reach.Effects.classify(call) == :pure
     end

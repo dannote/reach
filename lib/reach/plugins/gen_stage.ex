@@ -32,8 +32,16 @@ defmodule Reach.Plugins.GenStage do
 
   # Broadway.Message — pure struct transforms
   def classify_effect(%Node{type: :call, meta: %{module: Broadway.Message, function: fun}})
-      when fun in [:update_data, :put_data, :put_batcher, :put_batch_key,
-                   :put_batch_mode, :configure_ack, :failed, :ack_immediately],
+      when fun in [
+             :update_data,
+             :put_data,
+             :put_batcher,
+             :put_batch_key,
+             :put_batch_mode,
+             :configure_ack,
+             :failed,
+             :ack_immediately
+           ],
       do: :pure
 
   def classify_effect(_), do: nil

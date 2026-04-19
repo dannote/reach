@@ -941,7 +941,6 @@ defmodule Reach.Frontend.Elixir do
   defp fun_params({_, _, args}) when is_list(args), do: args
   defp fun_params(_), do: []
 
-
   defp receiver_var_name({name, _meta, context}) when is_atom(name) and is_atom(context), do: name
   defp receiver_var_name({{:., _, _}, _, _}), do: nil
   defp receiver_var_name(_), do: nil
@@ -980,17 +979,12 @@ defmodule Reach.Frontend.Elixir do
     end
   end
 
-  defp collect_aliases(body, current_module) do
-    body
-    |> extract_alias_forms()
-    |> Map.new(fn {short, full} ->
-      resolved = if current_module && !String.starts_with?(Atom.to_string(full), "Elixir."),
-        do: full, else: full
-      {short, resolved}
-    end)
+  defp collect_aliases(body, _current_module) do
+    body |> extract_alias_forms() |> Map.new()
   end
 
-  defp extract_alias_forms({:__block__, _, exprs}), do: Enum.flat_map(exprs, &extract_alias_forms/1)
+  defp extract_alias_forms({:__block__, _, exprs}),
+    do: Enum.flat_map(exprs, &extract_alias_forms/1)
 
   defp extract_alias_forms({:alias, _, [{:__aliases__, _, parts}]}) when is_list(parts) do
     if Enum.all?(parts, &is_atom/1) do
@@ -1002,7 +996,9 @@ defmodule Reach.Frontend.Elixir do
     end
   end
 
-  defp extract_alias_forms({:alias, _, [{:__aliases__, _, parts}, [as: {:__aliases__, _, as_parts}]]})
+  defp extract_alias_forms(
+         {:alias, _, [{:__aliases__, _, parts}, [as: {:__aliases__, _, as_parts}]]}
+       )
        when is_list(parts) and is_list(as_parts) do
     if Enum.all?(parts, &is_atom/1) and Enum.all?(as_parts, &is_atom/1) do
       full = Module.concat(parts)
@@ -1014,7 +1010,9 @@ defmodule Reach.Frontend.Elixir do
   end
 
   # Multi-alias: alias Foo.Bar.{Baz, Qux}
-  defp extract_alias_forms({:alias, _, [{{:., _, [{:__aliases__, _, prefix}, :{}]}, _, suffixes}]})
+  defp extract_alias_forms(
+         {:alias, _, [{{:., _, [{:__aliases__, _, prefix}, :{}]}, _, suffixes}]}
+       )
        when is_list(prefix) do
     if Enum.all?(prefix, &is_atom/1) do
       Enum.flat_map(suffixes, fn
@@ -1026,7 +1024,9 @@ defmodule Reach.Frontend.Elixir do
           else
             []
           end
-        _ -> []
+
+        _ ->
+          []
       end)
     else
       []

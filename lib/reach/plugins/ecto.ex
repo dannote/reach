@@ -8,46 +8,137 @@ defmodule Reach.Plugins.Ecto do
   import Reach.Plugins.Helpers, only: [find_vars_in: 1]
 
   @repo_write_fns [
-    :insert, :insert!, :update, :update!, :delete, :delete!,
-    :insert_or_update, :insert_or_update!,
-    :insert_all, :insert_all!, :update_all, :delete_all
+    :insert,
+    :insert!,
+    :update,
+    :update!,
+    :delete,
+    :delete!,
+    :insert_or_update,
+    :insert_or_update!,
+    :insert_all,
+    :insert_all!,
+    :update_all,
+    :delete_all
   ]
 
   @repo_read_fns [
-    :all, :one, :one!, :get, :get!, :get_by, :get_by!,
-    :exists?, :aggregate, :preload, :reload, :reload!
+    :all,
+    :one,
+    :one!,
+    :get,
+    :get!,
+    :get_by,
+    :get_by!,
+    :exists?,
+    :aggregate,
+    :preload,
+    :reload,
+    :reload!
   ]
 
   @repo_tx_fns [:transaction]
 
   @query_dsl [
-    :from, :where, :select, :join, :group_by, :order_by, :having,
-    :distinct, :limit, :offset, :preload, :subquery, :union, :union_all,
-    :except, :intersect, :left_join, :inner_join, :right_join, :cross_join,
-    :on, :or_where, :or_having, :select_merge, :windows, :lock, :combinations
+    :from,
+    :where,
+    :select,
+    :join,
+    :group_by,
+    :order_by,
+    :having,
+    :distinct,
+    :limit,
+    :offset,
+    :preload,
+    :subquery,
+    :union,
+    :union_all,
+    :except,
+    :intersect,
+    :left_join,
+    :inner_join,
+    :right_join,
+    :cross_join,
+    :on,
+    :or_where,
+    :or_having,
+    :select_merge,
+    :windows,
+    :lock,
+    :combinations
   ]
 
   @query_expr [
-    :fragment, :field, :assoc, :as, :selected_as, :dynamic,
-    :select_merge_as, :type, :coalesce, :over, :parent_as,
-    :sum, :count, :avg, :max, :min, :like, :ilike
+    :fragment,
+    :field,
+    :assoc,
+    :as,
+    :selected_as,
+    :dynamic,
+    :select_merge_as,
+    :type,
+    :coalesce,
+    :over,
+    :parent_as,
+    :sum,
+    :count,
+    :avg,
+    :max,
+    :min,
+    :like,
+    :ilike
   ]
 
   @changeset_fns [
-    :cast, :validate_required, :validate_format, :validate_length,
-    :validate_number, :validate_inclusion, :validate_exclusion,
-    :validate_acceptance, :validate_confirmation, :validate_change,
-    :validate_subset, :unique_constraint, :foreign_key_constraint,
-    :no_assoc_constraint, :check_constraint, :exclusion_constraint,
-    :put_change, :force_change, :put_assoc, :cast_assoc, :cast_embed,
-    :change, :apply_changes, :apply_action, :apply_action!,
-    :get_change, :get_field, :fetch_change, :fetch_change!, :fetch_field,
-    :fetch_field!, :add_error, :traverse_errors, :delete_change, :merge
+    :cast,
+    :validate_required,
+    :validate_format,
+    :validate_length,
+    :validate_number,
+    :validate_inclusion,
+    :validate_exclusion,
+    :validate_acceptance,
+    :validate_confirmation,
+    :validate_change,
+    :validate_subset,
+    :unique_constraint,
+    :foreign_key_constraint,
+    :no_assoc_constraint,
+    :check_constraint,
+    :exclusion_constraint,
+    :put_change,
+    :force_change,
+    :put_assoc,
+    :cast_assoc,
+    :cast_embed,
+    :change,
+    :apply_changes,
+    :apply_action,
+    :apply_action!,
+    :get_change,
+    :get_field,
+    :fetch_change,
+    :fetch_change!,
+    :fetch_field,
+    :fetch_field!,
+    :add_error,
+    :traverse_errors,
+    :delete_change,
+    :merge
   ]
 
   @schema_fns [
-    :schema, :embedded_schema, :field, :belongs_to, :has_many,
-    :has_one, :many_to_many, :embeds_one, :embeds_many, :timestamps
+    :schema,
+    :embedded_schema,
+    :field,
+    :belongs_to,
+    :has_many,
+    :has_one,
+    :many_to_many,
+    :embeds_one,
+    :embeds_many,
+    :timestamps
   ]
 
   @impl true

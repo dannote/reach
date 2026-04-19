@@ -73,7 +73,9 @@ defmodule Mix.Tasks.Reach.Coupling do
       deps =
         m
         |> IR.all_nodes()
-        |> Enum.filter(&(&1.type == :call and &1.meta[:kind] == :remote and &1.meta[:module] != nil))
+        |> Enum.filter(
+          &(&1.type == :call and &1.meta[:kind] == :remote and &1.meta[:module] != nil)
+        )
         |> Enum.map(& &1.meta[:module])
         |> Enum.filter(&MapSet.member?(internal, &1))
         |> Enum.uniq()

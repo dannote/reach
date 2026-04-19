@@ -10,14 +10,45 @@ defmodule Reach.Plugins.Phoenix do
   @assign_modules [nil, Phoenix.Component, Phoenix.LiveView]
 
   @pure_local [
-    :assign, :assign_new, :push_event, :push_patch, :push_navigate,
-    :put_flash, :redirect, :render, :json, :text, :html,
-    :send_resp, :put_status, :put_resp_content_type, :put_resp_header,
-    :halt, :put_layout, :put_root_layout, :put_view, :put_new_layout,
-    :live_render, :live_component, :on_mount, :embed_templates,
-    :attr, :slot, :sigil_H, :sigil_p,
-    :plug, :get, :post, :put, :delete, :patch, :pipe_through,
-    :scope, :live, :resources, :forward
+    :assign,
+    :assign_new,
+    :push_event,
+    :push_patch,
+    :push_navigate,
+    :put_flash,
+    :redirect,
+    :render,
+    :json,
+    :text,
+    :html,
+    :send_resp,
+    :put_status,
+    :put_resp_content_type,
+    :put_resp_header,
+    :halt,
+    :put_layout,
+    :put_root_layout,
+    :put_view,
+    :put_new_layout,
+    :live_render,
+    :live_component,
+    :on_mount,
+    :embed_templates,
+    :attr,
+    :slot,
+    :sigil_H,
+    :sigil_p,
+    :plug,
+    :get,
+    :post,
+    :put,
+    :delete,
+    :patch,
+    :pipe_through,
+    :scope,
+    :live,
+    :resources,
+    :forward
   ]
 
   @pure_remote_modules [Phoenix.Component, Phoenix.LiveView, Phoenix.Controller, Plug.Conn]
@@ -34,6 +65,7 @@ defmodule Reach.Plugins.Phoenix do
   def classify_effect(%Node{type: :call, meta: %{kind: :remote, module: mod}})
       when is_atom(mod) and mod != nil do
     mod_str = Atom.to_string(mod)
+
     if String.ends_with?(mod_str, "Routes") or String.ends_with?(mod_str, ".VerifiedRoutes"),
       do: :pure
   end

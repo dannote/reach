@@ -24,17 +24,69 @@ defmodule Reach.Effects do
   Classifies the effect of an IR node.
   """
   @compile_time_ops [
-    :@, :use, :import, :alias, :require, :defstruct, :defdelegate,
-    :doc, :moduledoc, :typedoc, :spec, :callback, :macrocallback, :impl,
-    :type, :typep, :opaque, :behaviour,
-    :"::", :defmacro, :defmacrop, :defguard, :defguardp,
+    :@,
+    :use,
+    :import,
+    :alias,
+    :require,
+    :defstruct,
+    :defdelegate,
+    :doc,
+    :moduledoc,
+    :typedoc,
+    :spec,
+    :callback,
+    :macrocallback,
+    :impl,
+    :type,
+    :typep,
+    :opaque,
+    :behaviour,
+    :"::",
+    :defmacro,
+    :defmacrop,
+    :defguard,
+    :defguardp,
     :__aliases__,
-    :<<>>, :|, :\\, :when, :sigil_H, :sigil_p, :sigil_w,
-    :t, :integer, :string, :boolean, :atom, :float, :map, :list, :keyword,
-    :binary, :number, :pid, :term, :any, :none, :timeout, :mfa, :module,
-    :arity, :pos_integer, :non_neg_integer, :neg_integer, :iodata, :iolist,
-    :struct, :charlist, :byte, :char, :as_boolean, :struct!,
-    :unquote, :quote
+    :<<>>,
+    :|,
+    :\\,
+    :when,
+    :sigil_H,
+    :sigil_p,
+    :sigil_w,
+    :t,
+    :integer,
+    :string,
+    :boolean,
+    :atom,
+    :float,
+    :map,
+    :list,
+    :keyword,
+    :binary,
+    :number,
+    :pid,
+    :term,
+    :any,
+    :none,
+    :timeout,
+    :mfa,
+    :module,
+    :arity,
+    :pos_integer,
+    :non_neg_integer,
+    :neg_integer,
+    :iodata,
+    :iolist,
+    :struct,
+    :charlist,
+    :byte,
+    :char,
+    :as_boolean,
+    :struct!,
+    :unquote,
+    :quote
   ]
 
   @spec classify(Node.t()) :: effect()
@@ -195,7 +247,7 @@ defmodule Reach.Effects do
     end
   end
 
-    # --- Pure function database ---
+  # --- Pure function database ---
 
   @pure_modules [
     Access,
@@ -359,9 +411,15 @@ defmodule Reach.Effects do
 
   defp classify_call(nil, function, arity) do
     cond do
-      function in @pure_kernel_functions -> :pure
-      function in [:raise, :throw, :exit] -> :exception
-      function in [:send] -> :send
+      function in @pure_kernel_functions ->
+        :pure
+
+      function in [:raise, :throw, :exit] ->
+        :exception
+
+      function in [:send] ->
+        :send
+
       true ->
         case lookup_cache({nil, function, arity}) do
           {:ok, result} -> result
@@ -567,8 +625,14 @@ defmodule Reach.Effects do
   end
 
   defp classify_config(Application, function)
-       when function in [:get_env, :fetch_env, :fetch_env!, :get_all_env,
-                         :compile_env, :compile_env!],
+       when function in [
+              :get_env,
+              :fetch_env,
+              :fetch_env!,
+              :get_all_env,
+              :compile_env,
+              :compile_env!
+            ],
        do: :read
 
   defp classify_config(_, _), do: nil

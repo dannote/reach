@@ -165,9 +165,7 @@ defmodule Mix.Tasks.Reach.Depth do
 
     if func_node do
       IO.puts(
-        Format.header(
-          "CFG: #{top_func.module}.#{top_func.function} (depth=#{top_func.depth})"
-        )
+        Format.header("CFG: #{top_func.module}.#{top_func.function} (depth=#{top_func.depth})")
       )
 
       BoxartGraph.render_cfg(func_node, top_func.file)

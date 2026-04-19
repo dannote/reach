@@ -125,7 +125,10 @@ defmodule Mix.Tasks.Reach.Hotspots do
   defp render_oneline(hotspots) do
     Enum.each(hotspots, fn h ->
       loc = if h.file && h.line, do: "#{h.file}:#{h.line}", else: ""
-      IO.puts("#{h.module}.#{h.function}\tscore=#{h.score}\tbranches=#{h.branches}\tcallers=#{h.callers}\t#{loc}")
+
+      IO.puts(
+        "#{h.module}.#{h.function}\tscore=#{h.score}\tbranches=#{h.branches}\tcallers=#{h.callers}\t#{loc}"
+      )
     end)
   end
 

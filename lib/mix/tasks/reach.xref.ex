@@ -28,8 +28,15 @@ defmodule Mix.Tasks.Reach.Xref do
   @switches [format: :string, top: :integer]
   @aliases [f: :format]
 
-  @cross_labels [:parameter_in, :parameter_out, :call, :summary, :state_pass,
-                 :state_read, :call_reply]
+  @cross_labels [
+    :parameter_in,
+    :parameter_out,
+    :call,
+    :summary,
+    :state_pass,
+    :state_read,
+    :call_reply
+  ]
 
   @impl Mix.Task
   def run(args) do
@@ -65,13 +72,15 @@ defmodule Mix.Tasks.Reach.Xref do
         target_node = Map.get(nodes, edge.v2)
 
         if source_func && target_func && source_func != target_func do
-          [%{
-            from_func: source_func,
-            to_func: target_func,
-            label: normalize_label(edge.label),
-            from_node: node_summary(source_node),
-            to_node: node_summary(target_node)
-          }]
+          [
+            %{
+              from_func: source_func,
+              to_func: target_func,
+              label: normalize_label(edge.label),
+              from_node: node_summary(source_node),
+              to_node: node_summary(target_node)
+            }
+          ]
         else
           []
         end
@@ -81,7 +90,9 @@ defmodule Mix.Tasks.Reach.Xref do
     |> Enum.group_by(&{&1.from_func, &1.to_func})
     |> Enum.map(fn {{from, to}, edges} ->
       labels = edges |> Enum.map(& &1.label) |> Enum.frequencies()
-      vars = edges
+
+      vars =
+        edges
         |> Enum.flat_map(fn e -> [e.from_node, e.to_node] end)
         |> Enum.reject(&is_nil/1)
         |> Enum.uniq()

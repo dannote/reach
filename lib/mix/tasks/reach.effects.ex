@@ -33,8 +33,21 @@ defmodule Mix.Tasks.Reach.Effects do
   @aliases [f: :format]
 
   @noise_functions [
-    :@, :__aliases__, :|, :\\, :<<>>, :spec, :callback, :doc,
-    :moduledoc, :sigil_s, :unquote, :quote, :defmacro, :alias, :"::"
+    :@,
+    :__aliases__,
+    :|,
+    :\\,
+    :<<>>,
+    :spec,
+    :callback,
+    :doc,
+    :moduledoc,
+    :sigil_s,
+    :unquote,
+    :quote,
+    :defmacro,
+    :alias,
+    :"::"
   ]
 
   @impl Mix.Task
@@ -77,7 +90,11 @@ defmodule Mix.Tasks.Reach.Effects do
       |> Enum.sort_by(&elem(&1, 1), :desc)
       |> Enum.take(20)
       |> Enum.map(fn {{mod, fun}, count} ->
-        %{module: if(mod, do: inspect(mod), else: "Kernel"), function: to_string(fun), count: count}
+        %{
+          module: if(mod, do: inspect(mod), else: "Kernel"),
+          function: to_string(fun),
+          count: count
+        }
       end)
 
     total = length(call_nodes)
@@ -126,7 +143,10 @@ defmodule Mix.Tasks.Reach.Effects do
       pct = Float.round(ratio * 100, 1)
       count_str = String.pad_leading(to_string(count), 6)
       pct_str = String.pad_leading("#{pct}%", 6)
-      IO.puts("  #{effect_color(effect, String.pad_trailing(effect, 12))} #{count_str}  #{Format.faint(pct_str)}")
+
+      IO.puts(
+        "  #{effect_color(effect, String.pad_trailing(effect, 12))} #{count_str}  #{Format.faint(pct_str)}"
+      )
     end)
 
     if result.unknown_calls != [] do

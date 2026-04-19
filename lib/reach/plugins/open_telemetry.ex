@@ -18,8 +18,15 @@ defmodule Reach.Plugins.OpenTelemetry do
 
   def classify_effect(%Node{type: :call, meta: %{module: mod, function: fun}})
       when mod in [OpenTelemetry.Tracer, :otel_tracer] and
-             fun in [:set_attribute, :set_attributes, :add_event, :add_events,
-                     :set_status, :record_exception, :update_name],
+             fun in [
+               :set_attribute,
+               :set_attributes,
+               :add_event,
+               :add_events,
+               :set_status,
+               :record_exception,
+               :update_name
+             ],
       do: :io
 
   def classify_effect(%Node{type: :call, meta: %{module: mod, function: fun}})

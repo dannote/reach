@@ -13,8 +13,7 @@ defmodule Reach.Graph do
       %Graph{
         acc
         | vertices: Map.merge(acc.vertices, g.vertices),
-          edges:
-            Map.merge(acc.edges, g.edges, fn _k, v1, v2 -> Map.merge(v1, v2) end),
+          edges: Map.merge(acc.edges, g.edges, fn _k, v1, v2 -> Map.merge(v1, v2) end),
           out_edges:
             Map.merge(acc.out_edges, g.out_edges, fn _k, v1, v2 ->
               MapSet.union(v1, v2)

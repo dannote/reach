@@ -31,8 +31,15 @@ defmodule Reach.Plugins.Jido do
       do: :send
 
   def classify_effect(%Node{type: :call, meta: %{module: Jido.Agent.Directive, function: fun}})
-      when fun in [:spawn, :spawn_agent, :adopt_child, :stop_child, :schedule,
-                   :cron, :cancel_cron],
+      when fun in [
+             :spawn,
+             :spawn_agent,
+             :adopt_child,
+             :stop_child,
+             :schedule,
+             :cron,
+             :cancel_cron
+           ],
       do: :io
 
   def classify_effect(%Node{type: :call, meta: %{module: Jido.Agent.Directive, function: fun}})
@@ -73,8 +80,16 @@ defmodule Reach.Plugins.Jido do
 
   # Thread — pure data structure
   def classify_effect(%Node{type: :call, meta: %{module: Jido.Thread, function: fun}})
-      when fun in [:new, :append, :entry_count, :last, :get_entry, :to_list,
-                   :filter_by_kind, :slice],
+      when fun in [
+             :new,
+             :append,
+             :entry_count,
+             :last,
+             :get_entry,
+             :to_list,
+             :filter_by_kind,
+             :slice
+           ],
       do: :pure
 
   # Signal journal — storage

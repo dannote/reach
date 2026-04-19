@@ -69,19 +69,24 @@ defmodule Mix.Tasks.Reach.Concurrency do
   end
 
   defp find_monitors(nodes) do
-    monitors = Enum.filter(nodes, fn n ->
-      n.type == :call and n.meta[:module] == Process and n.meta[:function] == :monitor
-    end)
+    monitors =
+      Enum.filter(nodes, fn n ->
+        n.type == :call and n.meta[:module] == Process and n.meta[:function] == :monitor
+      end)
 
-    trap_exits = Enum.filter(nodes, fn n ->
-      n.type == :call and n.meta[:module] == Process and n.meta[:function] == :flag and
-        match?([%{meta: %{value: :trap_exit}} | _], n.children)
-    end)
+    trap_exits =
+      Enum.filter(nodes, fn n ->
+        n.type == :call and n.meta[:module] == Process and n.meta[:function] == :flag and
+          match?([%{meta: %{value: :trap_exit}} | _], n.children)
+      end)
 
-    down_handlers = Enum.filter(nodes, fn n ->
-      n.type == :function_def and n.meta[:name] == :handle_info and
-        n |> IR.all_nodes() |> Enum.any?(fn c -> c.type == :literal and c.meta[:value] == :DOWN end)
-    end)
+    down_handlers =
+      Enum.filter(nodes, fn n ->
+        n.type == :function_def and n.meta[:name] == :handle_info and
+          n
+          |> IR.all_nodes()
+          |> Enum.any?(fn c -> c.type == :literal and c.meta[:value] == :DOWN end)
+      end)
 
     %{
       monitors: Enum.map(monitors, &node_loc/1),
@@ -91,34 +96,41 @@ defmodule Mix.Tasks.Reach.Concurrency do
   end
 
   defp find_spawns(nodes) do
-    spawn_calls = Enum.filter(nodes, fn n ->
-      n.type == :call and n.meta[:function] in [:spawn, :spawn_link, :spawn_monitor]
-    end)
+    spawn_calls =
+      Enum.filter(nodes, fn n ->
+        n.type == :call and n.meta[:function] in [:spawn, :spawn_link, :spawn_monitor]
+      end)
 
-    link_calls = Enum.filter(nodes, fn n ->
-      n.type == :call and n.meta[:module] == Process and n.meta[:function] == :link
-    end)
+    link_calls =
+      Enum.filter(nodes, fn n ->
+        n.type == :call and n.meta[:module] == Process and n.meta[:function] == :link
+      end)
 
     %{
-      spawns: Enum.map(spawn_calls, fn n ->
-        %{function: n.meta[:function], location: node_loc(n)}
-      end),
+      spawns:
+        Enum.map(spawn_calls, fn n ->
+          %{function: n.meta[:function], location: node_loc(n)}
+        end),
       links: Enum.map(link_calls, &node_loc/1)
     }
   end
 
   defp find_supervisors(nodes) do
-    init_fns = Enum.filter(nodes, fn n ->
-      n.type == :function_def and n.meta[:name] == :init and n.meta[:arity] == 1 and
-        n |> IR.all_nodes() |> Enum.any?(fn c ->
-          c.type == :call and c.meta[:function] in [:supervise, :init, :child_spec]
-        end)
-    end)
+    init_fns =
+      Enum.filter(nodes, fn n ->
+        n.type == :function_def and n.meta[:name] == :init and n.meta[:arity] == 1 and
+          n
+          |> IR.all_nodes()
+          |> Enum.any?(fn c ->
+            c.type == :call and c.meta[:function] in [:supervise, :init, :child_spec]
+          end)
+      end)
 
-    start_links = Enum.filter(nodes, fn n ->
-      n.type == :call and n.meta[:function] == :start_link and
-        n.meta[:module] in [Supervisor, DynamicSupervisor]
-    end)
+    start_links =
+      Enum.filter(nodes, fn n ->
+        n.type == :call and n.meta[:function] == :start_link and
+          n.meta[:module] in [Supervisor, DynamicSupervisor]
+      end)
 
     Enum.map(init_fns, &func_loc/1) ++ Enum.map(start_links, &node_loc/1)
   end
@@ -127,8 +139,15 @@ defmodule Mix.Tasks.Reach.Concurrency do
     edges
     |> Enum.map(& &1.label)
     |> Enum.filter(fn label ->
-      label in [:monitor_down, :trap_exit, :link_exit, :task_result,
-                :startup_order, :message_order, :state_pass]
+      label in [
+        :monitor_down,
+        :trap_exit,
+        :link_exit,
+        :task_result,
+        :startup_order,
+        :message_order,
+        :state_pass
+      ]
     end)
     |> Enum.frequencies()
   end
