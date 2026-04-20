@@ -22,12 +22,7 @@ defmodule Reach.CLI.Project do
 
     case target do
       {mod, fun, arity} ->
-        Enum.find(nodes, fn node ->
-          node.type == :function_def and
-            node.meta[:module] == mod and
-            node.meta[:name] == fun and
-            node.meta[:arity] == arity
-        end)
+        find_function_node(nodes, mod, fun, arity)
 
       fun_string when is_binary(fun_string) ->
         Enum.find(nodes, fn node ->
@@ -38,6 +33,43 @@ defmodule Reach.CLI.Project do
 
       _ ->
         nil
+    end
+  end
+
+  defp find_function_node(nodes, mod, fun, arity) do
+    exact =
+      Enum.find(nodes, fn n ->
+        n.type == :function_def and
+          n.meta[:module] == mod and n.meta[:name] == fun and n.meta[:arity] == arity
+      end)
+
+    if exact do
+      exact
+    else
+      candidates =
+        Enum.filter(nodes, fn n ->
+          n.type == :function_def and
+            n.meta[:module] == nil and n.meta[:name] == fun and n.meta[:arity] == arity
+        end)
+
+      case candidates do
+        [single] ->
+          single
+
+        [_ | _] when mod != nil ->
+          mod_path = mod |> Atom.to_string() |> String.replace_leading("Elixir.", "")
+          file_hint = mod_path |> String.split(".") |> List.last() |> Macro.underscore()
+
+          Enum.find(candidates, fn n ->
+            n.source_span != nil and String.contains?(n.source_span[:file], file_hint)
+          end) || hd(candidates)
+
+        [_ | _] ->
+          hd(candidates)
+
+        [] ->
+          nil
+      end
     end
   end
 
@@ -145,11 +177,26 @@ defmodule Reach.CLI.Project do
     mod = String.split(mod_str, ".") |> Enum.map(&String.to_atom/1) |> Module.concat()
     fun = String.to_atom(fun_str)
 
-    cond do
-      Graph.has_vertex?(cg, {nil, fun, arity}) -> {nil, fun, arity}
-      Graph.has_vertex?(cg, {mod, fun, arity}) -> {mod, fun, arity}
-      true -> nil
-    end
+    Graph.has_vertex?(cg, {mod, fun, arity}) && {mod, fun, arity} ||
+      fuzzy_match_module(cg, mod_str, fun, arity) ||
+      Graph.has_vertex?(cg, {nil, fun, arity}) && {nil, fun, arity}
+  end
+
+  defp fuzzy_match_module(cg, mod_str, fun, arity) do
+    downcased = String.downcase(mod_str)
+
+    Graph.vertices(cg)
+    |> Enum.find_value(fn
+      {m, ^fun, ^arity} when is_atom(m) and m != nil ->
+        actual = m |> Atom.to_string() |> String.replace_leading("Elixir.", "")
+
+        if String.downcase(actual) == downcased do
+          {m, fun, arity}
+        end
+
+      _ ->
+        nil
+    end)
   end
 
   defp resolve_by_function_name(nodes, name) do
