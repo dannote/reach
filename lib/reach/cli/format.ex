@@ -91,10 +91,10 @@ defmodule Reach.CLI.Format do
   def parse_target(args) do
     case args do
       [raw] ->
-        case Regex.run(~r/^([^ ]+)\.(.+)\/(\d+)$/, raw) do
-          [_, mod_str, fun_str, arity_str] ->
+        case Reach.CLI.Project.parse_mfa(raw) do
+          {mod_str, fun_str, arity} ->
             mod = String.split(mod_str, ".") |> Enum.map(&String.to_atom/1) |> Module.concat()
-            {mod, String.to_atom(fun_str), String.to_integer(arity_str)}
+            {mod, String.to_atom(fun_str), arity}
 
           nil ->
             raw

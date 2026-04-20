@@ -41,6 +41,80 @@ defmodule Reach.CLI.Project do
     end
   end
 
+  def resolve_target(project, raw) when is_binary(raw) do
+    case parse_file_line(raw) do
+      {file, line} ->
+        node = find_function_at_location(project, file, line)
+
+        if node do
+          {node.meta[:module], node.meta[:name], node.meta[:arity]}
+        else
+          nil
+        end
+
+      nil ->
+        resolve_function(project, raw)
+    end
+  end
+
+  def parse_file_line(raw) do
+    case raw |> String.reverse() |> String.split(":", parts: 2) do
+      [rev_digits, rev_file] when rev_file != "" ->
+        digits = String.reverse(rev_digits)
+        file = String.reverse(rev_file)
+
+        case Integer.parse(digits) do
+          {line, ""} -> {file, line}
+          _ -> nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  def parse_mfa(name) do
+    case String.split(name, "/", parts: 2) do
+      [qualified, arity_str] ->
+        case Integer.parse(arity_str) do
+          {arity, ""} ->
+            case split_module_function(qualified) do
+              {mod_str, fun_str} -> {mod_str, fun_str, arity}
+              nil -> nil
+            end
+
+          _ ->
+            nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp split_module_function(qualified) do
+    case qualified |> String.reverse() |> String.split(".", parts: 2) do
+      [rev_fun, rev_mod] ->
+        fun = String.reverse(rev_fun)
+        mod = String.reverse(rev_mod)
+        if fun != "" and mod != "", do: {mod, fun}
+
+      _ ->
+        nil
+    end
+  end
+
+  def find_function_at_location(project, file, line) do
+    project.nodes
+    |> Map.values()
+    |> Enum.filter(fn n ->
+      n.type == :function_def and n.source_span != nil and
+        file_matches?(n.source_span.file, file) and
+        n.source_span.start_line <= line
+    end)
+    |> Enum.max_by(& &1.source_span.start_line, fn -> nil end)
+  end
+
   def resolve_function(project, target) do
     case target do
       {mod, fun, arity} ->
@@ -58,19 +132,18 @@ defmodule Reach.CLI.Project do
     nodes = Map.values(project.nodes)
     cg = project.call_graph
 
-    case Regex.run(~r/^([^ ]+)\.(.+)\/(\d+)$/, name) do
-      [_, mod_str, fun_str, arity_str] ->
-        resolve_mfa(cg, mod_str, fun_str, arity_str)
+    case parse_mfa(name) do
+      {mod_str, fun_str, arity} ->
+        resolve_mfa(cg, mod_str, fun_str, arity)
 
       nil ->
         resolve_by_function_name(nodes, name)
     end
   end
 
-  defp resolve_mfa(cg, mod_str, fun_str, arity_str) do
+  defp resolve_mfa(cg, mod_str, fun_str, arity) do
     mod = String.split(mod_str, ".") |> Enum.map(&String.to_atom/1) |> Module.concat()
     fun = String.to_atom(fun_str)
-    arity = String.to_integer(arity_str)
 
     cond do
       Graph.has_vertex?(cg, {nil, fun, arity}) -> {nil, fun, arity}

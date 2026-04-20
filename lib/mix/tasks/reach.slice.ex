@@ -46,14 +46,21 @@ defmodule Mix.Tasks.Reach.Slice do
     raw = hd(target_args)
 
     {node, target} =
-      case parse_location(raw) do
-        %{} = loc ->
-          n = find_node_at_location(project, loc)
-          unless n, do: Mix.raise("No node found at #{loc.file}:#{loc.line}")
-          {n, loc}
+      case Project.parse_file_line(raw) do
+        {file, line} ->
+          n = find_node_at_location(project, file, line)
+          unless n, do: Mix.raise("No node found at #{file}:#{line}")
+          {n, %{file: file, line: line}}
 
         nil ->
-          resolve_function_target(project, raw)
+          mfa = Project.resolve_target(project, raw)
+          unless mfa, do: Mix.raise("Function not found: #{raw}")
+
+          func_node = Project.find_function(project, mfa)
+          unless func_node, do: Mix.raise("Function definition not found in IR: #{raw}")
+
+          span = func_node.source_span
+          {func_node, %{file: span[:file], line: span[:start_line]}}
       end
 
     slice_ids = compute_slice(project.graph, node.id, forward?)
@@ -101,36 +108,15 @@ defmodule Mix.Tasks.Reach.Slice do
     render_text(node, result, forward?)
   end
 
-  defp resolve_function_target(project, raw) do
-    mfa = Project.resolve_function(project, raw)
-    unless mfa, do: Mix.raise("Function not found: #{raw}")
-
-    func_node = Project.find_function(project, mfa)
-    unless func_node, do: Mix.raise("Function definition not found in IR: #{raw}")
-
-    span = func_node.source_span
-    target = %{file: span[:file], line: span[:start_line]}
-    {func_node, target}
-  end
-
-  defp parse_location(raw) do
-    case Regex.run(~r/^(.+):(\d+)$/, raw) do
-      [_, file, line_str] ->
-        %{file: file, line: String.to_integer(line_str)}
-
-      nil ->
-        nil
-    end
-  end
-
-  defp find_node_at_location(project, target) do
-    target_basename = Path.basename(target.file)
+  defp find_node_at_location(project, file, line) do
+    target_basename = Path.basename(file)
 
     Map.values(project.nodes)
     |> Enum.filter(fn n ->
       case n.source_span do
         %{file: f, start_line: l} ->
-          file_matches?(f, target.file, target_basename) and l == target.line
+          Project.file_matches?(f, file) and l == line and
+            not (f != file and f != target_basename)
 
         _ ->
           false
@@ -140,13 +126,6 @@ defmodule Mix.Tasks.Reach.Slice do
       fn n -> node_specificity(n) end,
       fn -> nil end
     )
-  end
-
-  defp file_matches?(actual, target, target_basename) do
-    actual == target or
-      actual == target_basename or
-      String.ends_with?(actual, "/" <> target) or
-      String.ends_with?(actual, "/" <> target_basename)
   end
 
   defp node_specificity(n) do

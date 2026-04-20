@@ -4,6 +4,7 @@ defmodule Mix.Tasks.Reach.Deps do
   and shared state.
 
       mix reach.deps UserService.register/2
+      mix reach.deps lib/my_app/user_service.ex:10
       mix reach.deps UserService.register/2 --format json
 
   ## Options
@@ -29,11 +30,15 @@ defmodule Mix.Tasks.Reach.Deps do
     {opts, target_args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
 
     unless target_args != [] do
-      Mix.raise("Expected a function name. Usage: mix reach.deps Module.function/arity")
+      Mix.raise(
+        "Expected a target. Usage:\n" <>
+          "  mix reach.deps Module.function/arity\n" <>
+          "  mix reach.deps lib/foo.ex:42"
+      )
     end
 
     project = Project.load()
-    target = Project.resolve_function(project, hd(target_args))
+    target = Project.resolve_target(project, hd(target_args))
 
     unless target do
       Mix.raise("Function not found: #{hd(target_args)}")

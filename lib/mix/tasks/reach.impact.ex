@@ -3,6 +3,7 @@ defmodule Mix.Tasks.Reach.Impact do
   Shows what breaks if a function's signature or return value changes.
 
       mix reach.impact UserService.register/2
+      mix reach.impact lib/my_app/user_service.ex:10
       mix reach.impact UserService.register/2 --format json
 
   ## Options
@@ -29,11 +30,15 @@ defmodule Mix.Tasks.Reach.Impact do
     {opts, target_args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
 
     unless target_args != [] do
-      Mix.raise("Expected a function name. Usage: mix reach.impact Module.function/arity")
+      Mix.raise(
+        "Expected a target. Usage:\n" <>
+          "  mix reach.impact Module.function/arity\n" <>
+          "  mix reach.impact lib/foo.ex:42"
+      )
     end
 
     project = Project.load()
-    target = Project.resolve_function(project, hd(target_args))
+    target = Project.resolve_target(project, hd(target_args))
 
     unless target do
       Mix.raise("Function not found: #{hd(target_args)}")
@@ -108,24 +113,17 @@ defmodule Mix.Tasks.Reach.Impact do
   end
 
   defp find_return_dependents(project, target) do
-    nodes = project.nodes
     graph = project.graph
+    nodes = project.nodes
     target_key = tuple_with_nil(target)
     callers = find_callers(project, target, 1)
 
     Enum.flat_map(callers, fn %{id: caller_id} ->
-      caller_node = find_function_node(nodes, caller_id)
+      caller_node = Project.find_function(project, caller_id)
       if caller_node, do: return_deps_for_caller(caller_node, target_key, graph, nodes), else: []
     end)
     |> Enum.uniq_by(& &1.location)
     |> Enum.take(20)
-  end
-
-  defp find_function_node(nodes, func_id) do
-    Enum.find(Map.values(nodes), fn n ->
-      n.type == :function_def and
-        {n.meta[:module], n.meta[:name], n.meta[:arity]} == func_id
-    end)
   end
 
   defp return_deps_for_caller(caller_node, target_key, graph, nodes) do
@@ -242,21 +240,8 @@ defmodule Mix.Tasks.Reach.Impact do
   end
 
   defp print_func_with_location(project, func_id) do
-    location = func_location(project, func_id)
+    location = Project.func_location(project, func_id)
     IO.puts("  #{Format.func_id_to_string(func_id)}  #{location}")
-  end
-
-  defp func_location(project, func_id) do
-    project.nodes
-    |> Map.values()
-    |> Enum.find(fn n ->
-      n.type == :function_def and
-        {n.meta[:module], n.meta[:name], n.meta[:arity]} == func_id
-    end)
-    |> case do
-      nil -> "unknown"
-      node -> Format.location(node)
-    end
   end
 
   defp render_oneline(result) do
