@@ -104,11 +104,7 @@ defmodule Mix.Tasks.Reach.Boundaries do
     end
   end
 
-  defp call_name(node) do
-    mod = node.meta[:module]
-    fun = node.meta[:function]
-    if mod, do: "#{inspect(mod)}.#{fun}", else: to_string(fun)
-  end
+  defp call_name(node), do: Format.call_name(node)
 
   # --- Rendering ---
 

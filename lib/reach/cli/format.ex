@@ -158,6 +158,12 @@ defmodule Reach.CLI.Format do
     end
   end
 
+  def call_name(node) do
+    mod = node.meta[:module]
+    fun = node.meta[:function]
+    if mod, do: "#{inspect(mod)}.#{fun}", else: to_string(fun)
+  end
+
   defp maybe_add(map, _key, nil), do: map
   defp maybe_add(map, key, val), do: Map.put(map, key, jsonify(val))
 end

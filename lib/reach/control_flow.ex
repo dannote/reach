@@ -118,16 +118,7 @@ defmodule Reach.ControlFlow do
     graph = Graph.add_edge(graph, node.id, condition.id, label: :sequential)
 
     # Build each clause
-    all_exits =
-      clauses
-      |> Enum.with_index()
-      |> Enum.reduce({graph, []}, fn {clause, index}, {g, exits} ->
-        {g, clause_exits} = build_clause(g, clause, condition.id, index)
-        {g, exits ++ clause_exits}
-      end)
-
-    {graph, exits} = all_exits
-    {graph, exits}
+    build_clauses(graph, clauses, condition.id)
   end
 
   defp build_node(graph, %Node{type: :case, children: clauses} = node, from)
@@ -135,16 +126,7 @@ defmodule Reach.ControlFlow do
     graph = Graph.add_vertex(graph, node.id)
     graph = Graph.add_edge(graph, from, node.id, label: :sequential)
 
-    all_exits =
-      clauses
-      |> Enum.with_index()
-      |> Enum.reduce({graph, []}, fn {clause, index}, {g, exits} ->
-        {g, clause_exits} = build_clause(g, clause, node.id, index)
-        {g, exits ++ clause_exits}
-      end)
-
-    {graph, exits} = all_exits
-    {graph, exits}
+    build_clauses(graph, clauses, node.id)
   end
 
   defp build_node(graph, %Node{type: :try, children: children} = node, from) do
@@ -161,23 +143,8 @@ defmodule Reach.ControlFlow do
         body_node -> build_node(graph, body_node, node.id)
       end
 
-    # Build rescue clauses (connected from body via exception edges)
-    {graph, rescue_exits} =
-      Enum.reduce(rescue_clauses, {graph, []}, fn rescue_node, {g, exits} ->
-        g = Graph.add_vertex(g, rescue_node.id)
-        g = Graph.add_edge(g, node.id, rescue_node.id, label: :exception)
-        {g, clause_exits} = build_sequential(g, rescue_node.children, rescue_node.id)
-        {g, exits ++ clause_exits}
-      end)
-
-    # Build catch clauses
-    {graph, catch_exits} =
-      Enum.reduce(catch_clauses, {graph, []}, fn catch_node, {g, exits} ->
-        g = Graph.add_vertex(g, catch_node.id)
-        g = Graph.add_edge(g, node.id, catch_node.id, label: :exception)
-        {g, clause_exits} = build_sequential(g, catch_node.children, catch_node.id)
-        {g, exits ++ clause_exits}
-      end)
+    {graph, rescue_exits} = build_exception_clauses(graph, rescue_clauses, node.id)
+    {graph, catch_exits} = build_exception_clauses(graph, catch_clauses, node.id)
 
     all_exits =
       body_exits ++
@@ -211,14 +178,7 @@ defmodule Reach.ControlFlow do
         _ -> true
       end)
 
-    # Build match clauses
-    {graph, clause_exits} =
-      clauses
-      |> Enum.with_index()
-      |> Enum.reduce({graph, []}, fn {clause, index}, {g, exits} ->
-        {g, c_exits} = build_clause(g, clause, node.id, index)
-        {g, exits ++ c_exits}
-      end)
+    {graph, clause_exits} = build_clauses(graph, clauses, node.id)
 
     # Build timeout clause
     {graph, timeout_exits} =
@@ -248,16 +208,7 @@ defmodule Reach.ControlFlow do
     graph = Graph.add_vertex(graph, node.id)
     graph = Graph.add_edge(graph, from, node.id, label: :sequential)
 
-    all_exits =
-      clauses
-      |> Enum.with_index()
-      |> Enum.reduce({graph, []}, fn {clause, index}, {g, exits} ->
-        {g, clause_exits} = build_clause(g, clause, node.id, index)
-        {g, exits ++ clause_exits}
-      end)
-
-    {graph, exits} = all_exits
-    {graph, exits}
+    build_clauses(graph, clauses, node.id)
   end
 
   defp build_node(graph, %Node{type: :fn} = node, from) do
@@ -300,6 +251,24 @@ defmodule Reach.ControlFlow do
     do: Enum.any?(children, &has_nested_branch?/1)
 
   # --- Helpers ---
+
+  defp build_clauses(graph, clauses, parent_id) do
+    clauses
+    |> Enum.with_index()
+    |> Enum.reduce({graph, []}, fn {clause, index}, {g, exits} ->
+      {g, clause_exits} = build_clause(g, clause, parent_id, index)
+      {g, exits ++ clause_exits}
+    end)
+  end
+
+  defp build_exception_clauses(graph, clauses, parent_id) do
+    Enum.reduce(clauses, {graph, []}, fn clause_node, {g, exits} ->
+      g = Graph.add_vertex(g, clause_node.id)
+      g = Graph.add_edge(g, parent_id, clause_node.id, label: :exception)
+      {g, clause_exits} = build_sequential(g, clause_node.children, clause_node.id)
+      {g, exits ++ clause_exits}
+    end)
+  end
 
   defp last_exit(exits), do: List.last(exits)
 

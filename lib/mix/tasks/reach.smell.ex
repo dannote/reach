@@ -336,11 +336,7 @@ defmodule Mix.Tasks.Reach.Smell do
 
   defp same_node?(_, _), do: false
 
-  defp call_name(node) do
-    mod = node.meta[:module]
-    fun = node.meta[:function]
-    if mod, do: "#{inspect(mod)}.#{fun}", else: to_string(fun)
-  end
+  defp call_name(node), do: Format.call_name(node)
 
   # --- Unused results: pure call whose return value is discarded ---
 

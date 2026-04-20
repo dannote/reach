@@ -90,16 +90,7 @@ defmodule Reach.Frontend.Erlang do
     pattern_nodes =
       Enum.map(patterns, &translate_expr(&1, counter, file)) |> Enum.map(&mark_as_definitions/1)
 
-    guard_nodes =
-      Enum.map(guards, fn guard_seq ->
-        guard_exprs = Enum.map(guard_seq, &translate_expr(&1, counter, file))
-
-        %Node{
-          id: Counter.next(counter),
-          type: :guard,
-          children: guard_exprs
-        }
-      end)
+    guard_nodes = translate_guards(guards, counter, file)
 
     body_nodes = Enum.map(body, &translate_expr(&1, counter, file))
 
@@ -368,22 +359,7 @@ defmodule Reach.Frontend.Erlang do
 
   # Receive
   defp translate_expr({:receive, line, clauses}, counter, file) do
-    clause_nodes =
-      clauses
-      |> Enum.with_index()
-      |> Enum.map(fn {{:clause, cl, pats, guards, body}, index} ->
-        pats_ir = Enum.map(pats, &translate_expr(&1, counter, file))
-        guards_ir = translate_guards(guards, counter, file)
-        body_ir = translate_body(body, counter, file)
-
-        %Node{
-          id: Counter.next(counter),
-          type: :clause,
-          meta: %{kind: :receive_clause, index: index},
-          children: pats_ir ++ guards_ir ++ [body_ir],
-          source_span: erl_span(cl, file)
-        }
-      end)
+    clause_nodes = translate_receive_clauses(clauses, counter, file)
 
     %Node{
       id: Counter.next(counter),
@@ -395,22 +371,7 @@ defmodule Reach.Frontend.Erlang do
 
   # Receive with timeout
   defp translate_expr({:receive, line, clauses, timeout, timeout_body}, counter, file) do
-    clause_nodes =
-      clauses
-      |> Enum.with_index()
-      |> Enum.map(fn {{:clause, cl, pats, guards, body}, index} ->
-        pats_ir = Enum.map(pats, &translate_expr(&1, counter, file))
-        guards_ir = translate_guards(guards, counter, file)
-        body_ir = translate_body(body, counter, file)
-
-        %Node{
-          id: Counter.next(counter),
-          type: :clause,
-          meta: %{kind: :receive_clause, index: index},
-          children: pats_ir ++ guards_ir ++ [body_ir],
-          source_span: erl_span(cl, file)
-        }
-      end)
+    clause_nodes = translate_receive_clauses(clauses, counter, file)
 
     timeout_node = translate_expr(timeout, counter, file)
     timeout_body_node = translate_body(timeout_body, counter, file)
@@ -594,6 +555,24 @@ defmodule Reach.Frontend.Erlang do
       children: pats_ir ++ guards_ir ++ [body_ir],
       source_span: erl_span(line, file)
     }
+  end
+
+  defp translate_receive_clauses(clauses, counter, file) do
+    clauses
+    |> Enum.with_index()
+    |> Enum.map(fn {{:clause, cl, pats, guards, body}, index} ->
+      pats_ir = Enum.map(pats, &translate_expr(&1, counter, file))
+      guards_ir = translate_guards(guards, counter, file)
+      body_ir = translate_body(body, counter, file)
+
+      %Node{
+        id: Counter.next(counter),
+        type: :clause,
+        meta: %{kind: :receive_clause, index: index},
+        children: pats_ir ++ guards_ir ++ [body_ir],
+        source_span: erl_span(cl, file)
+      }
+    end)
   end
 
   defp translate_guards(guards, counter, file) do

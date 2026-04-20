@@ -519,14 +519,7 @@ defmodule Reach.Frontend.Elixir do
     children =
       Enum.map(pairs, fn
         {key, value} ->
-          key_node = translate(key, counter, file)
-          val_node = translate(value, counter, file)
-
-          %Node{
-            id: Counter.next(counter),
-            type: :map_field,
-            children: [key_node, val_node]
-          }
+          translate_map_field(key, value, counter, file)
 
         # Map update syntax: %{map | key: val}
         {:|, _, [map_expr, updates]} ->
@@ -575,14 +568,7 @@ defmodule Reach.Frontend.Elixir do
     children =
       Enum.map(pairs, fn
         {key, value} ->
-          key_node = translate(key, counter, file)
-          val_node = translate(value, counter, file)
-
-          %Node{
-            id: Counter.next(counter),
-            type: :map_field,
-            children: [key_node, val_node]
-          }
+          translate_map_field(key, value, counter, file)
 
         other ->
           translate(other, counter, file)
@@ -594,17 +580,6 @@ defmodule Reach.Frontend.Elixir do
       meta: %{name: struct_name},
       children: children,
       source_span: span_from_meta(meta, file)
-    }
-  end
-
-  # List
-  defp translate(list, counter, file) when is_list(list) do
-    children = Enum.map(list, &translate(&1, counter, file))
-
-    %Node{
-      id: Counter.next(counter),
-      type: :list,
-      children: children
     }
   end
 
@@ -1122,6 +1097,17 @@ defmodule Reach.Frontend.Elixir do
 
   defp first_child_span(%Node{children: children}) do
     Enum.find_value(children, &first_child_span/1)
+  end
+
+  defp translate_map_field(key, value, counter, file) do
+    key_node = translate(key, counter, file)
+    val_node = translate(value, counter, file)
+
+    %Node{
+      id: Counter.next(counter),
+      type: :map_field,
+      children: [key_node, val_node]
+    }
   end
 
   defp span_from_meta(meta, file) when is_list(meta) do

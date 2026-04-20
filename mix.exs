@@ -41,7 +41,7 @@ defmodule Reach.MixProject do
         "format --check-formatted",
         "js.check",
         "credo --strict",
-        "ex_dna --max-clones 9",
+        "ex_dna",
         "dialyzer",
         "test"
       ],
