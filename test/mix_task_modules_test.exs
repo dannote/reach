@@ -10,6 +10,7 @@ defmodule Mix.Tasks.Reach.ModulesTest do
     assert output =~ "Modules"
   end
 
+  @tag :boxart
   test "--graph flag" do
     output = capture_io(fn -> Modules.run(["--graph"]) end)
     assert output =~ "┌"

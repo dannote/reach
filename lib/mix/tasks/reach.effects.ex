@@ -177,25 +177,23 @@ defmodule Mix.Tasks.Reach.Effects do
   end
 
   defp render_graph(result) do
-    unless Code.ensure_loaded?(Boxart.Render.PieChart) do
+    unless Code.ensure_loaded?(Boxart.Render.PieChart.PieChart) do
       Mix.raise("boxart is required for --graph. Add {:boxart, \"~> 0.3\"} to your deps.")
     end
-
-    alias Boxart.Render.PieChart
-    alias PieChart.PieChart, as: PC
 
     slices =
       result.distribution
       |> Enum.reject(&(&1.count == 0))
       |> Enum.map(&{&1.effect, &1.ratio * 100})
 
-    chart = %PC{
-      title: "Effect Distribution (#{result.total_calls} calls)",
-      slices: slices,
-      show_data: true
-    }
+    chart =
+      struct!(Boxart.Render.PieChart.PieChart,
+        title: "Effect Distribution (#{result.total_calls} calls)",
+        slices: slices,
+        show_data: true
+      )
 
-    IO.puts(PieChart.render(chart))
+    IO.puts(Boxart.Render.PieChart.render(chart))
   end
 
   defp effect_color("pure", text), do: Format.green(text)

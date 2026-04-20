@@ -46,15 +46,22 @@ defmodule Reach.CLI.BoxartGraph do
   end
 
   def render_otp_state_diagram(callbacks) do
-    alias Boxart.Render.StateDiagram, as: SDRenderer
-    alias Boxart.Render.StateDiagram.{State, StateDiagram, Transition}
+    unless Code.ensure_loaded?(Boxart.Render.StateDiagram.State) do
+      Mix.raise(
+        "boxart is required for OTP state diagrams. Add {:boxart, \"~> 0.3\"} to your deps."
+      )
+    end
+
+    state_mod = Boxart.Render.StateDiagram.State
+    transition_mod = Boxart.Render.StateDiagram.Transition
+    diagram_mod = Boxart.Render.StateDiagram.StateDiagram
 
     states =
-      [%State{id: "start", type: :start}] ++
+      [struct!(state_mod, id: "start", type: :start)] ++
         Enum.map(callbacks, fn %{callback: {name, arity}, action: action} ->
-          %State{id: "#{name}/#{arity}", label: "#{name}/#{arity} (#{action})"}
+          struct!(state_mod, id: "#{name}/#{arity}", label: "#{name}/#{arity} (#{action})")
         end) ++
-        [%State{id: "end", type: :end}]
+        [struct!(state_mod, id: "end", type: :end)]
 
     init_id =
       Enum.find_value(callbacks, fn
@@ -64,12 +71,12 @@ defmodule Reach.CLI.BoxartGraph do
 
     transitions =
       if init_id do
-        [%Transition{from: "start", to: init_id}] ++
+        [struct!(transition_mod, from: "start", to: init_id)] ++
           Enum.flat_map(callbacks, fn %{callback: {name, arity}, action: action} ->
             id = "#{name}/#{arity}"
 
             if name != :init,
-              do: [%Transition{from: init_id, to: id, label: to_string(action)}],
+              do: [struct!(transition_mod, from: init_id, to: id, label: to_string(action))],
               else: []
           end) ++
           Enum.flat_map(callbacks, fn %{callback: {name, arity}} ->
@@ -77,14 +84,15 @@ defmodule Reach.CLI.BoxartGraph do
 
             # credo:disable-for-next-line Credo.Check.Refactor.Nesting
             if name in [:terminate, :code_change],
-              do: [%Transition{from: id, to: "end"}],
+              do: [struct!(transition_mod, from: id, to: "end")],
               else: []
           end)
       else
         []
       end
 
-    IO.puts(SDRenderer.render(%StateDiagram{states: states, transitions: transitions}))
+    diagram = struct!(diagram_mod, states: states, transitions: transitions)
+    IO.puts(Boxart.Render.StateDiagram.render(diagram))
   end
 
   def render_cfg(func_node, file) do

@@ -184,7 +184,10 @@ defmodule Reach.AshPluginTest do
       nodes = Reach.nodes(graph)
 
       for_create =
-        Enum.find(nodes, &(&1.meta[:function] == :for_create and &1.meta[:module] == Ash.Changeset))
+        Enum.find(
+          nodes,
+          &(&1.meta[:function] == :for_create and &1.meta[:module] == Ash.Changeset)
+        )
 
       change_attr =
         Enum.find(
@@ -314,9 +317,7 @@ defmodule Reach.AshPluginTest do
 
       cs_node =
         Reach.nodes(graph)
-        |> Enum.find(
-          &(&1.meta[:function] == :for_create and &1.meta[:module] == Ash.Changeset)
-        )
+        |> Enum.find(&(&1.meta[:function] == :for_create and &1.meta[:module] == Ash.Changeset))
 
       create_node =
         Reach.nodes(graph)
@@ -403,15 +404,11 @@ defmodule Reach.AshPluginTest do
 
       form_node =
         Reach.nodes(graph)
-        |> Enum.find(
-          &(&1.meta[:function] == :for_create and &1.meta[:module] == AshPhoenix.Form)
-        )
+        |> Enum.find(&(&1.meta[:function] == :for_create and &1.meta[:module] == AshPhoenix.Form))
 
       submit_node =
         Reach.nodes(graph)
-        |> Enum.find(
-          &(&1.meta[:function] == :submit and &1.meta[:module] == AshPhoenix.Form)
-        )
+        |> Enum.find(&(&1.meta[:function] == :submit and &1.meta[:module] == AshPhoenix.Form))
 
       assert edge.v1 == form_node.id
       assert edge.v2 == submit_node.id
@@ -432,9 +429,7 @@ defmodule Reach.AshPluginTest do
 
       validate_node =
         Reach.nodes(graph)
-        |> Enum.find(
-          &(&1.meta[:function] == :validate and &1.meta[:module] == AshPhoenix.Form)
-        )
+        |> Enum.find(&(&1.meta[:function] == :validate and &1.meta[:module] == AshPhoenix.Form))
 
       assert Reach.Effects.classify(validate_node) == :pure
     end
@@ -454,9 +449,7 @@ defmodule Reach.AshPluginTest do
 
       submit_node =
         Reach.nodes(graph)
-        |> Enum.find(
-          &(&1.meta[:function] == :submit and &1.meta[:module] == AshPhoenix.Form)
-        )
+        |> Enum.find(&(&1.meta[:function] == :submit and &1.meta[:module] == AshPhoenix.Form))
 
       assert Reach.Effects.classify(submit_node) == :write
     end
@@ -629,9 +622,7 @@ defmodule Reach.AshPluginTest do
 
       input_node =
         Reach.nodes(graph)
-        |> Enum.find(
-          &(&1.meta[:function] == :for_action and &1.meta[:module] == Ash.ActionInput)
-        )
+        |> Enum.find(&(&1.meta[:function] == :for_action and &1.meta[:module] == Ash.ActionInput))
 
       run_node =
         Reach.nodes(graph)
