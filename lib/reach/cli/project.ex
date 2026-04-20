@@ -17,18 +17,52 @@ defmodule Reach.CLI.Project do
     end
   end
 
+  def function_index(project) do
+    case Process.get({__MODULE__, :func_index}) do
+      nil ->
+        index = build_function_index(project)
+        Process.put({__MODULE__, :func_index}, index)
+        index
+
+      index ->
+        index
+    end
+  end
+
+  defp build_function_index(project) do
+    func_defs =
+      project.nodes
+      |> Map.values()
+      |> Enum.filter(fn n -> n.type == :function_def end)
+
+    by_name_arity =
+      Enum.group_by(func_defs, fn n -> {n.meta[:name], n.meta[:arity]} end)
+
+    by_module =
+      Enum.group_by(func_defs, fn n -> {n.meta[:module], n.meta[:name], n.meta[:arity]} end)
+
+    by_file =
+      func_defs
+      |> Enum.filter(fn n -> n.source_span != nil end)
+      |> Enum.group_by(fn n -> n.source_span[:file] end)
+      |> Map.new(fn {file, fns} ->
+        {file, Enum.sort_by(fns, fn n -> n.source_span[:start_line] end)}
+      end)
+
+    %{by_name_arity: by_name_arity, by_module: by_module, by_file: by_file, all: func_defs}
+  end
+
   def find_function(project, target) do
-    nodes = Map.values(project.nodes)
+    index = function_index(project)
 
     case target do
       {mod, fun, arity} ->
-        find_function_node(nodes, mod, fun, arity)
+        find_function_node(index, mod, fun, arity)
 
       fun_string when is_binary(fun_string) ->
-        Enum.find(nodes, fn node ->
-          node.type == :function_def and
-            Format.func_id_to_string({node.meta[:module], node.meta[:name], node.meta[:arity]}) =~
-              fun_string
+        Enum.find(index.all, fn node ->
+          Format.func_id_to_string({node.meta[:module], node.meta[:name], node.meta[:arity]}) =~
+            fun_string
         end)
 
       _ ->
@@ -36,36 +70,31 @@ defmodule Reach.CLI.Project do
     end
   end
 
-  defp find_function_node(nodes, nil, fun, arity) do
-    find_by_module(nodes, nil, fun, arity) ||
-      find_sole_candidate(nodes, fun, arity)
+  defp find_function_node(index, nil, fun, arity) do
+    find_by_module(index, nil, fun, arity) ||
+      find_sole_candidate(index, fun, arity)
   end
 
-  defp find_function_node(nodes, mod, fun, arity) do
-    find_by_module(nodes, mod, fun, arity) ||
-      disambiguate_by_file(nodes, mod, fun, arity)
+  defp find_function_node(index, mod, fun, arity) do
+    find_by_module(index, mod, fun, arity) ||
+      disambiguate_by_file(index, mod, fun, arity)
   end
 
-  defp find_sole_candidate(nodes, fun, arity) do
-    nodes
-    |> Enum.filter(fn n ->
-      n.type == :function_def and
-        n.meta[:module] == nil and n.meta[:name] == fun and n.meta[:arity] == arity
-    end)
-    |> case do
+  defp find_sole_candidate(index, fun, arity) do
+    case Map.get(index.by_module, {nil, fun, arity}) do
       [single] -> single
       _ -> nil
     end
   end
 
-  defp find_by_module(nodes, mod, fun, arity) do
-    Enum.find(nodes, fn n ->
-      n.type == :function_def and
-        n.meta[:module] == mod and n.meta[:name] == fun and n.meta[:arity] == arity
-    end)
+  defp find_by_module(index, mod, fun, arity) do
+    case Map.get(index.by_module, {mod, fun, arity}) do
+      [first | _] -> first
+      _ -> nil
+    end
   end
 
-  defp disambiguate_by_file(nodes, mod, fun, arity) when is_atom(mod) and mod != nil do
+  defp disambiguate_by_file(index, mod, fun, arity) when is_atom(mod) and mod != nil do
     path_hint =
       mod
       |> Atom.to_string()
@@ -73,32 +102,32 @@ defmodule Reach.CLI.Project do
       |> String.split(".")
       |> Enum.map_join("/", &Macro.underscore/1)
 
-    find_in_file(nodes, fun, arity, path_hint) ||
-      find_in_file_with_defaults(nodes, fun, arity, path_hint)
+    find_in_file(index, fun, arity, path_hint) ||
+      find_in_file_with_defaults(index, fun, arity, path_hint)
   end
 
-  defp disambiguate_by_file(_nodes, _mod, _fun, _arity), do: nil
+  defp disambiguate_by_file(_index, _mod, _fun, _arity), do: nil
 
-  defp find_in_file(nodes, fun, arity, path_hint) do
-    candidates =
-      Enum.filter(nodes, fn n ->
-        n.type == :function_def and n.meta[:name] == fun and n.meta[:arity] == arity and
-          n.source_span != nil
-      end)
+  defp find_in_file(index, fun, arity, path_hint) do
+    candidates = Map.get(index.by_name_arity, {fun, arity}, [])
 
     Enum.find(candidates, fn n ->
-      String.ends_with?(n.source_span[:file], path_hint <> ".ex")
+      n.source_span != nil and String.ends_with?(n.source_span[:file], path_hint <> ".ex")
     end) ||
       Enum.find(candidates, fn n ->
-        String.contains?(n.source_span[:file], path_hint <> ".ex")
+        n.source_span != nil and String.contains?(n.source_span[:file], path_hint <> ".ex")
       end)
   end
 
-  defp find_in_file_with_defaults(nodes, fun, arity, path_hint) do
+  defp find_in_file_with_defaults(index, fun, arity, path_hint) do
+    higher_arities =
+      index.by_name_arity
+      |> Enum.filter(fn {{f, a}, _} -> f == fun and a > arity end)
+      |> Enum.flat_map(fn {_, nodes} -> nodes end)
+
     candidates =
-      Enum.filter(nodes, fn n ->
-        n.type == :function_def and n.meta[:name] == fun and n.meta[:arity] > arity and
-          n.source_span != nil and
+      Enum.filter(higher_arities, fn n ->
+        n.source_span != nil and
           (String.ends_with?(n.source_span[:file], path_hint <> ".ex") or
              String.contains?(n.source_span[:file], path_hint <> ".ex"))
       end)
@@ -161,14 +190,28 @@ defmodule Reach.CLI.Project do
   end
 
   def find_function_at_location(project, file, line) do
-    project.nodes
-    |> Map.values()
-    |> Enum.filter(fn n ->
-      n.type == :function_def and n.source_span != nil and
-        file_matches?(n.source_span.file, file) and
-        n.source_span.start_line <= line
-    end)
-    |> Enum.max_by(& &1.source_span.start_line, fn -> nil end)
+    index = function_index(project)
+
+    # Try exact file match first (fast path via by_file index)
+    exact_fns = Map.get(index.by_file, file, [])
+
+    result =
+      exact_fns
+      |> Enum.filter(fn n -> n.source_span.start_line <= line end)
+      |> Enum.max_by(& &1.source_span.start_line, fn -> nil end)
+
+    if result do
+      result
+    else
+      # Fallback: fuzzy file match
+      index.all
+      |> Enum.filter(fn n ->
+        n.source_span != nil and
+          file_matches?(n.source_span.file, file) and
+          n.source_span.start_line <= line
+      end)
+      |> Enum.max_by(& &1.source_span.start_line, fn -> nil end)
+    end
   end
 
   def resolve_function(project, target) do
@@ -185,15 +228,12 @@ defmodule Reach.CLI.Project do
   end
 
   defp resolve_function_by_name(project, name) do
-    nodes = Map.values(project.nodes)
-    cg = project.call_graph
-
     case parse_function_reference(name) do
       {mod_str, fun_str, arity} ->
-        resolve_in_call_graph(cg, mod_str, fun_str, arity)
+        resolve_in_call_graph(project.call_graph, mod_str, fun_str, arity)
 
       nil ->
-        resolve_by_function_name(nodes, name)
+        resolve_by_function_name(project, name)
     end
   end
 
@@ -222,11 +262,13 @@ defmodule Reach.CLI.Project do
     end)
   end
 
-  defp resolve_by_function_name(nodes, name) do
+  defp resolve_by_function_name(project, name) do
+    index = function_index(project)
+    fun_atom = String.to_existing_atom(name)
+
     node =
-      Enum.find(nodes, fn n ->
-        n.type == :function_def and
-          to_string(n.meta[:name]) == name
+      Enum.find(index.all, fn n ->
+        n.meta[:name] == fun_atom
       end)
 
     if node do
@@ -234,6 +276,8 @@ defmodule Reach.CLI.Project do
     else
       nil
     end
+  rescue
+    ArgumentError -> nil
   end
 
   def callers(project, target, depth \\ 4) do
