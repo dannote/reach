@@ -7,6 +7,17 @@ defmodule Reach.CLI.BoxartGraph do
   alias Reach.Visualize.ControlFlow
   alias Reach.Visualize.Helpers
 
+  @compile {:no_warn_undefined,
+            [
+              Boxart,
+              Boxart.Render.StateDiagram,
+              Boxart.Render.Mindmap,
+              Boxart.Render.StateDiagram.State,
+              Boxart.Render.StateDiagram.Transition,
+              Boxart.Render.StateDiagram.StateDiagram,
+              Boxart.Render.PieChart
+            ]}
+
   @dialyzer {:nowarn_function,
              render_call_graph: 3,
              render_otp_state_diagram: 1,

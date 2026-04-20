@@ -37,41 +37,36 @@ defmodule Reach.CLI.Project do
   end
 
   defp find_function_node(nodes, mod, fun, arity) do
-    exact =
-      Enum.find(nodes, fn n ->
-        n.type == :function_def and
-          n.meta[:module] == mod and n.meta[:name] == fun and n.meta[:arity] == arity
-      end)
-
-    if exact do
-      exact
-    else
-      candidates =
-        Enum.filter(nodes, fn n ->
-          n.type == :function_def and
-            n.meta[:module] == nil and n.meta[:name] == fun and n.meta[:arity] == arity
-        end)
-
-      case candidates do
-        [single] ->
-          single
-
-        [_ | _] when mod != nil ->
-          mod_path = mod |> Atom.to_string() |> String.replace_leading("Elixir.", "")
-          file_hint = mod_path |> String.split(".") |> List.last() |> Macro.underscore()
-
-          Enum.find(candidates, fn n ->
-            n.source_span != nil and String.contains?(n.source_span[:file], file_hint)
-          end) || hd(candidates)
-
-        [_ | _] ->
-          hd(candidates)
-
-        [] ->
-          nil
-      end
-    end
+    find_by_module(nodes, mod, fun, arity) ||
+      find_by_module(nodes, nil, fun, arity) ||
+      disambiguate_by_file(nodes, mod, fun, arity)
   end
+
+  defp find_by_module(nodes, mod, fun, arity) do
+    Enum.find(nodes, fn n ->
+      n.type == :function_def and
+        n.meta[:module] == mod and n.meta[:name] == fun and n.meta[:arity] == arity
+    end)
+  end
+
+  defp disambiguate_by_file(nodes, mod, fun, arity) when mod != nil do
+    file_hint =
+      mod
+      |> Atom.to_string()
+      |> String.replace_leading("Elixir.", "")
+      |> String.split(".")
+      |> List.last()
+      |> Macro.underscore()
+
+    nodes
+    |> Enum.filter(fn n ->
+      n.type == :function_def and n.meta[:name] == fun and n.meta[:arity] == arity and
+        n.source_span != nil and String.contains?(n.source_span[:file], file_hint)
+    end)
+    |> List.first()
+  end
+
+  defp disambiguate_by_file(_nodes, _mod, _fun, _arity), do: nil
 
   def resolve_target(project, raw) when is_binary(raw) do
     case parse_file_line(raw) do
@@ -106,21 +101,12 @@ defmodule Reach.CLI.Project do
   end
 
   def parse_function_reference(name) do
-    case String.split(name, "/", parts: 2) do
-      [qualified, arity_str] ->
-        case Integer.parse(arity_str) do
-          {arity, ""} ->
-            case split_module_function(qualified) do
-              {mod_str, fun_str} -> {mod_str, fun_str, arity}
-              nil -> nil
-            end
-
-          _ ->
-            nil
-        end
-
-      _ ->
-        nil
+    with [qualified, arity_str] <- String.split(name, "/", parts: 2),
+         {arity, ""} <- Integer.parse(arity_str),
+         {mod_str, fun_str} <- split_module_function(qualified) do
+      {mod_str, fun_str, arity}
+    else
+      _ -> nil
     end
   end
 
@@ -177,9 +163,9 @@ defmodule Reach.CLI.Project do
     mod = String.split(mod_str, ".") |> Enum.map(&String.to_atom/1) |> Module.concat()
     fun = String.to_atom(fun_str)
 
-    Graph.has_vertex?(cg, {mod, fun, arity}) && {mod, fun, arity} ||
+    (Graph.has_vertex?(cg, {mod, fun, arity}) && {mod, fun, arity}) ||
       fuzzy_match_module(cg, mod_str, fun, arity) ||
-      Graph.has_vertex?(cg, {nil, fun, arity}) && {nil, fun, arity}
+      (Graph.has_vertex?(cg, {nil, fun, arity}) && {nil, fun, arity})
   end
 
   defp fuzzy_match_module(cg, mod_str, fun, arity) do

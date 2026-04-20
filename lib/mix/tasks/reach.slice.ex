@@ -43,25 +43,7 @@ defmodule Mix.Tasks.Reach.Slice do
     forward? = Keyword.get(opts, :forward, false)
     var_name = opts[:variable]
 
-    raw = hd(target_args)
-
-    {node, target} =
-      case Project.parse_file_line(raw) do
-        {file, line} ->
-          n = find_node_at_location(project, file, line)
-          unless n, do: Mix.raise("No node found at #{file}:#{line}")
-          {n, %{file: file, line: line}}
-
-        nil ->
-          mfa = Project.resolve_target(project, raw)
-          unless mfa, do: Mix.raise("Function not found: #{raw}")
-
-          func_node = Project.find_function(project, mfa)
-          unless func_node, do: Mix.raise("Function definition not found in IR: #{raw}")
-
-          span = func_node.source_span
-          {func_node, %{file: span[:file], line: span[:start_line]}}
-      end
+    {node, target} = resolve_slice_target(project, hd(target_args))
 
     slice_ids = compute_slice(project.graph, node.id, forward?)
     result = filter_and_format(project, slice_ids, var_name)
@@ -70,6 +52,25 @@ defmodule Mix.Tasks.Reach.Slice do
       BoxartGraph.render_slice_graph(project, node.id, forward?)
     else
       render(format, node, result, forward?, target)
+    end
+  end
+
+  defp resolve_slice_target(project, raw) do
+    case Project.parse_file_line(raw) do
+      {file, line} ->
+        n = find_node_at_location(project, file, line)
+        unless n, do: Mix.raise("No node found at #{file}:#{line}")
+        {n, %{file: file, line: line}}
+
+      nil ->
+        mfa = Project.resolve_target(project, raw)
+        unless mfa, do: Mix.raise("Function not found: #{raw}")
+
+        func_node = Project.find_function(project, mfa)
+        unless func_node, do: Mix.raise("Function definition not found in IR: #{raw}")
+
+        span = func_node.source_span
+        {func_node, %{file: span[:file], line: span[:start_line]}}
     end
   end
 

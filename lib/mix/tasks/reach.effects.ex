@@ -22,6 +22,8 @@ defmodule Mix.Tasks.Reach.Effects do
 
   use Mix.Task
 
+  @compile {:no_warn_undefined, [Boxart.Render.PieChart, Boxart.Render.PieChart.PieChart]}
+
   alias Reach.CLI.Format
   alias Reach.CLI.Project
   alias Reach.Effects
