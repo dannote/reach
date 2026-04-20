@@ -38,8 +38,8 @@ defmodule Reach.CLI.Project do
 
   defp find_function_node(nodes, mod, fun, arity) do
     find_by_module(nodes, mod, fun, arity) ||
-      find_by_module(nodes, nil, fun, arity) ||
-      disambiguate_by_file(nodes, mod, fun, arity)
+      disambiguate_by_file(nodes, mod, fun, arity) ||
+      find_by_module(nodes, nil, fun, arity)
   end
 
   defp find_by_module(nodes, mod, fun, arity) do
