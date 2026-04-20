@@ -73,6 +73,13 @@ defmodule Reach.CLI.Project do
       |> String.split(".")
       |> Enum.map_join("/", &Macro.underscore/1)
 
+    find_in_file(nodes, fun, arity, path_hint) ||
+      find_in_file_with_defaults(nodes, fun, arity, path_hint)
+  end
+
+  defp disambiguate_by_file(_nodes, _mod, _fun, _arity), do: nil
+
+  defp find_in_file(nodes, fun, arity, path_hint) do
     candidates =
       Enum.filter(nodes, fn n ->
         n.type == :function_def and n.meta[:name] == fun and n.meta[:arity] == arity and
@@ -87,7 +94,17 @@ defmodule Reach.CLI.Project do
       end)
   end
 
-  defp disambiguate_by_file(_nodes, _mod, _fun, _arity), do: nil
+  defp find_in_file_with_defaults(nodes, fun, arity, path_hint) do
+    candidates =
+      Enum.filter(nodes, fn n ->
+        n.type == :function_def and n.meta[:name] == fun and n.meta[:arity] > arity and
+          n.source_span != nil and
+          (String.ends_with?(n.source_span[:file], path_hint <> ".ex") or
+             String.contains?(n.source_span[:file], path_hint <> ".ex"))
+      end)
+
+    Enum.min_by(candidates, fn n -> n.meta[:arity] end, fn -> nil end)
+  end
 
   def resolve_target(project, raw) when is_binary(raw) do
     case parse_file_line(raw) do
