@@ -36,10 +36,26 @@ defmodule Reach.CLI.Project do
     end
   end
 
+  defp find_function_node(nodes, nil, fun, arity) do
+    find_by_module(nodes, nil, fun, arity) ||
+      find_sole_candidate(nodes, fun, arity)
+  end
+
   defp find_function_node(nodes, mod, fun, arity) do
     find_by_module(nodes, mod, fun, arity) ||
-      disambiguate_by_file(nodes, mod, fun, arity) ||
-      find_by_module(nodes, nil, fun, arity)
+      disambiguate_by_file(nodes, mod, fun, arity)
+  end
+
+  defp find_sole_candidate(nodes, fun, arity) do
+    nodes
+    |> Enum.filter(fn n ->
+      n.type == :function_def and
+        n.meta[:module] == nil and n.meta[:name] == fun and n.meta[:arity] == arity
+    end)
+    |> case do
+      [single] -> single
+      _ -> nil
+    end
   end
 
   defp find_by_module(nodes, mod, fun, arity) do
@@ -50,20 +66,25 @@ defmodule Reach.CLI.Project do
   end
 
   defp disambiguate_by_file(nodes, mod, fun, arity) when mod != nil do
-    file_hint =
+    path_hint =
       mod
       |> Atom.to_string()
       |> String.replace_leading("Elixir.", "")
       |> String.split(".")
-      |> List.last()
-      |> Macro.underscore()
+      |> Enum.map_join("/", &Macro.underscore/1)
 
-    nodes
-    |> Enum.filter(fn n ->
-      n.type == :function_def and n.meta[:name] == fun and n.meta[:arity] == arity and
-        n.source_span != nil and String.contains?(n.source_span[:file], file_hint)
-    end)
-    |> List.first()
+    candidates =
+      Enum.filter(nodes, fn n ->
+        n.type == :function_def and n.meta[:name] == fun and n.meta[:arity] == arity and
+          n.source_span != nil
+      end)
+
+    Enum.find(candidates, fn n ->
+      String.ends_with?(n.source_span[:file], path_hint <> ".ex")
+    end) ||
+      Enum.find(candidates, fn n ->
+        String.contains?(n.source_span[:file], path_hint <> ".ex")
+      end)
   end
 
   defp disambiguate_by_file(_nodes, _mod, _fun, _arity), do: nil
@@ -164,8 +185,7 @@ defmodule Reach.CLI.Project do
     fun = String.to_atom(fun_str)
 
     (Graph.has_vertex?(cg, {mod, fun, arity}) && {mod, fun, arity}) ||
-      fuzzy_match_module(cg, mod_str, fun, arity) ||
-      (Graph.has_vertex?(cg, {nil, fun, arity}) && {nil, fun, arity})
+      fuzzy_match_module(cg, mod_str, fun, arity)
   end
 
   defp fuzzy_match_module(cg, mod_str, fun, arity) do
