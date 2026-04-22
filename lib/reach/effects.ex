@@ -103,6 +103,8 @@ defmodule Reach.Effects do
   def classify(%Node{type: :block}), do: :pure
   def classify(%Node{type: :guard}), do: :pure
   def classify(%Node{type: :clause}), do: :pure
+  def classify(%Node{type: :case}), do: :pure
+  def classify(%Node{type: :fn}), do: :pure
   def classify(%Node{type: :entry}), do: :pure
   def classify(%Node{type: :exit}), do: :pure
 
@@ -578,19 +580,19 @@ defmodule Reach.Effects do
   defp classify_from_spec(module, _function, _arity) when module in @impure_modules, do: nil
 
   defp classify_from_spec(module, function, arity) when is_atom(module) do
-    result =
-      case Code.Typespec.fetch_specs(module) do
-        {:ok, specs} ->
-          case List.keyfind(specs, {function, arity}, 0) do
-            {_, clauses} -> infer_effect_from_spec(clauses)
-            nil -> nil
-          end
+    case Code.Typespec.fetch_specs(module) do
+      {:ok, specs} ->
+        case List.keyfind(specs, {function, arity}, 0) do
+          {_, clauses} ->
+            infer_effect_from_spec(clauses) || classify_from_inferred(module, function, arity)
 
-        :error ->
-          nil
-      end
+          nil ->
+            nil
+        end
 
-    result || classify_from_inferred(module, function, arity)
+      :error ->
+        nil
+    end
   rescue
     _ -> nil
   end
@@ -605,7 +607,9 @@ defmodule Reach.Effects do
       case read_inferred_sig(module, function, arity) do
         {:infer, _, clauses} when is_list(clauses) ->
           # credo:disable-for-next-line Credo.Check.Refactor.Nesting
-          if Enum.all?(clauses, fn {_args, ret} -> not returns_ok_atom?(ret) end) do
+          if Enum.all?(clauses, fn {_args, ret} ->
+               not returns_ok_atom?(ret) and concrete_data_type?(ret)
+             end) do
             :pure
           end
 
@@ -629,8 +633,26 @@ defmodule Reach.Effects do
       end
     end
 
+    defp returns_ok_atom?(%{dynamic: inner}), do: returns_ok_atom?(inner)
     defp returns_ok_atom?(%{atom: {:union, %{ok: []}}}), do: true
     defp returns_ok_atom?(_), do: false
+
+    defp concrete_data_type?(%{dynamic: inner}), do: concrete_data_type?(inner)
+    defp concrete_data_type?(%{list: _}), do: true
+    defp concrete_data_type?(%{map: _}), do: true
+    defp concrete_data_type?(%{tuple: _}), do: true
+    defp concrete_data_type?(%{struct: _}), do: true
+    defp concrete_data_type?(%{atom: _}), do: true
+    defp concrete_data_type?(%{integer: _}), do: true
+    defp concrete_data_type?(%{binary: _}), do: true
+    defp concrete_data_type?(%{float: _}), do: true
+    defp concrete_data_type?(%{range: _}), do: true
+    defp concrete_data_type?(%{bitmap: _}), do: true
+
+    defp concrete_data_type?(%{union: subtypes}) when is_map(subtypes),
+      do: Enum.any?(subtypes, fn {_k, v} -> concrete_data_type?(v) end)
+
+    defp concrete_data_type?(_), do: false
   else
     defp classify_from_inferred(_, _, _), do: nil
   end

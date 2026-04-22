@@ -293,12 +293,20 @@ defmodule Mix.Tasks.Reach.Otp do
 
   defp find_missing_handlers(nodes) do
     sends = find_gen_server_sends(nodes)
-    handles = find_handled_messages(nodes)
+    {handles, has_catch_all} = find_handled_messages(nodes)
 
     sends
+    |> Enum.reject(fn n -> has_catch_all and not literal_atom_msg?(n) end)
     |> Enum.filter(&unmatched_send?(&1, handles))
     |> Enum.map(fn n ->
       %{location: Format.location(n), message: n.meta[:function]}
+    end)
+  end
+
+  defp literal_atom_msg?(%{children: children}) do
+    Enum.any?(children, fn
+      %{type: :literal, meta: %{value: v}} when is_atom(v) -> true
+      _ -> false
     end)
   end
 
@@ -310,12 +318,32 @@ defmodule Mix.Tasks.Reach.Otp do
   end
 
   defp find_handled_messages(nodes) do
-    nodes
-    |> Enum.filter(fn n ->
-      n.type == :function_def and n.meta[:name] in [:handle_call, :handle_cast, :handle_info]
-    end)
-    |> Enum.flat_map(&extract_clause_message_types/1)
-    |> MapSet.new()
+    handlers =
+      nodes
+      |> Enum.filter(fn n ->
+        n.type == :function_def and n.meta[:name] in [:handle_call, :handle_cast, :handle_info]
+      end)
+
+    has_catch_all =
+      Enum.any?(handlers, fn handler ->
+        handler.children
+        |> Enum.filter(&(&1.type == :clause))
+        |> Enum.any?(&catch_all_clause?/1)
+      end)
+
+    handles =
+      handlers
+      |> Enum.flat_map(&extract_clause_message_types/1)
+      |> MapSet.new()
+
+    {handles, has_catch_all}
+  end
+
+  defp catch_all_clause?(clause) do
+    case clause.children do
+      [%{type: :var} | _] -> true
+      _ -> false
+    end
   end
 
   defp extract_clause_message_types(func) do

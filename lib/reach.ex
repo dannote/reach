@@ -652,15 +652,19 @@ defmodule Reach do
   defp tail_expressions(node) do
     last =
       case node do
-        %{type: t, children: children} when t in [:block, :clause] -> List.last(children)
-        other -> other
+        %{type: t, children: children}
+        when t in [:block, :clause, :catch_clause, :rescue, :after] ->
+          List.last(children)
+
+        other ->
+          other
       end
 
     case last do
       nil ->
         []
 
-      %{type: t} when t in [:block, :clause] ->
+      %{type: t} when t in [:block, :clause, :catch_clause, :rescue, :after] ->
         tail_expressions(last)
 
       %{type: :case, children: children} ->
@@ -779,6 +783,31 @@ defmodule Reach do
         expand_match_children(node, ids)
       end)
 
+    # Mark all descendants of compiler-directive nodes as alive
+    ids =
+      Enum.reduce(all_nodes, ids, fn node, ids ->
+        if compiler_directive?(node) do
+          node
+          |> Reach.IR.all_nodes()
+          |> MapSet.new(& &1.id)
+          |> MapSet.union(ids)
+        else
+          ids
+        end
+      end)
+
+    # Mark all structural sub-expressions of alive composite nodes alive.
+    # When a map, tuple, call, or operator is alive, its children that
+    # contribute to its value are necessarily alive too.
+    ids = expand_alive_to_descendants(all_nodes, ids)
+
+    # Mark bindings alive when their variables are referenced in alive nodes.
+    # This bridges the gap when PDG data-flow edges are missing for locals.
+    ids = expand_alive_bindings(all_nodes, ids)
+
+    # Mark clause parameters and guards alive (they are patterns, not dead code).
+    ids = expand_clause_patterns_alive(all_nodes, ids)
+
     # Iterate until stable
     if MapSet.size(ids) == prev_size do
       ids
@@ -786,6 +815,116 @@ defmodule Reach do
       expand_alive_to_parents(all_nodes, ids, MapSet.size(ids))
     end
   end
+
+  defp expand_alive_to_descendants(all_nodes, alive_ids) do
+    new_ids = add_descendant_ids(all_nodes, alive_ids)
+
+    if MapSet.size(new_ids) == MapSet.size(alive_ids) do
+      new_ids
+    else
+      expand_alive_to_descendants(all_nodes, new_ids)
+    end
+  end
+
+  defp add_descendant_ids(all_nodes, alive_ids) do
+    Enum.reduce(all_nodes, alive_ids, fn node, ids ->
+      if MapSet.member?(ids, node.id) and structural_composite?(node) do
+        add_all_descendant_ids(node, ids)
+      else
+        ids
+      end
+    end)
+  end
+
+  defp add_all_descendant_ids(node, ids) do
+    node.children
+    |> Enum.flat_map(&Reach.IR.all_nodes/1)
+    |> Enum.reduce(ids, fn child, acc -> MapSet.put(acc, child.id) end)
+  end
+
+  @structural_composites [
+    :call,
+    :map,
+    :tuple,
+    :list,
+    :struct,
+    :map_field,
+    :binary_op,
+    :unary_op,
+    :cons,
+    :case,
+    :fn,
+    :guard
+  ]
+
+  defp structural_composite?(%{type: t}) when t in @structural_composites, do: true
+  defp structural_composite?(_), do: false
+
+  defp expand_alive_bindings(all_nodes, alive_ids) do
+    # Collect variable references in alive nodes.
+    alive_refs =
+      all_nodes
+      |> Enum.filter(&MapSet.member?(alive_ids, &1.id))
+      |> Enum.flat_map(&Reach.IR.all_nodes/1)
+      |> Enum.filter(fn n -> n.type == :var and n.meta[:binding_role] != :definition end)
+      |> Enum.map(& &1.meta[:name])
+      |> MapSet.new()
+
+    # Also treat variable definitions inside alive binary patterns as
+    # references, because size specifiers like <<x::binary-size(n)>>
+    # are currently marked as definitions even though they use existing
+    # variables.
+    alive_binary_defs =
+      all_nodes
+      |> Enum.filter(fn n ->
+        MapSet.member?(alive_ids, n.id) and n.type == :call and n.meta[:function] == :<<>>
+      end)
+      |> Enum.flat_map(&Reach.IR.all_nodes/1)
+      |> Enum.filter(fn n -> n.type == :var and n.meta[:binding_role] == :definition end)
+      |> Enum.map(& &1.meta[:name])
+      |> MapSet.new()
+
+    alive_refs = MapSet.union(alive_refs, alive_binary_defs)
+
+    # Mark match nodes alive if they define any referenced variable
+    all_nodes
+    |> Enum.filter(fn n -> n.type == :match end)
+    |> Enum.reduce(alive_ids, fn match, ids ->
+      bound_vars =
+        match.children
+        |> List.first()
+        |> List.wrap()
+        |> Enum.flat_map(&Reach.IR.all_nodes/1)
+        |> Enum.filter(fn n -> n.type == :var and n.meta[:binding_role] == :definition end)
+        |> Enum.map(& &1.meta[:name])
+
+      if Enum.any?(bound_vars, &MapSet.member?(alive_refs, &1)) do
+        MapSet.put(ids, match.id)
+      else
+        ids
+      end
+    end)
+  end
+
+  defp expand_clause_patterns_alive(all_nodes, alive_ids) do
+    Enum.reduce(all_nodes, alive_ids, fn node, ids ->
+      expand_clause_pattern(node, ids)
+    end)
+  end
+
+  defp expand_clause_pattern(%{type: t, children: children} = node, ids)
+       when t in [:clause, :catch_clause, :rescue] do
+    if MapSet.member?(ids, node.id) and length(children) > 1 do
+      children
+      |> Enum.drop(-1)
+      |> Enum.flat_map(&Reach.IR.all_nodes/1)
+      |> Enum.reduce(ids, fn child, acc -> MapSet.put(acc, child.id) end)
+    else
+      ids
+    end
+  end
+
+  defp expand_clause_pattern(_, ids), do: ids
 
   defp expand_match_children(%{type: :match, id: id, children: children}, alive) do
     if MapSet.member?(alive, id) do
@@ -856,18 +995,46 @@ defmodule Reach do
 
   defp candidate_for_dead?(%Node{type: t} = node)
        when t in [:call, :binary_op, :unary_op, :match] do
-    pure?(node) and not attribute_or_typespec?(node) and not pattern_context?(node)
+    pure?(node) and not compiler_directive?(node) and not pattern_context?(node)
   end
 
   defp candidate_for_dead?(_), do: false
 
-  defp attribute_or_typespec?(%{type: :call, meta: %{function: f}})
-       when f in [:@, :__aliases__, :t],
-       do: true
+  @compiler_directives [
+    :import,
+    :alias,
+    :require,
+    :use,
+    :doc,
+    :moduledoc,
+    :typedoc,
+    :spec,
+    :callback,
+    :macrocallback,
+    :impl,
+    :type,
+    :typep,
+    :opaque,
+    :behaviour,
+    :defstruct,
+    :defdelegate,
+    :defmacro,
+    :defmacrop,
+    :defguard,
+    :defguardp,
+    :\\,
+    :<<>>,
+    :when
+  ]
 
-  defp attribute_or_typespec?(%{type: :call, meta: %{kind: :attribute}}), do: true
+  defp compiler_directive?(%{type: :call, meta: %{function: f}})
+       when f in @compiler_directives, do: true
 
-  defp attribute_or_typespec?(_), do: false
+  defp compiler_directive?(%{type: :call, meta: %{kind: :attribute}}), do: true
+
+  defp compiler_directive?(%{type: :call, meta: %{function: :@}}), do: true
+
+  defp compiler_directive?(_), do: false
 
   defp pattern_context?(%{type: :binary_op, meta: %{operator: :<>}, children: children}) do
     Enum.any?(children, fn

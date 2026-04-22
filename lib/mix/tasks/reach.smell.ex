@@ -283,11 +283,37 @@ defmodule Mix.Tasks.Reach.Smell do
     if calls != [], do: [calls | nested], else: nested
   end
 
+  @compiler_directives [
+    :import,
+    :alias,
+    :require,
+    :use,
+    :doc,
+    :moduledoc,
+    :typedoc,
+    :spec,
+    :callback,
+    :macrocallback,
+    :impl,
+    :type,
+    :typep,
+    :opaque,
+    :behaviour,
+    :defstruct,
+    :defdelegate,
+    :defmacro,
+    :defmacrop,
+    :defguard,
+    :defguardp
+  ]
+
   defp collect_block_calls(node, acc) do
     acc =
       if node.type == :call and Effects.pure?(node) and
            node.meta[:function] != nil and
            node.meta[:function] not in @type_check_fns and
+           node.meta[:function] not in @compiler_directives and
+           node.meta[:kind] not in [:attribute, :field_access] and
            node.source_span != nil do
         [node | acc]
       else
@@ -344,52 +370,56 @@ defmodule Mix.Tasks.Reach.Smell do
 
   defp detect_eager_patterns(project) do
     nodes = Map.values(project.nodes)
-
     func_defs = Enum.filter(nodes, &(&1.type == :function_def))
 
     Enum.flat_map(func_defs, fn func ->
-      calls =
-        func
-        |> IR.all_nodes()
-        |> Enum.filter(fn n ->
-          n.type == :call and n.meta[:module] in [Enum, List] and
-            n.source_span != nil
-        end)
-        |> Enum.sort_by(fn n -> n.source_span[:start_line] end)
-
-      calls
+      func
+      |> IR.all_nodes()
+      |> Enum.filter(&eager_call?/1)
+      |> Enum.sort_by(fn n -> n.source_span[:start_line] end)
       |> Enum.chunk_every(2, 1, [])
-      |> Enum.flat_map(fn
-        [first, second] ->
-          cond do
-            first.meta[:function] == :map and second.meta[:function] == :first ->
-              [
-                %{
-                  kind: :eager_pattern,
-                  message:
-                    "Enum.map → List.first: builds entire list for one element. Use Enum.find_value/2",
-                  location: Format.location(second)
-                }
-              ]
-
-            first.meta[:function] == :sort and second.meta[:function] == :take ->
-              [
-                %{
-                  kind: :eager_pattern,
-                  message:
-                    "Enum.sort → Enum.take(#{take_count(second)}): sorts entire list. Consider partial sort",
-                  location: Format.location(second)
-                }
-              ]
-
-            true ->
-              []
-          end
-
-        _ ->
-          []
-      end)
+      |> Enum.flat_map(&eager_pattern_for_pair/1)
     end)
+  end
+
+  defp eager_call?(n) do
+    n.type == :call and n.meta[:module] in [Enum, List] and n.source_span != nil
+  end
+
+  defp eager_pattern_for_pair([first, second]) do
+    case {first.meta[:function], second.meta[:function]} do
+      {:map, :first} ->
+        if descendant?(second, first), do: [], else: [map_first_smell(second)]
+
+      {:sort, :take} ->
+        [sort_take_smell(second)]
+
+      _ ->
+        []
+    end
+  end
+
+  defp eager_pattern_for_pair(_), do: []
+
+  defp map_first_smell(second) do
+    %{
+      kind: :eager_pattern,
+      message: "Enum.map → List.first: builds entire list for one element. Use Enum.find_value/2",
+      location: Format.location(second)
+    }
+  end
+
+  defp sort_take_smell(second) do
+    %{
+      kind: :eager_pattern,
+      message:
+        "Enum.sort → Enum.take(#{take_count(second)}): sorts entire list. Consider partial sort",
+      location: Format.location(second)
+    }
+  end
+
+  defp descendant?(child, ancestor) do
+    child.id in Enum.map(Reach.IR.all_nodes(ancestor), & &1.id)
   end
 
   defp take_count(node) do

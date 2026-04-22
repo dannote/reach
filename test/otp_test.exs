@@ -348,12 +348,16 @@ defmodule Reach.OTPTest do
             clause.children
             |> Enum.take(func.meta[:arity])
             |> Enum.flat_map(fn
-              %{type: :literal, meta: %{value: val}} when is_atom(val) -> [val]
+              %{type: :literal, meta: %{value: val}} when is_atom(val) ->
+                [val]
+
               %{type: :tuple, children: children} ->
                 children
                 |> Enum.filter(&(&1.type == :literal))
                 |> Enum.map(& &1.meta[:value])
-              _ -> []
+
+              _ ->
+                []
             end)
           end)
         end)
