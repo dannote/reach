@@ -3,6 +3,9 @@ defmodule Reach.Visualize.Helpers do
 
   alias Reach.Visualize
 
+  @js_extensions [".js", ".ts", ".tsx", ".jsx"]
+  @source_extensions [".ex", ".exs", ".erl", ".hrl", ".gleam"] ++ @js_extensions
+
   # ── Source helpers ──
 
   def highlight_line(file, line) when is_binary(file) and is_integer(line) do
@@ -33,7 +36,7 @@ defmodule Reach.Visualize.Helpers do
   defp lang_for_file(file) when is_binary(file) do
     case Process.get({:reach_file_lang, file}) do
       nil ->
-        if Path.extname(file) in [".js", ".ts", ".tsx", ".jsx"], do: :javascript, else: :elixir
+        if Path.extname(file) in @js_extensions, do: :javascript, else: :elixir
 
       lang ->
         lang
@@ -267,8 +270,6 @@ defmodule Reach.Visualize.Helpers do
       lines -> length(lines)
     end
   end
-
-  @source_extensions [".ex", ".exs", ".erl", ".hrl", ".gleam", ".js", ".ts", ".tsx", ".jsx"]
 
   @doc false
   def source_file?(nil), do: false
