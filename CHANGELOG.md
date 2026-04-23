@@ -1,5 +1,96 @@
 # Changelog
 
+## Unreleased
+
+### New
+
+- **JavaScript frontend** — parse JS/TS source files into Reach IR via
+  QuickBEAM bytecode disassembly. Handles function definitions, variables,
+  closures, binary/unary operators, method calls, object literals, control
+  flow, and async/await. TypeScript is stripped via OXC, ES module syntax
+  (`export`/`import`) is removed via OXC AST patching. Only available when
+  `:quickbeam` is installed (`{:quickbeam, "~> 0.10", optional: true}`).
+
+- **QuickBEAM plugin** — cross-language analysis for Elixir + JavaScript
+  projects using QuickBEAM. Detects `QuickBEAM.eval(rt, "js source")` calls
+  with string literals, parses the embedded JS, and injects function nodes
+  into the graph. Creates three edge types:
+  - `:js_eval` — Elixir eval call → JS function definitions
+  - `{:js_call, name}` — `QuickBEAM.call(rt, "name")` → JS named function
+  - `{:beam_call, name}` — JS `Beam.call("handler")` → Elixir handler fn
+    registered via `QuickBEAM.start(handlers: %{...})`
+
+  Also classifies effects for QuickBEAM API (`eval`/`call` → `:io`,
+  `compile` → `:read`, `set_global` → `:write`), OXC (`parse`/`postwalk` →
+  `:pure`, `transform`/`bundle` → `:io`), and Vize (→ `:io`).
+  Auto-detected when `:quickbeam` is loaded.
+
+- **Plugin API: `analyze_embedded/2`** — new optional callback that returns
+  `{[Node.t()], [edge_spec()]}`, allowing plugins to inject IR nodes from
+  embedded code (JS strings, SQL queries, etc.) and connect them to the
+  host graph with cross-language edges.
+
+### Improved
+
+- **Dead code — near-zero false positives** — verified across Phoenix, Ecto,
+  Oban, QuickBEAM, and Elixir stdlib (395 files). Remaining findings are all
+  true positives.
+  - Compiler directives (`import`, `alias`, `use`, `@spec`, `@type`,
+    `defstruct`, `\\`, `<<>>`, `when`) no longer flagged
+  - Type annotations inside `@spec`/`@type` bodies no longer flagged
+  - Variables captured by closures (e.g. in `Enum.reduce` callbacks) tracked
+    correctly via structural composite propagation through `:fn` and `:guard`
+  - `with` clause value expressions alive (both `<-` patterns and bare
+    assignments like `conn = put_in(...)` inside `with` blocks)
+  - `receive` after-timeout expressions alive
+  - `case`/`cond` subject expressions alive without making branch bodies
+    alive (preserves dead code detection inside branches)
+  - Struct pattern variable bindings (`%module{} = expr`) tracked
+  - `unquote`/`unquote_splicing` variables inside `quote` blocks treated as
+    references, not pattern definitions
+  - `{:ok, _}` tuple return types in specs no longer infer `:pure`
+  - Inferred-type purity requires concrete data types, rejects bare
+    `%{dynamic: :term}` from NIF modules
+  - Modules without typespecs no longer fall back to inferred-type purity
+
+- **PDG containment edges** — added `:case`, `:fn`, `:receive`, `:try`, and
+  `:guard` to `@value_types` in `DataDependence`, so `backward_slice` can
+  traverse into control-flow constructs via graph edges instead of
+  heuristic tree walks.
+
+- **File I/O effect classification** — `File.read`/`stat`/`exists?` → `:read`,
+  `File.write`/`cp`/`rm`/`mkdir` → `:write` (previously all `:io`).
+  Erlang `:file` module similarly split.
+
+- **Smell detection** — `Enum.map(rows, &List.first/1)` no longer flagged as
+  the "Enum.map → List.first" anti-pattern. The detector now checks whether
+  `List.first` is a mapper callback (descendant of `Enum.map`) vs a pipeline
+  step. Field accesses and compiler directives excluded from redundant
+  computation detection.
+
+- **OTP analysis** — catch-all handler clauses (`_msg` / bare variable) now
+  respected in unmatched-message detection.
+
+### Fixed
+
+- **`with` body translation** — `split_with_clauses` returned opts as
+  `[[do: body]]` (list wrapping a keyword list), causing `Keyword.get` to
+  return `nil`. The entire `with do...end` body was silently lost in all
+  `with` blocks. Fixed by flattening opts. Pre-existing bug.
+
+- **`with` bare expressions** — bare assignments inside `with` blocks
+  (e.g. `conn = put_in(...)`) now preserved as `with_clause` nodes instead
+  of being dropped by `split_with_clauses`.
+
+- **`Code` and `Module` in `@impure_modules`** — `Code.ensure_loaded`,
+  `Module.create` etc. no longer inferred as pure.
+
+- **`:lists.foreach` in `@effectful_in_pure_modules`** — Erlang's
+  `:lists.foreach/2` classified as `:io` (like `Enum.each/2`).
+
+- **`:case` and `:fn` classified as `:pure`** — these are control flow
+  constructs, not side effects. Previously classified as `:unknown`.
+
 ## 1.6.0
 
 ### Improved
