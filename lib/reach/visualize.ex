@@ -44,9 +44,9 @@ defmodule Reach.Visualize do
     end
   end
 
-  def extract_func_source(%{type: :function_def, meta: %{source: source}})
+  def extract_func_source(%{type: :function_def, meta: %{source: source, language: :javascript}})
       when is_binary(source) do
-    format_source(source)
+    source
   end
 
   def extract_func_source(%{type: :function_def, source_span: %{file: file, start_line: start}})
@@ -66,17 +66,32 @@ defmodule Reach.Visualize do
   def extract_func_source(_), do: nil
 
   def highlight_source(nil), do: nil
+  def highlight_source(source), do: highlight_source(source, :elixir)
 
-  def highlight_source(source) do
+  def highlight_source(nil, _), do: nil
+
+  def highlight_source(source, lang) do
     if Code.ensure_loaded?(Makeup) do
+      opts = lexer_opts(lang)
+
       source
-      |> Makeup.highlight()
+      |> Makeup.highlight(opts)
       |> String.replace(~r{^<pre class="highlight"><code>}, "")
       |> String.replace(~r{</code></pre>$}, "")
     else
-      nil
+      Plug.HTML.html_escape(source)
     end
   end
+
+  defp lexer_opts(:javascript) do
+    if Code.ensure_loaded?(Makeup.Lexers.JsLexer) do
+      [lexer: Makeup.Lexers.JsLexer]
+    else
+      []
+    end
+  end
+
+  defp lexer_opts(_), do: []
 
   def format_source(source) do
     Code.format_string!(source) |> IO.iodata_to_binary()
@@ -129,7 +144,7 @@ defmodule Reach.Visualize do
         is_internal = Enum.any?(funcs, &(&1 in internal_funcs))
 
         %{
-          id: format_module(mod),
+          id: safe_module_name(mod),
           name: display_module(mod),
           file: if(is_internal, do: detect_file(all_nodes), else: nil),
           functions:
@@ -269,15 +284,30 @@ defmodule Reach.Visualize do
   defp resolve_nil_module(mfa, _), do: mfa
 
   defp call_id(mod, func, arity) do
-    "#{format_module(mod)}.#{func}/#{arity}"
+    "#{safe_module_name(mod)}.#{safe_name(func)}/#{arity}"
   end
 
-  defp format_module(nil), do: "_"
-  defp format_module(mod) when is_atom(mod), do: inspect(mod)
-  defp format_module(mod), do: inspect(mod)
+  defp safe_module_name(nil), do: "_"
+
+  defp safe_module_name(mod) when is_atom(mod) do
+    mod |> Atom.to_string() |> String.replace("Elixir.", "") |> sanitize_id()
+  end
+
+  defp safe_module_name(mod), do: mod |> to_string() |> sanitize_id()
+
+  defp safe_name(name) when is_atom(name), do: name |> Atom.to_string() |> sanitize_id()
+  defp safe_name(name), do: name |> to_string() |> sanitize_id()
+
+  defp sanitize_id(s) do
+    s
+    |> String.replace("<", "")
+    |> String.replace(">", "")
+    |> String.replace("\"", "")
+    |> String.replace(":", "")
+  end
 
   defp display_module(:"<javascript>"), do: "JavaScript"
-  defp display_module(mod), do: format_module(mod)
+  defp display_module(mod), do: safe_module_name(mod)
 
   # ── Data Flow ──
 

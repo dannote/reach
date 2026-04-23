@@ -61,6 +61,7 @@ defmodule Reach.MixProject do
       {:boxart, "~> 0.3", optional: true},
       {:makeup, "~> 1.0", optional: true},
       {:makeup_elixir, "~> 1.0", optional: true},
+      {:makeup_js, "~> 0.1", optional: true},
       {:volt, "~> 0.4", only: :dev, runtime: false},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
       {:quickbeam, "~> 0.10", optional: true},

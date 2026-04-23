@@ -218,12 +218,17 @@ defmodule Reach.Visualize.Helpers do
   end
 
   def func_end_line(func, file) do
-    if file, do: Visualize.ensure_def_cache(file)
-    start = span_field(func, :start_line)
-    fallback = file_line_count(file) || (start || 1) + 50
-    line_map = Process.get(:reach_def_end_cache, %{}) |> Map.get(file, %{})
+    case span_field(func, :end_line) do
+      end_line when is_integer(end_line) ->
+        end_line
 
-    Map.get(line_map, start) || find_nearest_end(line_map, start) || fallback
+      _ ->
+        if file, do: Visualize.ensure_def_cache(file)
+        start = span_field(func, :start_line)
+        fallback = file_line_count(file) || (start || 1) + 50
+        line_map = Process.get(:reach_def_end_cache, %{}) |> Map.get(file, %{})
+        Map.get(line_map, start) || find_nearest_end(line_map, start) || fallback
+    end
   end
 
   defp find_nearest_end(line_map, start) when is_integer(start) do

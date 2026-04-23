@@ -674,6 +674,8 @@ defmodule Reach.Visualize.ControlFlow do
   # ── Fallback ──
 
   defp fallback_single_block(func, source, start_line) do
+    lang = if func.meta[:language] == :javascript, do: :javascript, else: :elixir
+
     node =
       make_node(
         to_string(func.id),
@@ -681,7 +683,7 @@ defmodule Reach.Visualize.ControlFlow do
         "#{func.meta[:name]}/#{func.meta[:arity]}",
         start_line,
         start_line,
-        Visualize.highlight_source(source)
+        Visualize.highlight_source(source, lang)
       )
 
     {[node], []}
