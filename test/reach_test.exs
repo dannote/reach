@@ -715,6 +715,191 @@ defmodule ReachTest do
       dead_ops = Enum.map(dead, & &1.meta[:operator])
       refute :<> in dead_ops
     end
+
+    test "case subject expression is not dead" do
+      graph =
+        Reach.string_to_graph!("""
+        def foo(x) do
+          case Integer.parse(x) do
+            {n, _} -> n
+            :error -> 0
+          end
+        end
+        """)
+
+      dead = Reach.dead_code(graph)
+      dead_fns = Enum.map(dead, & &1.meta[:function])
+      refute :parse in dead_fns
+    end
+
+    test "unused pure call inside branch body is dead" do
+      graph =
+        Reach.string_to_graph!("""
+        def foo(x) do
+          if x > 0 do
+            x
+          else
+            String.upcase("unused")
+            0
+          end
+        end
+        """)
+
+      dead = Reach.dead_code(graph)
+      dead_fns = Enum.map(dead, & &1.meta[:function])
+      assert :upcase in dead_fns
+    end
+
+    test "variable captured by closure is not dead" do
+      graph =
+        Reach.string_to_graph!("""
+        def foo do
+          now = DateTime.to_unix(DateTime.utc_now())
+          Enum.reduce([], 0, fn x, acc ->
+            case x do
+              y when y < now -> acc + 1
+              _ -> acc
+            end
+          end)
+        end
+        """)
+
+      dead = Reach.dead_code(graph)
+
+      dead_names =
+        dead
+        |> Enum.filter(&(&1.type == :match))
+        |> Enum.flat_map(fn m ->
+          m.children |> Enum.filter(&(&1.type == :var)) |> Enum.map(& &1.meta[:name])
+        end)
+
+      refute :now in dead_names
+    end
+
+    test "with clause value expressions are not dead" do
+      graph =
+        Reach.string_to_graph!("""
+        def foo(opts) do
+          check = Keyword.get(opts, :check, true)
+          with true <- check, {:ok, v} <- Map.fetch(opts, :val) do
+            v
+          end
+        end
+        """)
+
+      dead = Reach.dead_code(graph)
+      dead_fns = Enum.map(dead, & &1.meta[:function])
+      refute :get in dead_fns
+      refute :fetch in dead_fns
+    end
+
+    test "bare expression inside with is not dead" do
+      graph =
+        Reach.string_to_graph!("""
+        def foo(conn, opts) do
+          check = Keyword.get(opts, :check, true)
+          with cookie <- conn.cookies,
+               conn = Map.put(conn, :key, cookie),
+               true <- not check do
+            conn
+          end
+        end
+        """)
+
+      dead = Reach.dead_code(graph)
+      dead_fns = Enum.map(dead, & &1.meta[:function])
+      refute :get in dead_fns
+    end
+
+    test "receive after timeout expression is not dead" do
+      graph =
+        Reach.string_to_graph!("""
+        def foo(opts) do
+          timeout = Keyword.get(opts, :timeout, 5000)
+          receive do
+            {:ok, result} -> result
+          after
+            timeout -> :timeout
+          end
+        end
+        """)
+
+      dead = Reach.dead_code(graph)
+      dead_fns = Enum.map(dead, & &1.meta[:function])
+      refute :get in dead_fns
+    end
+
+    test "variable used in for comprehension case is not dead" do
+      graph =
+        Reach.string_to_graph!("""
+        def foo(opts, tasks) do
+          mode = Keyword.get(opts, :mode, :default)
+          for task <- tasks do
+            case mode do
+              :default -> task
+              :skip -> nil
+            end
+          end
+        end
+        """)
+
+      dead = Reach.dead_code(graph)
+      dead_fns = Enum.map(dead, & &1.meta[:function])
+      refute :get in dead_fns
+    end
+
+    test "struct pattern variable binding is not dead" do
+      graph =
+        Reach.string_to_graph!("""
+        def foo(refl) do
+          %module{} = refl
+          module.query(refl)
+        end
+        """)
+
+      dead = Reach.dead_code(graph)
+      assert dead == []
+    end
+
+    test "compiler directives are not dead" do
+      graph =
+        Reach.string_to_graph!("""
+        defmodule Foo do
+          import Enum
+          alias String, as: S
+          require Logger
+          @moduledoc "docs"
+          @doc "bar"
+          @spec bar(integer()) :: string()
+          @type t :: atom()
+          def bar(x), do: to_string(x)
+        end
+        """)
+
+      dead = Reach.dead_code(graph)
+      dead_fns = Enum.map(dead, & &1.meta[:function])
+      refute :import in dead_fns
+      refute :alias in dead_fns
+      refute :require in dead_fns
+      refute :moduledoc in dead_fns
+      refute :doc in dead_fns
+      refute :spec in dead_fns
+      refute :type in dead_fns
+    end
+
+    test "{:ok, _} return type in spec does not infer pure" do
+      graph =
+        Reach.string_to_graph!("""
+        def foo(x) do
+          Mint.HTTP.close(x)
+          :done
+        end
+        """)
+
+      dead = Reach.dead_code(graph)
+      dead_fns = Enum.map(dead, & &1.meta[:function])
+      refute :close in dead_fns
+    end
   end
 
   describe "higher-order function resolution" do

@@ -153,7 +153,12 @@ defmodule Reach.DataDependence do
     :map_field,
     :struct,
     :match,
-    :comprehension
+    :comprehension,
+    :case,
+    :fn,
+    :receive,
+    :try,
+    :guard
   ]
 
   defp add_match_binding_edges(graph, all_nodes) do
