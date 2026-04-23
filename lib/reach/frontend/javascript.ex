@@ -195,54 +195,178 @@ if Code.ensure_loaded?(QuickBEAM) do
 
       branch_targets = collect_branch_targets(func.opcodes)
       blocks = split_into_blocks(func.opcodes, branch_targets)
-
       fall_through_targets = collect_fall_through_targets(blocks)
 
-      {all_nodes, final_stack} =
-        Enum.reduce(blocks, {[], []}, fn block_ops, {acc_nodes, prev_stack} ->
+      block_map =
+        blocks
+        |> Enum.map(fn ops -> {elem(hd(ops), 0), ops} end)
+        |> Map.new()
+
+      processed = MapSet.new()
+
+      {all_nodes, _, _} =
+        Enum.reduce(blocks, {[], [], processed}, fn block_ops, {acc_nodes, prev_stack, visited} ->
           first_offset = elem(hd(block_ops), 0)
 
-          stack =
-            if MapSet.member?(branch_targets, first_offset) and
-                 not MapSet.member?(fall_through_targets, first_offset) do
-              []
-            else
-              prev_stack
+          if MapSet.member?(visited, first_offset) do
+            {acc_nodes, prev_stack, visited}
+          else
+            stack =
+              if MapSet.member?(branch_targets, first_offset) and
+                   not MapSet.member?(fall_through_targets, first_offset),
+                 do: [],
+                 else: prev_stack
+
+            case detect_if_else(block_ops, block_map) do
+              {:if_else, condition_ops, true_ops, false_ops} ->
+                {new_nodes, body_stack, new_visited} =
+                  build_if_else(
+                    condition_ops,
+                    true_ops,
+                    false_ops,
+                    stack,
+                    visited,
+                    ctx,
+                    counter,
+                    file,
+                    line
+                  )
+
+                {acc_nodes ++ new_nodes, body_stack, MapSet.put(new_visited, first_offset)}
+
+              nil ->
+                {nodes, stack} = run_block(block_ops, stack, ctx, counter, file, line)
+                {acc_nodes ++ nodes, stack, MapSet.put(visited, first_offset)}
             end
-
-          {nodes, stack} =
-            Enum.reduce(block_ops, {[], stack}, fn op, {nodes, stack} ->
-              translate_op(op, nodes, stack, ctx, counter, file, line)
-            end)
-
-          {acc_nodes ++ Enum.reverse(nodes), stack}
+          end
         end)
 
-      all_nodes ++ Enum.reverse(final_stack)
+      all_nodes
     end
 
-    defp collect_branch_targets(opcodes) do
-      opcodes
-      |> Enum.flat_map(fn op ->
-        case op do
-          {_, kind, target}
-          when kind in [
-                 :if_false,
-                 :if_true,
-                 :if_false8,
-                 :if_true8,
-                 :goto,
-                 :goto8,
-                 :goto16,
-                 :catch
-               ] ->
-            [target]
+    defp build_if_else(
+           condition_ops,
+           true_ops,
+           false_ops,
+           stack,
+           visited,
+           ctx,
+           counter,
+           file,
+           line
+         ) do
+      {cond_nodes, cond_stack} = run_block(condition_ops, stack, ctx, counter, file, line)
+      {condition, body_stack} = pop_condition(cond_stack)
 
-          _ ->
-            []
+      {true_nodes, _} = run_block(true_ops, body_stack, ctx, counter, file, line)
+      {false_nodes, _} = run_block(false_ops, body_stack, ctx, counter, file, line)
+
+      case_node = %Node{
+        id: Counter.next(counter),
+        type: :case,
+        meta: %{desugared_from: :if},
+        children: [
+          condition,
+          %Node{
+            id: Counter.next(counter),
+            type: :clause,
+            meta: %{kind: :true_branch},
+            children: true_nodes,
+            source_span: span(file, line, nil)
+          },
+          %Node{
+            id: Counter.next(counter),
+            type: :clause,
+            meta: %{kind: :false_branch},
+            children: false_nodes,
+            source_span: span(file, line, nil)
+          }
+        ],
+        source_span: span(file, line, nil)
+      }
+
+      visited = visited |> mark_visited(true_ops) |> mark_visited(false_ops)
+      {cond_nodes ++ [case_node], body_stack, visited}
+    end
+
+    defp run_block(ops, stack, ctx, counter, file, line) do
+      {nodes, stack} =
+        Enum.reduce(ops, {[], stack}, fn op, {nodes, stack} ->
+          translate_op(op, nodes, stack, ctx, counter, file, line)
+        end)
+
+      {Enum.reverse(nodes) ++ Enum.reverse(stack), stack}
+    end
+
+    defp pop_condition([top | rest]), do: {top, rest}
+    defp pop_condition([]), do: {literal(Counter.new(), nil), []}
+
+    defp mark_visited(visited, ops) do
+      Enum.reduce(ops, visited, fn op, v -> MapSet.put(v, elem(op, 0)) end)
+    end
+
+    defp detect_if_else(block_ops, block_map) do
+      last = List.last(block_ops)
+
+      with {_, kind, target} when kind in [:if_false, :if_false8] <- last,
+           condition_ops = Enum.drop(block_ops, -1),
+           true_offset = find_next_block_offset(block_map, elem(last, 0)),
+           true_block when true_block != nil <- Map.get(block_map, true_offset),
+           true_last = List.last(true_block),
+           true when true <- terminal?(true_last),
+           false_block when false_block != nil <- Map.get(block_map, target) do
+        {:if_else, condition_ops, true_block, false_block}
+      else
+        _ -> nil
+      end
+    end
+
+    defp find_next_block_offset(block_map, branch_offset) do
+      block_map
+      |> Map.keys()
+      |> Enum.filter(&(&1 > branch_offset))
+      |> Enum.min(fn -> nil end)
+    end
+
+    @js_terminal_ops [
+      :return,
+      :return_undef,
+      :return_async,
+      :throw,
+      :tail_call,
+      :tail_call_method
+    ]
+    @js_branch_ops [:if_false, :if_true, :if_false8, :if_true8, :goto, :goto8, :goto16]
+
+    defp terminal?({_, op}) when op in @js_terminal_ops, do: true
+    defp terminal?({_, op, _}) when op in @js_branch_ops, do: true
+    defp terminal?({_, op, _}) when op in @js_terminal_ops, do: true
+    defp terminal?(_), do: false
+
+    @branch_ops [:if_false, :if_true, :if_false8, :if_true8, :goto, :goto8, :goto16, :catch]
+    @terminal_ops [:return, :return_undef, :return_async, :throw, :tail_call, :tail_call_method]
+
+    defp collect_branch_targets(opcodes) do
+      indexed = Enum.with_index(opcodes)
+
+      indexed
+      |> Enum.flat_map(fn {op, idx} ->
+        next_offset = next_op_offset(indexed, idx)
+
+        case op do
+          {_, kind, target} when kind in @branch_ops -> [target | List.wrap(next_offset)]
+          {_, kind} when kind in @terminal_ops -> List.wrap(next_offset)
+          _ -> []
         end
       end)
       |> MapSet.new()
+    end
+
+    defp next_op_offset(indexed, idx) do
+      case Enum.at(indexed, idx + 1) do
+        {next_op, _} -> elem(next_op, 0)
+        nil -> nil
+      end
     end
 
     defp collect_fall_through_targets(blocks) do

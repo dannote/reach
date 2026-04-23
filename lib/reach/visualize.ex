@@ -79,7 +79,7 @@ defmodule Reach.Visualize do
       |> String.replace(~r{^<pre class="highlight"><code>}, "")
       |> String.replace(~r{</code></pre>$}, "")
     else
-      Plug.HTML.html_escape(source)
+      nil
     end
   end
 
