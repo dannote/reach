@@ -51,11 +51,29 @@ if Code.ensure_loaded?(QuickBEAM) do
     end
 
     defp strip_module_syntax(source) do
-      source
-      |> String.replace(~r/^export default /m, "")
-      |> String.replace(~r/^export /m, "")
-      |> String.replace(~r/^import .+;?$/m, "")
+      case OXC.parse(source, "module.js") do
+        {:ok, ast} ->
+          patches = Enum.flat_map(ast.body, &module_syntax_patch/1)
+          if patches == [], do: source, else: OXC.patch_string(source, patches)
+
+        {:error, _} ->
+          source
+      end
     end
+
+    defp module_syntax_patch(%{type: t} = node)
+         when t in [:export_named_declaration, :export_default_declaration] do
+      case Map.get(node, :declaration) do
+        nil -> [%{start: node.start, end: node[:end], change: ""}]
+        decl -> [%{start: node.start, end: decl.start, change: ""}]
+      end
+    end
+
+    defp module_syntax_patch(%{type: :import_declaration} = node) do
+      [%{start: node.start, end: node[:end], change: ""}]
+    end
+
+    defp module_syntax_patch(_), do: []
 
     @spec parse!(String.t(), keyword()) :: [Node.t()]
     def parse!(source, opts \\ []) do
