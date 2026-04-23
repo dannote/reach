@@ -29,10 +29,12 @@ defmodule Mix.Tasks.Reach do
 
   @aliases [f: :format, o: :output]
 
-  @template_path Path.expand("../../../priv/template.html.eex", __DIR__)
-  @js_bundle_path Path.expand("../../../priv/static/js/reach.js", __DIR__)
-  @elk_bundle_path Path.expand("../../../priv/static/js/elk.bundled.js", __DIR__)
-  @vue_flow_css_path Path.expand("../../../priv/static/css/vue-flow.css", __DIR__)
+  @priv_dir Application.app_dir(:reach, "priv")
+
+  @template_path Path.join(@priv_dir, "template.html.eex")
+  @js_bundle_path Path.join([@priv_dir, "static", "js", "reach.js"])
+  @elk_bundle_path Path.join([@priv_dir, "static", "js", "elk.bundled.js"])
+  @vue_flow_css_path Path.join([@priv_dir, "static", "css", "vue-flow.css"])
 
   for path <- [
         @template_path,
