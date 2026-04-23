@@ -900,6 +900,64 @@ defmodule ReachTest do
       dead_fns = Enum.map(dead, & &1.meta[:function])
       refute :close in dead_fns
     end
+
+    test "with body expressions are properly translated" do
+      graph =
+        Reach.string_to_graph!("""
+        def foo(x) do
+          with {:ok, y} <- bar(x) do
+            y + 1
+          end
+        end
+        """)
+
+      dead = Reach.dead_code(graph)
+      dead_ops = Enum.map(dead, & &1.meta[:operator])
+      refute :+ in dead_ops
+    end
+
+    test "unquote_splicing vars are references, not definitions" do
+      graph =
+        Reach.string_to_graph!("""
+        def foo(x) do
+          match_all = x ++ [1, 2]
+          quote do
+            %{unquote_splicing(match_all)} = var
+          end
+        end
+        """)
+
+      dead = Reach.dead_code(graph)
+
+      dead_names =
+        dead
+        |> Enum.filter(&(&1.type == :match))
+        |> Enum.flat_map(fn m ->
+          m.children |> Enum.filter(&(&1.type == :var)) |> Enum.map(& &1.meta[:name])
+        end)
+
+      refute :match_all in dead_names
+    end
+
+    test "non-tail with clause values are alive" do
+      graph =
+        Reach.string_to_graph!("""
+        def foo(modes) do
+          with {:read_offset, offset} <- :lists.keyfind(:read_offset, 1, modes),
+               false <- is_integer(offset) and offset >= 0 do
+            raise ArgumentError, "bad"
+          end
+          %{modes: modes}
+        end
+        """)
+
+      dead = Reach.dead_code(graph)
+      dead_fns = Enum.map(dead, & &1.meta[:function])
+      dead_ops = Enum.map(dead, & &1.meta[:operator])
+      refute :keyfind in dead_fns
+      refute :is_integer in dead_fns
+      refute :and in dead_ops
+    end
   end
 
   describe "higher-order function resolution" do

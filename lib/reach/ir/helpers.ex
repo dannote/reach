@@ -7,6 +7,11 @@ defmodule Reach.IR.Helpers do
     %{node | meta: Map.put(meta, :binding_role, :definition)}
   end
 
+  def mark_as_definitions(%Node{type: :call, meta: %{function: f}} = node)
+      when f in [:unquote, :unquote_splicing] do
+    node
+  end
+
   def mark_as_definitions(%Node{children: children} = node) do
     %{node | children: Enum.map(children, &mark_as_definitions/1)}
   end

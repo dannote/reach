@@ -836,10 +836,14 @@ defmodule Reach do
 
   defp add_case_subject_ids(node, ids) do
     node.children
-    |> Enum.reject(&(&1.type == :clause))
+    |> Enum.reject(&plain_clause?/1)
     |> Enum.flat_map(&Reach.IR.all_nodes/1)
     |> Enum.reduce(ids, fn child, acc -> MapSet.put(acc, child.id) end)
   end
+
+  defp plain_clause?(%{type: :clause, meta: %{kind: :with_clause}}), do: false
+  defp plain_clause?(%{type: :clause}), do: true
+  defp plain_clause?(_), do: false
 
   defp add_all_descendant_ids(node, ids) do
     node.children

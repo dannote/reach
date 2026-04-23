@@ -272,6 +272,7 @@ defmodule Reach.Frontend.Elixir do
   # with
   defp translate({:with, meta, clauses_and_body}, counter, file) do
     {clauses, opts} = split_with_clauses(clauses_and_body)
+    opts = List.flatten(opts)
     do_body = Keyword.get(opts, :do)
     else_clauses = Keyword.get(opts, :else, [])
 
