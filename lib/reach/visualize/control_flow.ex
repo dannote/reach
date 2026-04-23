@@ -48,7 +48,12 @@ defmodule Reach.Visualize.ControlFlow do
   @doc false
   def build_function(func, file) do
     start_line = span_field(func, :start_line) || 1
-    Visualize.ensure_def_cache(file)
+
+    if func.meta[:language] == :javascript and func.meta[:source] do
+      inject_js_source_cache(file, func.meta[:source], start_line)
+    else
+      Visualize.ensure_def_cache(file)
+    end
 
     function_clauses =
       func.children
@@ -68,6 +73,13 @@ defmodule Reach.Visualize.ControlFlow do
       nodes: nodes,
       edges: edges
     }
+  end
+
+  defp inject_js_source_cache(file, source, start_line) do
+    cache_key = {:reach_file_lines, file}
+    source_lines = String.split(source, "\n")
+    padding = List.duplicate("", max(start_line - 1, 0))
+    Process.put(cache_key, padding ++ source_lines)
   end
 
   # ── Multi-clause with CFG decomposition ──

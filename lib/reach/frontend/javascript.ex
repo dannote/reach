@@ -190,7 +190,6 @@ if Code.ensure_loaded?(QuickBEAM) do
       closure_names = build_closure_names(func)
       arg_names = build_arg_names(func)
       nested_fns = build_nested_fns(func, counter, file)
-      line = func.line || 1
       ctx = %{locals: local_names, closures: closure_names, args: arg_names, fns: nested_fns}
 
       branch_targets = collect_branch_targets(func.opcodes)
@@ -203,10 +202,16 @@ if Code.ensure_loaded?(QuickBEAM) do
         |> Map.new()
 
       processed = MapSet.new()
+      base_line = func.line || 1
+      max_lines = source_line_count(func.source)
 
       {all_nodes, _, _} =
-        Enum.reduce(blocks, {[], [], processed}, fn block_ops, {acc_nodes, prev_stack, visited} ->
+        blocks
+        |> Enum.with_index()
+        |> Enum.reduce({[], [], processed}, fn {block_ops, block_idx},
+                                               {acc_nodes, prev_stack, visited} ->
           first_offset = elem(hd(block_ops), 0)
+          block_line = base_line + min(block_idx + 1, max_lines - 1)
 
           if MapSet.member?(visited, first_offset) do
             {acc_nodes, prev_stack, visited}
@@ -217,31 +222,47 @@ if Code.ensure_loaded?(QuickBEAM) do
                  do: [],
                  else: prev_stack
 
-            case detect_if_else(block_ops, block_map) do
-              {:if_else, condition_ops, true_ops, false_ops} ->
-                {new_nodes, body_stack, new_visited} =
-                  build_if_else(
-                    condition_ops,
-                    true_ops,
-                    false_ops,
-                    stack,
-                    visited,
-                    ctx,
-                    counter,
-                    file,
-                    line
-                  )
-
-                {acc_nodes ++ new_nodes, body_stack, MapSet.put(new_visited, first_offset)}
-
-              nil ->
-                {nodes, stack} = run_block(block_ops, stack, ctx, counter, file, line)
-                {acc_nodes ++ nodes, stack, MapSet.put(visited, first_offset)}
-            end
+            process_block(
+              block_ops,
+              block_map,
+              stack,
+              acc_nodes,
+              visited,
+              ctx,
+              counter,
+              file,
+              block_line
+            )
           end
         end)
 
       all_nodes
+    end
+
+    defp process_block(block_ops, block_map, stack, acc_nodes, visited, ctx, counter, file, line) do
+      first_offset = elem(hd(block_ops), 0)
+
+      case detect_if_else(block_ops, block_map) do
+        {:if_else, condition_ops, true_ops, false_ops} ->
+          {new_nodes, body_stack, new_visited} =
+            build_if_else(
+              condition_ops,
+              true_ops,
+              false_ops,
+              stack,
+              visited,
+              ctx,
+              counter,
+              file,
+              line
+            )
+
+          {acc_nodes ++ new_nodes, body_stack, MapSet.put(new_visited, first_offset)}
+
+        nil ->
+          {nodes, stack} = run_block(block_ops, stack, ctx, counter, file, line)
+          {acc_nodes ++ nodes, stack, MapSet.put(visited, first_offset)}
+      end
     end
 
     defp build_if_else(

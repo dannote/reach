@@ -8,7 +8,7 @@ defmodule Reach.Visualize.Helpers do
   def highlight_line(file, line) when is_binary(file) and is_integer(line) do
     case read_line(file, line) do
       nil -> nil
-      text -> Visualize.highlight_source(String.trim_leading(text))
+      text -> Visualize.highlight_source(String.trim_leading(text), lang_for_file(file))
     end
   end
 
@@ -24,11 +24,17 @@ defmodule Reach.Visualize.Helpers do
         |> Enum.slice((from - 1)..max(from - 1, to - 1))
         |> dedent()
         |> Enum.join("\n")
-        |> Visualize.highlight_source()
+        |> Visualize.highlight_source(lang_for_file(file))
     end
   end
 
   def highlight_lines(_, _, _), do: nil
+
+  defp lang_for_file(file) when is_binary(file) do
+    if Path.extname(file) in [".js", ".ts", ".tsx", ".jsx"], do: :javascript, else: :elixir
+  end
+
+  defp lang_for_file(_), do: :elixir
 
   def dedent(lines) do
     min_indent =
@@ -48,7 +54,10 @@ defmodule Reach.Visualize.Helpers do
   end
 
   def cached_file_lines(file) do
-    if source_file?(file), do: do_cached_file_lines(file), else: nil
+    case Process.get({:reach_file_lines, file}) do
+      nil -> if source_file?(file), do: do_cached_file_lines(file), else: nil
+      lines -> lines
+    end
   end
 
   defp do_cached_file_lines(file) do
@@ -253,7 +262,7 @@ defmodule Reach.Visualize.Helpers do
     end
   end
 
-  @source_extensions [".ex", ".exs", ".erl", ".hrl", ".gleam"]
+  @source_extensions [".ex", ".exs", ".erl", ".hrl", ".gleam", ".js", ".ts", ".tsx", ".jsx"]
 
   @doc false
   def source_file?(nil), do: false
