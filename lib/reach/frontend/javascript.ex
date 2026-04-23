@@ -131,6 +131,17 @@ if Code.ensure_loaded?(QuickBEAM) do
     end
 
     defp translate_function(func, counter, file) do
+      start_line = func.line || 1
+      end_line = start_line + source_line_count(func.source) - 1
+
+      fn_span = %{
+        file: file,
+        start_line: start_line,
+        start_col: func.column,
+        end_line: end_line,
+        end_col: nil
+      }
+
       arg_nodes =
         func.args
         |> Enum.map(fn name ->
@@ -139,7 +150,7 @@ if Code.ensure_loaded?(QuickBEAM) do
             type: :var,
             meta: %{name: String.to_atom(name), binding_role: :definition},
             children: [],
-            source_span: span(file, func.line, func.column)
+            source_span: fn_span
           }
         end)
         |> Enum.map(&mark_as_definitions/1)
@@ -151,7 +162,7 @@ if Code.ensure_loaded?(QuickBEAM) do
         type: :clause,
         meta: %{kind: :function_clause},
         children: arg_nodes ++ body_nodes,
-        source_span: span(file, func.line, func.column)
+        source_span: fn_span
       }
 
       %Node{
@@ -161,12 +172,16 @@ if Code.ensure_loaded?(QuickBEAM) do
           name: String.to_atom(func.name || "<anonymous>"),
           arity: length(func.args),
           kind: :def,
-          language: :javascript
+          language: :javascript,
+          source: func.source
         },
         children: [clause],
-        source_span: span(file, func.line, func.column)
+        source_span: fn_span
       }
     end
+
+    defp source_line_count(nil), do: 1
+    defp source_line_count(source), do: source |> String.split("\n") |> length()
 
     # --- Opcode translation via abstract stack interpretation ---
 
