@@ -80,6 +80,7 @@ defmodule Reach.Visualize.ControlFlow do
     source_lines = String.split(source, "\n")
     padding = List.duplicate("", max(start_line - 1, 0))
     Process.put(cache_key, padding ++ source_lines)
+    Process.put({:reach_file_lang, file}, :javascript)
   end
 
   # ── Multi-clause with CFG decomposition ──

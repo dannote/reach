@@ -31,7 +31,13 @@ defmodule Reach.Visualize.Helpers do
   def highlight_lines(_, _, _), do: nil
 
   defp lang_for_file(file) when is_binary(file) do
-    if Path.extname(file) in [".js", ".ts", ".tsx", ".jsx"], do: :javascript, else: :elixir
+    case Process.get({:reach_file_lang, file}) do
+      nil ->
+        if Path.extname(file) in [".js", ".ts", ".tsx", ".jsx"], do: :javascript, else: :elixir
+
+      lang ->
+        lang
+    end
   end
 
   defp lang_for_file(_), do: :elixir
