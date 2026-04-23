@@ -178,13 +178,99 @@ if Code.ensure_loaded?(QuickBEAM) do
       line = func.line || 1
       ctx = %{locals: local_names, closures: closure_names, args: arg_names, fns: nested_fns}
 
-      {nodes, stack} =
-        func.opcodes
-        |> Enum.reduce({[], []}, fn op, {nodes, stack} ->
-          translate_op(op, nodes, stack, ctx, counter, file, line)
+      branch_targets = collect_branch_targets(func.opcodes)
+      blocks = split_into_blocks(func.opcodes, branch_targets)
+
+      fall_through_targets = collect_fall_through_targets(blocks)
+
+      {all_nodes, final_stack} =
+        Enum.reduce(blocks, {[], []}, fn block_ops, {acc_nodes, prev_stack} ->
+          first_offset = elem(hd(block_ops), 0)
+
+          stack =
+            if MapSet.member?(branch_targets, first_offset) and
+                 not MapSet.member?(fall_through_targets, first_offset) do
+              []
+            else
+              prev_stack
+            end
+
+          {nodes, stack} =
+            Enum.reduce(block_ops, {[], stack}, fn op, {nodes, stack} ->
+              translate_op(op, nodes, stack, ctx, counter, file, line)
+            end)
+
+          {acc_nodes ++ Enum.reverse(nodes), stack}
         end)
 
-      Enum.reverse(stack ++ nodes)
+      all_nodes ++ Enum.reverse(final_stack)
+    end
+
+    defp collect_branch_targets(opcodes) do
+      opcodes
+      |> Enum.flat_map(fn op ->
+        case op do
+          {_, kind, target}
+          when kind in [
+                 :if_false,
+                 :if_true,
+                 :if_false8,
+                 :if_true8,
+                 :goto,
+                 :goto8,
+                 :goto16,
+                 :catch
+               ] ->
+            [target]
+
+          _ ->
+            []
+        end
+      end)
+      |> MapSet.new()
+    end
+
+    defp collect_fall_through_targets(blocks) do
+      blocks
+      |> Enum.chunk_every(2, 1, [])
+      |> Enum.flat_map(fn
+        [prev_block, [next_op | _]] ->
+          last_op = List.last(prev_block)
+
+          falls_through =
+            elem(last_op, 1) not in [
+              :goto,
+              :goto8,
+              :goto16,
+              :return,
+              :return_undef,
+              :return_async,
+              :throw,
+              :tail_call,
+              :tail_call_method
+            ]
+
+          if falls_through, do: [elem(next_op, 0)], else: []
+
+        _ ->
+          []
+      end)
+      |> MapSet.new()
+    end
+
+    defp split_into_blocks(opcodes, targets) do
+      {blocks, current} =
+        Enum.reduce(opcodes, {[], []}, fn op, {blocks, current} ->
+          offset = elem(op, 0)
+
+          if MapSet.member?(targets, offset) and current != [] do
+            {blocks ++ [Enum.reverse(current)], [op]}
+          else
+            {blocks, [op | current]}
+          end
+        end)
+
+      if current == [], do: blocks, else: blocks ++ [Enum.reverse(current)]
     end
 
     defp build_local_names(func) do
@@ -427,10 +513,10 @@ if Code.ensure_loaded?(QuickBEAM) do
     end
 
     # Argument mutation
-    defp translate_op({_, op, idx}, nodes, stack, %{args: args} = _ctx, counter, file, line)
+    defp translate_op({_, op, idx}, nodes, stack, _ctx, counter, file, line)
          when op in [:put_arg, :put_arg0, :put_arg1, :put_arg2, :put_arg3] do
       idx = arg_index(op, idx)
-      name = Map.get(args, idx, :"arg#{idx}")
+      name = :"arg#{idx}"
 
       case stack do
         [value | rest] ->
@@ -502,6 +588,85 @@ if Code.ensure_loaded?(QuickBEAM) do
     defp translate_op({_, :iterator_close}, nodes, stack, _ctx, _counter, _file, _line) do
       case stack do
         [_, _, _ | rest] -> {nodes, rest}
+        _ -> {nodes, stack}
+      end
+    end
+
+    # Array/object operations
+    defp translate_op({_, :get_length}, nodes, stack, _ctx, counter, file, line) do
+      case stack do
+        [obj | rest] ->
+          node = %Node{
+            id: Counter.next(counter),
+            type: :call,
+            meta: %{function: :length, kind: :field_access},
+            children: [obj],
+            source_span: span(file, line, nil)
+          }
+
+          {nodes, [node | rest]}
+
+        _ ->
+          {nodes, stack}
+      end
+    end
+
+    defp translate_op({_, :get_array_el}, nodes, stack, _ctx, counter, file, line) do
+      case stack do
+        [index, arr | rest] ->
+          node = %Node{
+            id: Counter.next(counter),
+            type: :call,
+            meta: %{function: :"[]", kind: :field_access},
+            children: [arr, index],
+            source_span: span(file, line, nil)
+          }
+
+          {nodes, [node | rest]}
+
+        _ ->
+          {nodes, stack}
+      end
+    end
+
+    defp translate_op({_, :get_array_el2}, nodes, stack, _ctx, counter, file, line) do
+      case stack do
+        [index, arr | rest] ->
+          node = %Node{
+            id: Counter.next(counter),
+            type: :call,
+            meta: %{function: :"[]", kind: :field_access},
+            children: [arr, index],
+            source_span: span(file, line, nil)
+          }
+
+          {nodes, [node, arr | rest]}
+
+        _ ->
+          {nodes, stack}
+      end
+    end
+
+    defp translate_op(
+           {_, :get_loc0_loc1},
+           nodes,
+           stack,
+           %{locals: locals} = _ctx,
+           counter,
+           file,
+           line
+         ) do
+      name0 = Map.get(locals, 0, :_local0)
+      name1 = Map.get(locals, 1, :_local1)
+      {nodes, [var_ref(counter, name1, file, line), var_ref(counter, name0, file, line) | stack]}
+    end
+
+    defp translate_op({_, :check_define_var, _, _}, nodes, stack, _ctx, _, _, _),
+      do: {nodes, stack}
+
+    defp translate_op({_, :define_func, _, _}, nodes, stack, _ctx, _, _, _) do
+      case stack do
+        [_ | rest] -> {nodes, rest}
         _ -> {nodes, stack}
       end
     end
@@ -727,21 +892,7 @@ if Code.ensure_loaded?(QuickBEAM) do
       case safe_pop(stack, argc + 2) do
         {popped, rest} ->
           [obj, method | args] = Enum.reverse(popped)
-
-          call_node = %Node{
-            id: Counter.next(counter),
-            type: :call,
-            meta: %{
-              module: extract_name(obj),
-              function: extract_name(method),
-              arity: argc,
-              kind: :remote
-            },
-            children: args,
-            source_span: span(file, line, nil)
-          }
-
-          {nodes, [call_node | rest]}
+          {nodes, [build_method_call(obj, method, args, counter, file, line) | rest]}
 
         :error ->
           {nodes, stack}
@@ -878,8 +1029,13 @@ if Code.ensure_loaded?(QuickBEAM) do
     defp translate_op({_, :dup}, nodes, [top | rest], _ctx, _, _, _),
       do: {nodes, [top, top | rest]}
 
-    defp translate_op({_, :drop}, nodes, [_ | rest], _ctx, _, _, _),
-      do: {nodes, rest}
+    defp translate_op({_, :drop}, nodes, [top | rest], _ctx, _, _, _) do
+      case top.type do
+        :call -> {[top | nodes], rest}
+        :match -> {[top | nodes], rest}
+        _ -> {nodes, rest}
+      end
+    end
 
     defp translate_op({_, :nip}, nodes, [top, _ | rest], _ctx, _, _, _),
       do: {nodes, [top | rest]}
@@ -951,6 +1107,45 @@ if Code.ensure_loaded?(QuickBEAM) do
     # Catch-all for unhandled opcodes
     defp translate_op(_op, nodes, stack, _ctx, _counter, _file, _line) do
       {nodes, stack}
+    end
+
+    # --- Method call helpers ---
+
+    defp build_method_call(
+           %Node{type: :literal, meta: %{value: str}},
+           %Node{type: :literal, meta: %{value: "concat"}},
+           args,
+           counter,
+           file,
+           line
+         )
+         when is_binary(str) do
+      parts = [literal(counter, str) | args]
+
+      Enum.reduce(tl(parts), hd(parts), fn right, left ->
+        %Node{
+          id: Counter.next(counter),
+          type: :binary_op,
+          meta: %{operator: :+},
+          children: [left, right],
+          source_span: span(file, line, nil)
+        }
+      end)
+    end
+
+    defp build_method_call(obj, method, args, counter, file, line) do
+      %Node{
+        id: Counter.next(counter),
+        type: :call,
+        meta: %{
+          module: extract_name(obj),
+          function: extract_name(method),
+          arity: length(args),
+          kind: :remote
+        },
+        children: args,
+        source_span: span(file, line, nil)
+      }
     end
 
     # --- Helpers ---
