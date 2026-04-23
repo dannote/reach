@@ -191,6 +191,7 @@ if Code.ensure_loaded?(QuickBEAM) do
       arg_names = build_arg_names(func)
       nested_fns = build_nested_fns(func, counter, file)
       ctx = %{locals: local_names, closures: closure_names, args: arg_names, fns: nested_fns}
+      env = %{ctx: ctx, counter: counter, file: file}
 
       branch_targets = collect_branch_targets(func.opcodes)
       blocks = split_into_blocks(func.opcodes, branch_targets)
@@ -208,79 +209,71 @@ if Code.ensure_loaded?(QuickBEAM) do
       {all_nodes, _, _} =
         blocks
         |> Enum.with_index()
-        |> Enum.reduce({[], [], processed}, fn {block_ops, block_idx},
-                                               {acc_nodes, prev_stack, visited} ->
-          first_offset = elem(hd(block_ops), 0)
+        |> Enum.reduce({[], [], processed}, fn {block_ops, block_idx}, acc ->
           block_line = base_line + min(block_idx + 1, max_lines - 1)
 
-          if MapSet.member?(visited, first_offset) do
-            {acc_nodes, prev_stack, visited}
-          else
-            stack =
-              if MapSet.member?(branch_targets, first_offset) and
-                   not MapSet.member?(fall_through_targets, first_offset),
-                 do: [],
-                 else: prev_stack
-
-            process_block(
-              block_ops,
-              block_map,
-              stack,
-              acc_nodes,
-              visited,
-              ctx,
-              counter,
-              file,
-              block_line
-            )
-          end
+          reduce_block(
+            block_ops,
+            block_map,
+            acc,
+            branch_targets,
+            fall_through_targets,
+            env,
+            block_line
+          )
         end)
 
       all_nodes
     end
 
-    defp process_block(block_ops, block_map, stack, acc_nodes, visited, ctx, counter, file, line) do
+    defp reduce_block(
+           block_ops,
+           block_map,
+           {acc_nodes, prev_stack, visited},
+           targets,
+           fall_through,
+           env,
+           line
+         ) do
+      first_offset = elem(hd(block_ops), 0)
+
+      if MapSet.member?(visited, first_offset) do
+        {acc_nodes, prev_stack, visited}
+      else
+        stack =
+          if MapSet.member?(targets, first_offset) and
+               not MapSet.member?(fall_through, first_offset),
+             do: [],
+             else: prev_stack
+
+        process_block(block_ops, block_map, stack, acc_nodes, visited, env, line)
+      end
+    end
+
+    defp process_block(block_ops, block_map, stack, acc_nodes, visited, env, line) do
       first_offset = elem(hd(block_ops), 0)
 
       case detect_if_else(block_ops, block_map) do
         {:if_else, condition_ops, true_ops, false_ops} ->
           {new_nodes, body_stack, new_visited} =
-            build_if_else(
-              condition_ops,
-              true_ops,
-              false_ops,
-              stack,
-              visited,
-              ctx,
-              counter,
-              file,
-              line
-            )
+            build_if_else(condition_ops, true_ops, false_ops, stack, visited, env, line)
 
           {acc_nodes ++ new_nodes, body_stack, MapSet.put(new_visited, first_offset)}
 
         nil ->
-          {nodes, stack} = run_block(block_ops, stack, ctx, counter, file, line)
+          {nodes, stack} = run_block(block_ops, stack, env, line)
           {acc_nodes ++ nodes, stack, MapSet.put(visited, first_offset)}
       end
     end
 
-    defp build_if_else(
-           condition_ops,
-           true_ops,
-           false_ops,
-           stack,
-           visited,
-           ctx,
-           counter,
-           file,
-           line
-         ) do
-      {cond_nodes, cond_stack} = run_block(condition_ops, stack, ctx, counter, file, line)
+    defp build_if_else(condition_ops, true_ops, false_ops, stack, visited, env, line) do
+      %{counter: counter, file: file} = env
+
+      {cond_nodes, cond_stack} = run_block(condition_ops, stack, env, line)
       {condition, body_stack} = pop_condition(cond_stack)
 
-      {true_nodes, _} = run_block(true_ops, body_stack, ctx, counter, file, line)
-      {false_nodes, _} = run_block(false_ops, body_stack, ctx, counter, file, line)
+      {true_nodes, _} = run_block(true_ops, body_stack, env, line)
+      {false_nodes, _} = run_block(false_ops, body_stack, env, line)
 
       case_node = %Node{
         id: Counter.next(counter),
@@ -310,7 +303,9 @@ if Code.ensure_loaded?(QuickBEAM) do
       {cond_nodes ++ [case_node], body_stack, visited}
     end
 
-    defp run_block(ops, stack, ctx, counter, file, line) do
+    defp run_block(ops, stack, env, line) do
+      %{ctx: ctx, counter: counter, file: file} = env
+
       {nodes, stack} =
         Enum.reduce(ops, {[], stack}, fn op, {nodes, stack} ->
           translate_op(op, nodes, stack, ctx, counter, file, line)
@@ -1333,8 +1328,6 @@ if Code.ensure_loaded?(QuickBEAM) do
         source_span: span(file, line, nil)
       }
     end
-
-    defp span(_file, nil, _col), do: nil
 
     defp span(file, line, col) do
       %{file: file, start_line: line, start_col: col, end_line: nil, end_col: nil}

@@ -1057,7 +1057,8 @@ defmodule Reach do
   ]
 
   defp compiler_directive?(%{type: :call, meta: %{function: f}})
-       when f in @compiler_directives, do: true
+       when f in @compiler_directives,
+       do: true
 
   defp compiler_directive?(%{type: :call, meta: %{kind: :attribute}}), do: true
 

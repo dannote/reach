@@ -43,8 +43,6 @@ defmodule Reach.Visualize.Helpers do
     end
   end
 
-  defp lang_for_file(_), do: :elixir
-
   def dedent(lines) do
     min_indent =
       lines
