@@ -217,6 +217,31 @@ graph = Reach.file_to_graph!("lib/my_module.ex")
 {:ok, graph} = Reach.module_to_graph(MyApp.Accounts)
 ```
 
+## JavaScript / TypeScript support
+
+Reach can analyze JavaScript and TypeScript files, including
+cross-language data flow for projects using QuickBEAM.
+
+```elixir
+# Parse JS/TS files
+{:ok, nodes} = Reach.Frontend.JavaScript.parse_file("assets/app.ts")
+
+# Cross-language analysis with the QuickBEAM plugin
+graph = Reach.string_to_graph!(elixir_source, plugins: [Reach.Plugins.QuickBEAM])
+```
+
+The QuickBEAM plugin automatically detects embedded JS in
+`QuickBEAM.eval` calls and creates cross-language edges:
+
+| Edge | Meaning |
+|------|---------|
+| `:js_eval` | Elixir eval call → JS function definitions |
+| `{:js_call, name}` | `QuickBEAM.call(rt, name)` → JS named function |
+| `{:beam_call, name}` | JS `Beam.callSync(name)` → Elixir handler |
+
+Requires `{:quickbeam, "~> 0.10", optional: true}` in your deps.
+TypeScript is stripped via OXC, ES module syntax handled automatically.
+
 ## Gleam support
 
 ```bash
@@ -287,12 +312,15 @@ Edges capture dependencies:
 | `:monitor_down` / `:trap_exit` / `:link_exit` | Crash propagation |
 | `:task_result` | Task.async → Task.await |
 | `{:message_content, tag}` | Message payload flow |
+| `:js_eval` | Elixir eval → JS function |
+| `{:js_call, name}` | Elixir call → JS named function |
+| `{:beam_call, name}` | JS Beam.callSync → Elixir handler |
 
 ## Architecture
 
 ```mermaid
 graph TD
-    Source["Source (.ex / .erl / .gleam / .beam)"] --> Frontend
+    Source["Source (.ex / .erl / .gleam / .js / .beam)"] --> Frontend
     Frontend["Frontend → IR Nodes"] --> CFG
     CFG["Control Flow Graph"] --> Dom
     Dom["Dominators"] --> CD
@@ -301,6 +329,7 @@ graph TD
     DD["Data Dependence"] --> PDG
     PDG["Program Dependence Graph"] --> SDG
     SDG["System Dependence Graph + OTP"] --> Query
+    Plugins["Plugins (Phoenix, Ecto, QuickBEAM...)"] --> SDG
     Query["Slicing · Taint · Independence"]
 ```
 
