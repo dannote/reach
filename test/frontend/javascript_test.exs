@@ -85,5 +85,51 @@ if Code.ensure_loaded?(QuickBEAM) do
         assert {:error, {:file, :enoent}} = JavaScript.parse_file("/nonexistent.js")
       end
     end
+
+    describe "method calls" do
+      test "translates obj.method(args) correctly" do
+        {:ok, [node]} =
+          JavaScript.parse("function f() { return console.log('hello'); }")
+
+        all = Reach.IR.all_nodes(node)
+        calls = Enum.filter(all, &(&1.type == :call and &1.meta[:kind] == :remote))
+        assert [%{meta: %{module: :console, function: :log}}] = calls
+      end
+
+      test "translates Beam.callSync with correct args" do
+        {:ok, [node]} =
+          JavaScript.parse("""
+          function main() {
+            const x = Beam.callSync("handler", 42);
+            return x;
+          }
+          """)
+
+        all = Reach.IR.all_nodes(node)
+
+        beam_calls =
+          Enum.filter(all, fn n ->
+            n.type == :call and n.meta[:module] == :Beam and n.meta[:function] == :callSync
+          end)
+
+        assert [call] = beam_calls
+        assert call.meta[:arity] == 2
+
+        [name_arg, val_arg] = call.children
+        assert name_arg.meta[:value] == "handler"
+        assert val_arg.meta[:value] == 42
+      end
+    end
+
+    describe "global variables" do
+      test "get_var produces variable reference" do
+        {:ok, [node]} =
+          JavaScript.parse("function f() { return globalThis; }")
+
+        all = Reach.IR.all_nodes(node)
+        vars = Enum.filter(all, &(&1.type == :var and &1.meta[:name] == :globalThis))
+        assert vars != []
+      end
+    end
   end
 end

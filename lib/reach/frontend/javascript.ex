@@ -107,13 +107,13 @@ if Code.ensure_loaded?(QuickBEAM) do
       line = func.line || 1
       ctx = %{locals: local_names, closures: closure_names, args: arg_names, fns: nested_fns}
 
-      {nodes, _stack} =
+      {nodes, stack} =
         func.opcodes
         |> Enum.reduce({[], []}, fn op, {nodes, stack} ->
           translate_op(op, nodes, stack, ctx, counter, file, line)
         end)
 
-      Enum.reverse(nodes)
+      Enum.reverse(stack ++ nodes)
     end
 
     defp build_local_names(func) do
@@ -152,6 +152,21 @@ if Code.ensure_loaded?(QuickBEAM) do
 
     defp translate_op({_, :push_2, _}, nodes, stack, _ctx, counter, _, _),
       do: {nodes, [literal(counter, 2) | stack]}
+
+    defp translate_op({_, :push_3, _}, nodes, stack, _ctx, counter, _, _),
+      do: {nodes, [literal(counter, 3) | stack]}
+
+    defp translate_op({_, :push_4, _}, nodes, stack, _ctx, counter, _, _),
+      do: {nodes, [literal(counter, 4) | stack]}
+
+    defp translate_op({_, :push_5, _}, nodes, stack, _ctx, counter, _, _),
+      do: {nodes, [literal(counter, 5) | stack]}
+
+    defp translate_op({_, :push_6, _}, nodes, stack, _ctx, counter, _, _),
+      do: {nodes, [literal(counter, 6) | stack]}
+
+    defp translate_op({_, :push_minus1, _}, nodes, stack, _ctx, counter, _, _),
+      do: {nodes, [literal(counter, -1) | stack]}
 
     defp translate_op({_, :push_i8, val}, nodes, stack, _ctx, counter, _, _),
       do: {nodes, [literal(counter, val) | stack]}
@@ -450,6 +465,17 @@ if Code.ensure_loaded?(QuickBEAM) do
     defp translate_op({_, :return_undef}, nodes, stack, _ctx, counter, _, _) do
       {[literal(counter, :undefined) | nodes], stack}
     end
+
+    defp translate_op({_, :return_async}, nodes, stack, _ctx, _counter, _file, _line) do
+      case stack do
+        [value | rest] -> {[value | nodes], rest}
+        [] -> {nodes, stack}
+      end
+    end
+
+    # Await — for IR purposes, same value passes through
+    defp translate_op({_, :await}, nodes, stack, _ctx, _counter, _file, _line),
+      do: {nodes, stack}
 
     # Control flow — if_false / goto
     defp translate_op({_, op, _target}, nodes, stack, _ctx, _counter, _file, _line)

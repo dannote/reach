@@ -208,4 +208,47 @@ defmodule Reach.EffectsTest do
       assert Effects.classify(node) == :unknown
     end
   end
+
+  describe "File I/O" do
+    test "reads are :read, writes are :write, unknown falls to :io" do
+      assert Effects.classify(node_for("File.read(path)")) == :read
+      assert Effects.classify(node_for("File.write(path, data)")) == :write
+      assert Effects.classify(node_for("File.stream!(path)")) == :io
+    end
+
+    test "Erlang :file follows same pattern" do
+      assert Effects.classify(node_for(":file.read_file(path)")) == :read
+      assert Effects.classify(node_for(":file.write_file(path, data)")) == :write
+    end
+  end
+
+  describe "dead code integration" do
+    test "File.write! is not flagged as dead code" do
+      graph =
+        Reach.string_to_graph!("""
+        def save(path, data) do
+          File.write!(path, data)
+          :ok
+        end
+        """)
+
+      dead_fns =
+        graph
+        |> Reach.dead_code()
+        |> Enum.map(& &1.meta[:function])
+
+      refute :write! in dead_fns
+    end
+
+    test "File.read result used in pipeline is not dead" do
+      graph =
+        Reach.string_to_graph!("""
+        def load(path) do
+          path |> File.read!() |> Jason.decode!()
+        end
+        """)
+
+      assert Reach.dead_code(graph) == []
+    end
+  end
 end
