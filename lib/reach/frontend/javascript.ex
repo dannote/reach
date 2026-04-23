@@ -339,6 +339,219 @@ if Code.ensure_loaded?(QuickBEAM) do
     defp translate_op({_, :is_undefined_or_null}, nodes, stack, _ctx, _counter, _file, _line),
       do: {nodes, stack}
 
+    # More push variants
+    defp translate_op({_, :undefined}, nodes, stack, _ctx, counter, _, _),
+      do: {nodes, [literal(counter, :undefined) | stack]}
+
+    defp translate_op({_, :null}, nodes, stack, _ctx, counter, _, _),
+      do: {nodes, [literal(counter, nil) | stack]}
+
+    defp translate_op({_, :push_i16, val}, nodes, stack, _ctx, counter, _, _),
+      do: {nodes, [literal(counter, val) | stack]}
+
+    # Logical NOT
+    defp translate_op({_, :lnot}, nodes, stack, _ctx, counter, file, line) do
+      case stack do
+        [operand | rest] ->
+          node = %Node{
+            id: Counter.next(counter),
+            type: :unary_op,
+            meta: %{operator: :!},
+            children: [operand],
+            source_span: span(file, line, nil)
+          }
+
+          {nodes, [node | rest]}
+
+        _ ->
+          {nodes, stack}
+      end
+    end
+
+    # Property write: obj.field = value
+    defp translate_op({_, :put_field, name}, nodes, stack, _ctx, counter, file, line) do
+      case stack do
+        [value, obj | rest] ->
+          node = %Node{
+            id: Counter.next(counter),
+            type: :call,
+            meta: %{function: String.to_atom(name), kind: :field_write, module: extract_name(obj)},
+            children: [obj, value],
+            source_span: span(file, line, nil)
+          }
+
+          {[node | nodes], rest}
+
+        _ ->
+          {nodes, stack}
+      end
+    end
+
+    # Method definition in object literal
+    defp translate_op({_, :define_method, name, _flags}, nodes, stack, _ctx, counter, file, line) do
+      case stack do
+        [func, obj | rest] ->
+          field_node = %Node{
+            id: Counter.next(counter),
+            type: :map_field,
+            meta: %{key: String.to_atom(name)},
+            children: [func],
+            source_span: span(file, line, nil)
+          }
+
+          updated = %{obj | children: obj.children ++ [field_node]}
+          {nodes, [updated | rest]}
+
+        _ ->
+          {nodes, stack}
+      end
+    end
+
+    # Global variable write
+    defp translate_op({_, :put_var, name}, nodes, stack, _ctx, counter, file, line) do
+      case stack do
+        [value | rest] ->
+          node = %Node{
+            id: Counter.next(counter),
+            type: :match,
+            meta: %{},
+            children: [var_def(counter, String.to_atom(name), file, line), value],
+            source_span: span(file, line, nil)
+          }
+
+          {[node | nodes], rest}
+
+        _ ->
+          {nodes, stack}
+      end
+    end
+
+    # Argument mutation
+    defp translate_op({_, op, idx}, nodes, stack, %{args: args} = _ctx, counter, file, line)
+         when op in [:put_arg, :put_arg0, :put_arg1, :put_arg2, :put_arg3] do
+      idx = arg_index(op, idx)
+      name = Map.get(args, idx, :"arg#{idx}")
+
+      case stack do
+        [value | rest] ->
+          node = %Node{
+            id: Counter.next(counter),
+            type: :match,
+            meta: %{},
+            children: [var_def(counter, name, file, line), value],
+            source_span: span(file, line, nil)
+          }
+
+          {[node | nodes], rest}
+
+        _ ->
+          {nodes, stack}
+      end
+    end
+
+    # Variable access variants
+    defp translate_op({_, :get_var_undef, name}, nodes, stack, _ctx, counter, file, line),
+      do: {nodes, [var_ref(counter, String.to_atom(name), file, line) | stack]}
+
+    defp translate_op(
+           {_, :get_var_ref1, idx},
+           nodes,
+           stack,
+           %{closures: closures} = _ctx,
+           counter,
+           file,
+           line
+         ) do
+      name = Map.get(closures, idx, :"_closure#{idx}")
+      {nodes, [var_ref(counter, name, file, line) | stack]}
+    end
+
+    # Control flow variants
+    defp translate_op({_, :goto16, _}, nodes, stack, _ctx, _counter, _file, _line),
+      do: {nodes, stack}
+
+    # Try/catch — for IR purposes, catch pushes exception on stack
+    defp translate_op({_, :catch, _}, nodes, stack, _ctx, counter, file, line),
+      do: {nodes, [var_ref(counter, :"<exception>", file, line) | stack]}
+
+    defp translate_op({_, :nip_catch}, nodes, stack, _ctx, _counter, _file, _line) do
+      case stack do
+        [top, _ | rest] -> {nodes, [top | rest]}
+        _ -> {nodes, stack}
+      end
+    end
+
+    # For-of loops
+    defp translate_op({_, :for_of_start}, nodes, stack, _ctx, _counter, _file, _line) do
+      case stack do
+        [iterable | rest] -> {nodes, [iterable, iterable, iterable | rest]}
+        _ -> {nodes, stack}
+      end
+    end
+
+    defp translate_op({_, :for_of_next, _}, nodes, stack, _ctx, counter, file, line) do
+      case stack do
+        [_iter, _obj, _method | rest] ->
+          {nodes, [literal(counter, false), var_ref(counter, :"<iter_value>", file, line) | rest]}
+
+        _ ->
+          {nodes, stack}
+      end
+    end
+
+    defp translate_op({_, :iterator_close}, nodes, stack, _ctx, _counter, _file, _line) do
+      case stack do
+        [_, _, _ | rest] -> {nodes, rest}
+        _ -> {nodes, stack}
+      end
+    end
+
+    # Type checks — leave value on stack, result replaces it
+    defp translate_op({_, op}, nodes, stack, _ctx, _counter, _file, _line)
+         when op in [:typeof_is_function, :typeof_is_undefined, :is_undefined, :to_object],
+         do: {nodes, stack}
+
+    # Dynamic import — pops specifier, pushes promise
+    defp translate_op({_, :import}, nodes, stack, _ctx, counter, file, line) do
+      case stack do
+        [_specifier, _obj | rest] ->
+          node = %Node{
+            id: Counter.next(counter),
+            type: :call,
+            meta: %{function: :import, kind: :local, arity: 1},
+            children: [],
+            source_span: span(file, line, nil)
+          }
+
+          {nodes, [node | rest]}
+
+        _ ->
+          {nodes, stack}
+      end
+    end
+
+    # Stack permutations
+    defp translate_op({_, :perm3}, nodes, [a, b, c | rest], _ctx, _, _, _),
+      do: {nodes, [b, c, a | rest]}
+
+    defp translate_op({_, :rest, _}, nodes, stack, _ctx, counter, file, line) do
+      case stack do
+        [arr | rest] ->
+          node = %Node{
+            id: Counter.next(counter),
+            type: :call,
+            meta: %{function: :..., kind: :local},
+            children: [arr],
+            source_span: span(file, line, nil)
+          }
+
+          {nodes, [node | rest]}
+
+        _ ->
+          {nodes, stack}
+      end
+    end
+
     # Closure variable access
     defp translate_op(
            {_, op, idx},
@@ -786,7 +999,12 @@ if Code.ensure_loaded?(QuickBEAM) do
     defp arg_index(:get_arg1, _), do: 1
     defp arg_index(:get_arg2, _), do: 2
     defp arg_index(:get_arg3, _), do: 3
+    defp arg_index(:put_arg0, _), do: 0
+    defp arg_index(:put_arg1, _), do: 1
+    defp arg_index(:put_arg2, _), do: 2
+    defp arg_index(:put_arg3, _), do: 3
     defp arg_index(:get_arg, idx), do: idx
+    defp arg_index(:put_arg, idx), do: idx
 
     defp loc_index(:get_loc0, _), do: 0
     defp loc_index(:put_loc0, _), do: 0
