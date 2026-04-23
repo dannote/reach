@@ -61,6 +61,25 @@ defmodule Reach.SystemDependence do
         Graph.add_edge(g, v1, v2, label: label)
       end)
 
+    {embedded_nodes, embedded_edges} =
+      Reach.Plugin.run_analyze_embedded(plugins, all_nodes, opts)
+
+    {node_map, graph} =
+      if embedded_nodes != [] do
+        embedded_map = Map.new(embedded_nodes, fn n -> {n.id, n} end)
+        embedded_pdgs = build_function_pdgs(CallGraph.collect_function_defs(embedded_nodes, nil))
+        graph = Graph.add_edges(graph, merge_function_pdgs(embedded_pdgs) |> Graph.edges())
+
+        graph =
+          Enum.reduce(embedded_edges, graph, fn {v1, v2, label}, g ->
+            Graph.add_edge(g, v1, v2, label: label)
+          end)
+
+        {Map.merge(node_map, embedded_map), graph}
+      else
+        {node_map, graph}
+      end
+
     %__MODULE__{
       graph: graph,
       function_pdgs: function_pdgs,

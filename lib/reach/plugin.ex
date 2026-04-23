@@ -2,7 +2,7 @@ defmodule Reach.Plugin do
   @moduledoc """
   Behaviour for library-specific analysis plugins.
 
-  Plugins extend Reach in two ways:
+  Plugins extend Reach in three ways:
 
   1. **Graph edges** — `analyze/2` and `analyze_project/3` add domain-specific
      edges to the dependence graph (framework dispatch, message routing, etc.)
@@ -10,6 +10,10 @@ defmodule Reach.Plugin do
   2. **Effect classification** — `classify_effect/1` teaches the effect
      classifier about framework-specific calls (Ecto queries are pure,
      Repo writes are `:write`, etc.)
+
+  3. **Embedded IR** — `analyze_embedded/2` extracts code from string
+     literals (e.g. JS inside QuickBEAM.eval) and returns additional IR
+     nodes plus cross-language edges.
 
   ## Implementing a plugin
 
@@ -40,6 +44,7 @@ defmodule Reach.Plugin do
   alias Reach.IR.Node
 
   @type edge_spec :: {Node.id(), Node.id(), term()}
+  @type embedded_result :: {[Node.t()], [edge_spec()]}
 
   @doc """
   Analyzes IR nodes from a single module and returns edges to add.
@@ -66,7 +71,14 @@ defmodule Reach.Plugin do
   """
   @callback classify_effect(node :: Node.t()) :: atom() | nil
 
-  @optional_callbacks analyze_project: 3, classify_effect: 1
+  @doc """
+  Extracts embedded code from IR nodes (e.g. JS strings passed to
+  QuickBEAM.eval) and returns additional IR nodes plus edges
+  connecting them to the host graph.
+  """
+  @callback analyze_embedded(all_nodes :: [Node.t()], opts :: keyword()) :: embedded_result()
+
+  @optional_callbacks analyze_project: 3, classify_effect: 1, analyze_embedded: 2
 
   @known_plugins [
     {Phoenix.Router, Reach.Plugins.Phoenix},
@@ -77,7 +89,8 @@ defmodule Reach.Plugin do
     {Jido.Action, Reach.Plugins.Jido},
     {OpenTelemetry.Tracer, Reach.Plugins.OpenTelemetry},
     {Jason, Reach.Plugins.JSON},
-    {Poison, Reach.Plugins.JSON}
+    {Poison, Reach.Plugins.JSON},
+    {QuickBEAM, Reach.Plugins.QuickBEAM}
   ]
 
   @doc """
@@ -118,6 +131,18 @@ defmodule Reach.Plugin do
   def run_analyze(plugins, all_nodes, opts) do
     Enum.flat_map(plugins, fn plugin ->
       plugin.analyze(all_nodes, opts)
+    end)
+  end
+
+  @doc false
+  def run_analyze_embedded(plugins, all_nodes, opts) do
+    Enum.reduce(plugins, {[], []}, fn plugin, {all_nodes_acc, edges_acc} ->
+      if Code.ensure_loaded?(plugin) and function_exported?(plugin, :analyze_embedded, 2) do
+        {new_nodes, new_edges} = plugin.analyze_embedded(all_nodes ++ all_nodes_acc, opts)
+        {all_nodes_acc ++ new_nodes, edges_acc ++ new_edges}
+      else
+        {all_nodes_acc, edges_acc}
+      end
     end)
   end
 
