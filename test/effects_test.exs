@@ -38,7 +38,11 @@ defmodule Reach.EffectsTest do
 
     test "IO calls are :io" do
       assert Effects.classify(node_for("IO.puts(x)")) == :io
-      assert Effects.classify(node_for("File.read(path)")) == :io
+    end
+
+    test "File reads are :read, writes are :write" do
+      assert Effects.classify(node_for("File.read(path)")) == :read
+      assert Effects.classify(node_for("File.write(path, data)")) == :write
     end
 
     test "send calls are :send" do

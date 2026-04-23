@@ -239,6 +239,11 @@ if Code.ensure_loaded?(QuickBEAM) do
       end
     end
 
+    # Global variable access
+    defp translate_op({_, :get_var, name}, nodes, stack, _ctx, counter, file, line) do
+      {nodes, [var_ref(counter, String.to_atom(name), file, line) | stack]}
+    end
+
     # Closure variable access
     defp translate_op(
            {_, :get_var_ref, idx},
@@ -385,7 +390,9 @@ if Code.ensure_loaded?(QuickBEAM) do
       argc = call_argc(op, argc)
 
       case safe_pop(stack, argc + 1) do
-        {[func | args], rest} ->
+        {popped, rest} ->
+          [func | args] = Enum.reverse(popped)
+
           call_node = %Node{
             id: Counter.next(counter),
             type: :call,
@@ -405,11 +412,13 @@ if Code.ensure_loaded?(QuickBEAM) do
       end
     end
 
-    # Method calls
+    # Method calls — stack order (top→bottom): argN..arg0, method, obj
     defp translate_op({_, op, argc}, nodes, stack, _ctx, counter, file, line)
          when op in [:call_method, :tail_call_method] do
       case safe_pop(stack, argc + 2) do
-        {[obj, method | args], rest} ->
+        {popped, rest} ->
+          [obj, method | args] = Enum.reverse(popped)
+
           call_node = %Node{
             id: Counter.next(counter),
             type: :call,
@@ -491,8 +500,8 @@ if Code.ensure_loaded?(QuickBEAM) do
       {nodes, [updated | rest]}
     end
 
-    # Property access
-    defp translate_op({_, :get_field2, name}, nodes, stack, _ctx, counter, file, line) do
+    # Property access (get_field pushes value, get_field2 pushes obj + value for method calls)
+    defp translate_op({_, :get_field, name}, nodes, stack, _ctx, counter, file, line) do
       case stack do
         [obj | rest] ->
           node = %Node{
@@ -504,6 +513,24 @@ if Code.ensure_loaded?(QuickBEAM) do
           }
 
           {nodes, [node | rest]}
+
+        [] ->
+          {nodes, stack}
+      end
+    end
+
+    defp translate_op({_, :get_field2, name}, nodes, stack, _ctx, counter, file, line) do
+      case stack do
+        [obj | rest] ->
+          method = %Node{
+            id: Counter.next(counter),
+            type: :literal,
+            meta: %{value: name},
+            children: [],
+            source_span: span(file, line, nil)
+          }
+
+          {nodes, [method, obj | rest]}
 
         [] ->
           {nodes, stack}

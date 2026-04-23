@@ -783,10 +783,65 @@ defmodule Reach.Effects do
 
   defp classify_config(_, _), do: nil
 
+  # --- File I/O classification ---
+
+  @file_read_fns [
+    :read,
+    :read!,
+    :stat,
+    :stat!,
+    :exists?,
+    :dir?,
+    :regular?,
+    :ls,
+    :ls!,
+    :cwd,
+    :cwd!
+  ]
+  @file_write_fns [
+    :write,
+    :write!,
+    :cp,
+    :cp!,
+    :cp_r,
+    :cp_r!,
+    :rm,
+    :rm!,
+    :rm_rf,
+    :rm_rf!,
+    :mkdir,
+    :mkdir!,
+    :mkdir_p,
+    :mkdir_p!,
+    :rename,
+    :rename!,
+    :touch,
+    :touch!
+  ]
+
+  defp classify_file_io(File, function) do
+    cond do
+      function in @file_read_fns -> :read
+      function in @file_write_fns -> :write
+      true -> :io
+    end
+  end
+
+  defp classify_file_io(:file, function) do
+    cond do
+      function in [:read_file, :read_file_info, :list_dir] -> :read
+      function in [:write_file, :delete, :make_dir] -> :write
+      true -> :io
+    end
+  end
+
+  defp classify_file_io(_, _), do: nil
+
   defp classify_state(module, function) do
     classify_ets(module, function) ||
       classify_process_dict(module, function) ||
-      classify_shared_mem(module, function)
+      classify_shared_mem(module, function) ||
+      classify_file_io(module, function)
   end
 
   defp classify_ets(module, function) do
@@ -840,10 +895,8 @@ defmodule Reach.Effects do
   end
 
   defp io_function?(IO, _), do: true
-  defp io_function?(File, _), do: true
   defp io_function?(Logger, _), do: true
   defp io_function?(:io, _), do: true
-  defp io_function?(:file, _), do: true
   defp io_function?(_, _), do: false
 
   defp send_function?(_, :send), do: true
