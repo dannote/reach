@@ -307,18 +307,25 @@ defmodule Mix.Tasks.Reach.Smell do
     :defguardp
   ]
 
+  @pattern_operators [:|, :{}]
+
+  defp formatting_call?(%{meta: %{function: :to_string, module: Kernel}}), do: true
+  defp formatting_call?(%{meta: %{function: :to_string, kind: :local}}), do: true
+  defp formatting_call?(_), do: false
+
+  defp redundancy_candidate?(node) do
+    node.type == :call and Effects.pure?(node) and
+      node.meta[:function] != nil and
+      node.meta[:function] not in @type_check_fns and
+      node.meta[:function] not in @compiler_directives and
+      node.meta[:function] not in @pattern_operators and
+      node.meta[:kind] not in [:attribute, :field_access] and
+      not formatting_call?(node) and
+      node.source_span != nil
+  end
+
   defp collect_block_calls(node, acc) do
-    acc =
-      if node.type == :call and Effects.pure?(node) and
-           node.meta[:function] != nil and
-           node.meta[:function] not in @type_check_fns and
-           node.meta[:function] not in @compiler_directives and
-           node.meta[:kind] not in [:attribute, :field_access] and
-           node.source_span != nil do
-        [node | acc]
-      else
-        acc
-      end
+    acc = if redundancy_candidate?(node), do: [node | acc], else: acc
 
     node.children
     |> Enum.reject(&(&1.type in [:case, :fn, :clause]))
@@ -389,10 +396,10 @@ defmodule Mix.Tasks.Reach.Smell do
   defp eager_pattern_for_pair([first, second]) do
     case {first.meta[:function], second.meta[:function]} do
       {:map, :first} ->
-        if descendant?(second, first), do: [], else: [map_first_smell(second)]
+        if data_connected?(first, second), do: [map_first_smell(second)], else: []
 
       {:sort, :take} ->
-        [sort_take_smell(second)]
+        if data_connected?(first, second), do: [sort_take_smell(second)], else: []
 
       _ ->
         []
@@ -416,10 +423,6 @@ defmodule Mix.Tasks.Reach.Smell do
         "Enum.sort → Enum.take(#{take_count(second)}): sorts entire list. Consider partial sort",
       location: Format.location(second)
     }
-  end
-
-  defp descendant?(child, ancestor) do
-    child.id in Enum.map(Reach.IR.all_nodes(ancestor), & &1.id)
   end
 
   defp take_count(node) do
