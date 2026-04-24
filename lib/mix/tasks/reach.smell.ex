@@ -36,10 +36,7 @@ defmodule Mix.Tasks.Reach.Smell do
 
     project = Project.load()
 
-    findings =
-      detect_pipeline_waste(project) ++
-        detect_redundant_computation(project) ++
-        detect_eager_patterns(project)
+    findings = analyze(project)
 
     findings =
       if path,
@@ -63,7 +60,12 @@ defmodule Mix.Tasks.Reach.Smell do
     end
   end
 
-  # --- Pipeline waste: reverse→reverse, filter→filter, map→count ---
+  @doc false
+  def analyze(project) do
+    detect_pipeline_waste(project) ++
+      detect_redundant_computation(project) ++
+      detect_eager_patterns(project)
+  end
 
   defp detect_pipeline_waste(project) do
     nodes = Map.values(project.nodes)
@@ -383,7 +385,7 @@ defmodule Mix.Tasks.Reach.Smell do
       func
       |> IR.all_nodes()
       |> Enum.filter(&eager_call?/1)
-      |> Enum.sort_by(fn n -> n.source_span[:start_line] end)
+      |> Enum.sort_by(fn n -> {n.source_span[:start_line], n.source_span[:start_col] || 0} end)
       |> Enum.chunk_every(2, 1, [])
       |> Enum.flat_map(&eager_pattern_for_pair/1)
     end)
