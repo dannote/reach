@@ -64,7 +64,8 @@ defmodule Mix.Tasks.Reach.Smell do
   def analyze(project) do
     detect_pipeline_waste(project) ++
       detect_redundant_computation(project) ++
-      detect_eager_patterns(project)
+      detect_eager_patterns(project) ++
+      detect_string_building(project)
   end
 
   defp detect_pipeline_waste(project) do
@@ -434,6 +435,151 @@ defmodule Mix.Tasks.Reach.Smell do
     end
   end
 
+  # --- String building: detect string concat/interpolation where iolists would be better ---
+
+  defp detect_string_building(project) do
+    nodes = Map.values(project.nodes)
+    func_defs = Enum.filter(nodes, &(&1.type == :function_def))
+    Enum.flat_map(func_defs, &find_string_building_smells/1)
+  end
+
+  defp find_string_building_smells(func) do
+    all = IR.all_nodes(func)
+    calls = Enum.filter(all, &(&1.type == :call and &1.source_span != nil))
+
+    detect_map_join_interpolation(calls) ++
+      detect_map_join_concat(calls) ++
+      detect_concat_around_join(all) ++
+      detect_reduce_string_concat(calls, all)
+  end
+
+  # Enum.map(fn -> "...\#{x}..." end) |> Enum.join
+  defp detect_map_join_interpolation(calls) do
+    joins = Enum.filter(calls, &enum_call?(&1, :join))
+
+    Enum.flat_map(joins, fn join ->
+      case find_piped_producer(join, calls) do
+        %{meta: %{function: :map, module: Enum}} = map_call ->
+          if callback_builds_strings?(map_call) do
+            [%{
+              kind: :string_building,
+              message: "Enum.map(& \"...\#{}\") |> Enum.join: builds intermediate strings. Return iolists from map and pass to IO directly",
+              location: Format.location(join)
+            }]
+          else
+            []
+          end
+
+        _ ->
+          []
+      end
+    end)
+  end
+
+  # Enum.map_join(items, fn -> "...\#{x}..." end)
+  defp detect_map_join_concat(calls) do
+    calls
+    |> Enum.filter(&enum_call?(&1, :map_join))
+    |> Enum.filter(&callback_builds_strings?/1)
+    |> Enum.map(fn call ->
+      %{
+        kind: :string_building,
+        message: "Enum.map_join with string interpolation: builds N intermediate strings. Use Enum.map/2 returning iolists",
+        location: Format.location(call)
+      }
+    end)
+  end
+
+  # "<div>" <> Enum.join(parts) <> "</div>"
+  defp detect_concat_around_join(all) do
+    concat_ids_with_join =
+      all
+      |> Enum.filter(fn n ->
+        n.type == :binary_op and n.meta[:operator] == :<> and n.source_span != nil
+      end)
+      |> Enum.filter(fn concat ->
+        subtree = IR.all_nodes(concat)
+        Enum.any?(subtree, &enum_call?(&1, :join))
+      end)
+
+    nested_ids =
+      concat_ids_with_join
+      |> Enum.flat_map(fn c -> Enum.map(c.children, & &1.id) end)
+      |> MapSet.new()
+
+    concat_ids_with_join
+    |> Enum.reject(fn c -> c.id in nested_ids end)
+    |> Enum.map(fn concat ->
+      %{
+        kind: :string_building,
+        message: "String concatenation around Enum.join: wrap in a list instead — [\"<div>\", parts, \"</div>\"]",
+        location: Format.location(concat)
+      }
+    end)
+  end
+
+  # Enum.reduce(items, "", fn item, acc -> acc <> "..." end)
+  defp detect_reduce_string_concat(calls, all) do
+    calls
+    |> Enum.filter(&enum_call?(&1, :reduce))
+    |> Enum.filter(fn reduce ->
+      has_empty_string_acc?(reduce) and callback_uses_string_concat?(reduce, all)
+    end)
+    |> Enum.map(fn reduce ->
+      %{
+        kind: :string_building,
+        message: "Enum.reduce building string with <>: O(n²) copying. Use iolists or Enum.map_join",
+        location: Format.location(reduce)
+      }
+    end)
+  end
+
+  defp enum_call?(%{type: :call, meta: %{module: Enum, function: f}}, target), do: f == target
+  defp enum_call?(_, _), do: false
+
+  defp find_piped_producer(consumer, calls) do
+    Enum.find(calls, fn candidate ->
+      candidate.id in Enum.map(consumer.children, & &1.id)
+    end)
+  end
+
+  defp callback_builds_strings?(call) do
+    call.children
+    |> Enum.filter(&(&1.type == :fn))
+    |> Enum.any?(fn fn_node ->
+      subtree = IR.all_nodes(fn_node)
+      has_interpolation?(subtree) or has_concat?(subtree)
+    end)
+  end
+
+  defp has_interpolation?(nodes) do
+    Enum.any?(nodes, fn n ->
+      n.type == :call and n.meta[:function] == :<<>> and n.meta[:kind] == :local
+    end)
+  end
+
+  defp has_concat?(nodes) do
+    Enum.any?(nodes, fn n ->
+      n.type == :binary_op and n.meta[:operator] == :<>
+    end)
+  end
+
+  defp has_empty_string_acc?(%{children: children}) do
+    Enum.any?(children, fn
+      %{type: :literal, meta: %{value: ""}} -> true
+      _ -> false
+    end)
+  end
+
+  defp callback_uses_string_concat?(reduce, _all) do
+    reduce.children
+    |> Enum.filter(&(&1.type == :fn))
+    |> Enum.any?(fn fn_node ->
+      subtree = IR.all_nodes(fn_node)
+      has_concat?(subtree) or has_interpolation?(subtree)
+    end)
+  end
+
   # --- Rendering ---
 
   defp render_text(findings) do
@@ -448,6 +594,7 @@ defmodule Mix.Tasks.Reach.Smell do
       render_group(Map.get(grouped, :suboptimal, []), "Suboptimal patterns")
       render_group(Map.get(grouped, :redundant_computation, []), "Redundant computations")
       render_group(Map.get(grouped, :eager_pattern, []), "Eager where lazy suffices")
+      render_group(Map.get(grouped, :string_building, []), "String building (use iolists)")
 
       IO.puts("#{length(findings)} finding(s)\n")
     end
