@@ -1,5 +1,55 @@
 # Changelog
 
+## 1.8.0
+
+### New
+
+- **gen_statem support** — `mix reach.otp` detects and analyzes gen_statem
+  state machines with both callback modes:
+  - `:state_functions` — states extracted from public arity-3 functions
+    (e.g. `def connected(:cast, ..., data)`) with return value validation
+  - `:handle_event_function` — states extracted from `handle_event/4`
+    clause patterns, with module attribute resolution (`@state :active`)
+  - Extracts initial state(s), state transition graph, and event types
+    per state (cast, call, info, internal, timeout)
+  - Tested against Redix, Postgrex, and Livebook
+
+- **Dead GenServer reply detection** — finds `GenServer.call` sites where
+  the reply value is discarded. These calls could use `GenServer.cast`
+  instead, or the handler could return a cheaper reply. Deduplicates
+  findings from multi-clause function expansion.
+
+- **Cross-process coupling analysis** — detects hidden data dependencies
+  across process boundaries:
+  - Builds per-module effect summaries (ETS tables read/written, process
+    dictionary keys, send targets)
+  - At `GenServer.call/cast` sites, flags when caller and callee share
+    ETS tables or process dictionary keys
+  - Reports conflict type: `callee_writes` or `callee_reads_caller_write`
+
+- **Supervision tree extraction** — `mix reach.otp` finds
+  `Supervisor.start_link(children, opts)` calls, resolves children variable
+  references to their list definitions, and extracts child module names
+  from `__aliases__` AST nodes.
+
+### Improved
+
+- **Smell detection false positives fixed** — pattern cons operator (`|`),
+  string interpolation `to_string`, and unrelated `Enum.map`/`List.first`
+  pairs no longer produce false findings. Eager pattern detection now
+  requires actual data flow connection, not just line proximity. Same-line
+  pipes sort by column for correct pairing.
+
+- **OTP analysis performance** — precompute shared `all_nodes` across
+  sub-analyses, replace O(n²) `find_enclosing_module` with O(1) index
+  lookup. ~1000× speedup on the OTP-specific analysis for large codebases.
+
+- **Refactored OTP analysis into submodules** — GenServer, GenStatem,
+  Coupling, DeadReply, CrossProcess under `Reach.OTP.*`.
+
+- **Self-healing** — ran Reach on itself, fixed 9 redundant computations
+  and 1 dead code finding in its own source.
+
 ## 1.7.0
 
 ### New
