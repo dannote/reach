@@ -23,6 +23,7 @@ defmodule Mix.Tasks.Reach.Otp do
   alias Reach.CLI.Format
   alias Reach.CLI.Project
   alias Reach.IR
+  alias Reach.OTP.GenStatem
 
   @impl Mix.Task
   def run(args) do
@@ -89,7 +90,7 @@ defmodule Mix.Tasks.Reach.Otp do
     end)
     |> Enum.map(fn mod_node ->
       children = [mod_node | IR.all_nodes(mod_node)]
-      analysis = Reach.OTP.analyze_gen_statem(children)
+      analysis = GenStatem.analyze(children)
 
       if analysis do
         location = Format.location(mod_node)

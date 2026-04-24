@@ -1,7 +1,10 @@
 defmodule Reach.OTPTest do
   use ExUnit.Case, async: true
 
-  alias Reach.{IR, OTP}
+  alias Reach.IR
+  alias Reach.OTP
+  alias Reach.OTP.GenServer, as: OTPGenServer
+  alias Reach.OTP.GenStatem
 
   describe "detect_behaviour/1" do
     test "detects GenServer from callback names" do
@@ -31,7 +34,7 @@ defmodule Reach.OTPTest do
         def handle_call(msg, from, state), do: {:reply, :ok, state}
         """)
 
-      assert OTP.classify_callback(node) == :handle_call
+      assert OTPGenServer.classify_callback(node) == :handle_call
     end
 
     test "recognizes handle_cast/2" do
@@ -40,7 +43,7 @@ defmodule Reach.OTPTest do
         def handle_cast(msg, state), do: {:noreply, state}
         """)
 
-      assert OTP.classify_callback(node) == :handle_cast
+      assert OTPGenServer.classify_callback(node) == :handle_cast
     end
 
     test "recognizes handle_info/2" do
@@ -49,7 +52,7 @@ defmodule Reach.OTPTest do
         def handle_info(msg, state), do: {:noreply, state}
         """)
 
-      assert OTP.classify_callback(node) == :handle_info
+      assert OTPGenServer.classify_callback(node) == :handle_info
     end
 
     test "recognizes init/1" do
@@ -58,7 +61,7 @@ defmodule Reach.OTPTest do
         def init(args), do: {:ok, args}
         """)
 
-      assert OTP.classify_callback(node) == :init
+      assert OTPGenServer.classify_callback(node) == :init
     end
 
     test "returns nil for non-callbacks" do
@@ -67,7 +70,7 @@ defmodule Reach.OTPTest do
         def foo(x), do: x + 1
         """)
 
-      assert OTP.classify_callback(node) == nil
+      assert OTPGenServer.classify_callback(node) == nil
     end
   end
 
@@ -115,7 +118,7 @@ defmodule Reach.OTPTest do
         end
         """)
 
-      assert {:reply, _reply, _state} = OTP.extract_return_info(node)
+      assert {:reply, _reply, _state} = OTPGenServer.extract_return_info(node)
     end
 
     test "parses {:noreply, new_state}" do
@@ -126,7 +129,7 @@ defmodule Reach.OTPTest do
         end
         """)
 
-      assert {:noreply, nil, _state} = OTP.extract_return_info(node)
+      assert {:noreply, nil, _state} = OTPGenServer.extract_return_info(node)
     end
   end
 
@@ -457,7 +460,7 @@ defmodule Reach.OTPTest do
         end
         """)
 
-      result = OTP.analyze_gen_statem(nodes)
+      result = GenStatem.analyze(nodes)
 
       assert result.callback_mode == :state_functions
       assert result.init_state == :disconnected
@@ -495,7 +498,7 @@ defmodule Reach.OTPTest do
         end
         """)
 
-      result = OTP.analyze_gen_statem(nodes)
+      result = GenStatem.analyze(nodes)
 
       assert result.callback_mode == :handle_event_function
       assert result.init_state == :active
@@ -520,7 +523,7 @@ defmodule Reach.OTPTest do
         end
         """)
 
-      result = OTP.analyze_gen_statem(nodes)
+      result = GenStatem.analyze(nodes)
       assert Map.has_key?(result.states, :connected)
       assert result.init_state == :connected
     end
@@ -546,7 +549,7 @@ defmodule Reach.OTPTest do
         end
         """)
 
-      result = OTP.analyze_gen_statem(nodes)
+      result = GenStatem.analyze(nodes)
       assert is_list(result.init_state)
       assert :ready in result.init_state
       assert :connecting in result.init_state
@@ -560,7 +563,7 @@ defmodule Reach.OTPTest do
         end
         """)
 
-      assert OTP.analyze_gen_statem(nodes) == nil
+      assert GenStatem.analyze(nodes) == nil
     end
   end
 end
