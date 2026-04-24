@@ -195,4 +195,111 @@ defmodule Reach.SmellTest do
       assert eager != []
     end
   end
+
+  describe "string building (iolist) detection" do
+    test "Enum.map with interpolation piped to Enum.join" do
+      findings =
+        run_smell_task("""
+        defmodule MapJoinInterp do
+          def render(items) do
+            items
+            |> Enum.map(fn item -> "<li>\#{item.name}</li>" end)
+            |> Enum.join()
+          end
+        end
+        """)
+
+      string = Enum.filter(findings, &(&1.kind == :string_building))
+      assert length(string) == 1
+      assert hd(string).message =~ "Enum.map"
+      assert hd(string).message =~ "Enum.join"
+    end
+
+    test "Enum.map_join with string interpolation" do
+      findings =
+        run_smell_task("""
+        defmodule MapJoinDirect do
+          def render(rows) do
+            Enum.map_join(rows, ",", fn r -> "\#{r.id}:\#{r.name}" end)
+          end
+        end
+        """)
+
+      string = Enum.filter(findings, &(&1.kind == :string_building))
+      assert length(string) == 1
+      assert hd(string).message =~ "map_join"
+    end
+
+    test "string concat around Enum.join" do
+      findings =
+        run_smell_task("""
+        defmodule ConcatJoin do
+          def render(items) do
+            "<ul>" <> Enum.join(items, ",") <> "</ul>"
+          end
+        end
+        """)
+
+      string = Enum.filter(findings, &(&1.kind == :string_building))
+      assert length(string) == 1
+      assert hd(string).message =~ "wrap in a list"
+    end
+
+    test "Enum.reduce building string with <>" do
+      findings =
+        run_smell_task("""
+        defmodule ReduceConcat do
+          def build(rows) do
+            Enum.reduce(rows, "", fn row, acc ->
+              acc <> row.name <> ","
+            end)
+          end
+        end
+        """)
+
+      string = Enum.filter(findings, &(&1.kind == :string_building))
+      assert length(string) == 1
+      assert hd(string).message =~ "O(n²)"
+    end
+
+    test "iolist in Enum.map is NOT flagged" do
+      findings =
+        run_smell_task("""
+        defmodule GoodIolist do
+          def render(items) do
+            Enum.map(items, fn item -> ["<li>", item.name, "</li>"] end)
+          end
+        end
+        """)
+
+      string = Enum.filter(findings, &(&1.kind == :string_building))
+      assert string == []
+    end
+
+    test "Enum.join without interpolation in callback is NOT flagged" do
+      findings =
+        run_smell_task("""
+        defmodule PlainJoin do
+          def render(items) do
+            items |> Enum.map(& &1.name) |> Enum.join(", ")
+          end
+        end
+        """)
+
+      string = Enum.filter(findings, &(&1.kind == :string_building))
+      assert string == []
+    end
+
+    test "simple string interpolation outside loop is NOT flagged" do
+      findings =
+        run_smell_task("""
+        defmodule SimpleInterp do
+          def greet(name), do: "hello \#{name}"
+        end
+        """)
+
+      string = Enum.filter(findings, &(&1.kind == :string_building))
+      assert string == []
+    end
+  end
 end
