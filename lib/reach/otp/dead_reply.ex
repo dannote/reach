@@ -27,6 +27,7 @@ defmodule Reach.OTP.DeadReply do
         location: location(call)
       }
     end)
+    |> Enum.uniq_by(& &1.location)
   end
 
   defp genserver_call?(%Node{type: :call, meta: %{module: GenServer, function: :call}}), do: true
