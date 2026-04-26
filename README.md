@@ -153,7 +153,8 @@ mix reach.check --smells
 ```
 
 Existing task names such as `mix reach.modules`, `mix reach.flow`, and
-`mix reach.impact` remain available as compatibility aliases.
+`mix reach.impact` remain available as compatibility aliases. Canonical JSON
+envelopes are documented in [`JSON_SCHEMAS.md`](JSON_SCHEMAS.md).
 
 ### Terminal graphs
 
