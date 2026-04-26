@@ -14,6 +14,21 @@ defmodule Mix.Tasks.Reach.CanonicalTest do
     assert output =~ "score="
   end
 
+  test "reach.map emits a consolidated json envelope" do
+    output = capture_io(fn -> Map.run(["--format", "json", "--top", "2"]) end)
+
+    json =
+      output
+      |> String.split("\n")
+      |> Enum.drop_while(&(not String.starts_with?(&1, "{")))
+      |> Enum.join("\n")
+
+    assert {:ok, data} = Jason.decode(json)
+    assert data["command"] == "reach.map"
+    assert is_map(data["summary"])
+    assert is_map(data["sections"])
+  end
+
   test "reach.inspect emits graph-backed candidates as json" do
     output =
       capture_io(fn ->
