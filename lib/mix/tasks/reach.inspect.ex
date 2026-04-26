@@ -237,31 +237,114 @@ defmodule Mix.Tasks.Reach.Inspect do
   end
 
   defp render_candidates_placeholder(target, opts) do
+    project = Project.load()
+    {mfa, func} = resolve_function!(project, target)
+    candidates = target_candidates(project, mfa, func)
+
+    result = %{
+      command: "reach.inspect",
+      target: Format.func_id_to_string(mfa),
+      candidates: candidates,
+      note: "Candidates are advisory. Prove behavior preservation before editing."
+    }
+
     case opts[:format] do
       "json" ->
         ensure_json_encoder!()
-
-        IO.puts(
-          Jason.encode!(
-            %{
-              command: "reach.inspect",
-              target: target,
-              candidates: [],
-              note: "Graph-backed refactoring candidates are planned for a later phase."
-            },
-            pretty: true
-          )
-        )
+        IO.puts(Jason.encode!(result, pretty: true))
 
       _ ->
-        IO.puts("Refactoring candidates for #{target}")
-        IO.puts("")
-        IO.puts("No automatic candidates are emitted yet.")
-
-        IO.puts(
-          "Planned candidate kinds: extract pure region, isolate effects, break cycles, move across layers, introduce boundary."
-        )
+        render_candidates_text(result)
     end
+  end
+
+  defp target_candidates(project, mfa, func) do
+    non_pure_effects = function_effect_atoms(func) -- [:pure]
+    callers = Project.callers(project, mfa, 1)
+    branch_count = branch_count(func)
+
+    []
+    |> maybe_candidate(isolate_effects_candidate(mfa, func, non_pure_effects))
+    |> maybe_candidate(extract_region_candidate(mfa, func, branch_count, callers))
+  end
+
+  defp isolate_effects_candidate(_mfa, _func, effects) when length(effects) < 2, do: nil
+
+  defp isolate_effects_candidate(mfa, func, effects) do
+    %{
+      id: "R2-001",
+      kind: "isolate_effects",
+      target: Format.func_id_to_string(mfa),
+      file: func.source_span && func.source_span.file,
+      line: func.source_span && func.source_span.start_line,
+      benefit: :medium,
+      risk: :medium,
+      evidence: ["mixed_effects"],
+      effects: Enum.map(effects, &to_string/1),
+      suggestion:
+        "Split pure decision logic from side-effect execution while preserving effect order."
+    }
+  end
+
+  defp extract_region_candidate(_mfa, _func, branch_count, _callers) when branch_count < 4,
+    do: nil
+
+  defp extract_region_candidate(mfa, func, branch_count, callers) do
+    %{
+      id: "R1-001",
+      kind: "extract_pure_region",
+      target: Format.func_id_to_string(mfa),
+      file: func.source_span && func.source_span.file,
+      line: func.source_span && func.source_span.start_line,
+      benefit: :medium,
+      risk: if(length(callers) > 3, do: :high, else: :medium),
+      evidence: ["branchy_function", "caller_impact"],
+      branches: branch_count,
+      direct_caller_count: length(callers),
+      suggestion:
+        "Look for a single-entry/single-exit pure branch region before extracting. Do not extract by size alone."
+    }
+  end
+
+  defp maybe_candidate(candidates, nil), do: candidates
+  defp maybe_candidate(candidates, candidate), do: candidates ++ [candidate]
+
+  defp branch_count(func) do
+    func
+    |> IR.all_nodes()
+    |> Enum.count(
+      &(&1.type in [:case, :receive, :try] or
+          (&1.type == :binary_op and &1.meta[:operator] in [:and, :or, :&&, :||]))
+    )
+  end
+
+  defp function_effect_atoms(func) do
+    func
+    |> IR.all_nodes()
+    |> Enum.map(&Effects.classify/1)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
+  defp render_candidates_text(%{target: target, candidates: []}) do
+    IO.puts("Refactoring candidates for #{target}")
+    IO.puts("")
+    IO.puts("No graph-backed candidates found.")
+  end
+
+  defp render_candidates_text(%{target: target, candidates: candidates, note: note}) do
+    IO.puts("Refactoring candidates for #{target}")
+    IO.puts(note)
+    IO.puts("")
+
+    Enum.each(candidates, fn candidate ->
+      IO.puts("#{candidate.id} #{candidate.kind}")
+      IO.puts("  benefit=#{candidate.benefit} risk=#{candidate.risk}")
+      IO.puts("  location=#{candidate.file}:#{candidate.line}")
+      IO.puts("  evidence=#{Enum.join(candidate.evidence, ",")}")
+      IO.puts("  suggestion=#{candidate.suggestion}")
+      IO.puts("")
+    end)
   end
 
   defp target_args(target, opts, extra \\ []) do

@@ -393,19 +393,160 @@ defmodule Mix.Tasks.Reach.Check do
   end
 
   defp render_candidates_placeholder(opts) do
+    project = Project.load()
+    config = if File.exists?(".reach.exs"), do: load_config(), else: []
+
+    candidates =
+      (cycle_candidates(project) ++
+         mixed_effect_candidates(project) ++
+         boundary_candidates(project, config))
+      |> Enum.uniq_by(& &1.id)
+      |> Enum.sort_by(&candidate_rank/1)
+
     result = %{
-      candidates: [],
-      note: "Graph-backed project-wide refactoring candidates are planned for a later phase."
+      candidates: candidates,
+      note:
+        "Candidates are advisory. Reach reports graph/effect/architecture evidence; prove behavior preservation before editing."
     }
 
-    render_result(result, opts[:format], fn _ ->
-      IO.puts("No automatic refactoring candidates are emitted yet.")
+    render_result(result, opts[:format], &render_candidates_text/1)
+  end
 
-      IO.puts(
-        "Planned candidate kinds: extract pure region, isolate effects, break cycles, move across layers, introduce boundary."
-      )
+  defp candidate_rank(candidate) do
+    risk_rank = %{high: 0, medium: 1, low: 2}
+    benefit_rank = %{high: 0, medium: 1, low: 2}
+
+    {Map.get(risk_rank, candidate.risk, 3), Map.get(benefit_rank, candidate.benefit, 3),
+     candidate.id}
+  end
+
+  defp cycle_candidates(project) do
+    deps = module_dependency_map(project)
+
+    deps
+    |> Map.keys()
+    |> Enum.flat_map(&walk_module_cycle(deps, &1, &1, [], 5))
+    |> Enum.map(&canonical_module_cycle/1)
+    |> Enum.uniq()
+    |> Enum.take(20)
+    |> Enum.with_index(1)
+    |> Enum.map(fn {cycle, index} ->
+      %{
+        id: candidate_id("R3", index),
+        kind: "break_cycle",
+        target: Enum.join(cycle, " -> "),
+        benefit: :high,
+        risk: :medium,
+        evidence: ["module_dependency_cycle"],
+        suggestion:
+          "Move shared code to a lower-level module or route calls through an existing boundary.",
+        modules: cycle
+      }
     end)
   end
+
+  defp module_dependency_map(project) do
+    modules =
+      project.nodes
+      |> Map.values()
+      |> Enum.filter(&(&1.type == :module_def))
+      |> MapSet.new(& &1.meta[:name])
+
+    module_by_file = module_by_file(project)
+
+    project.nodes
+    |> Map.values()
+    |> Enum.filter(&remote_call?/1)
+    |> Enum.reduce(%{}, fn node, acc ->
+      caller = node.source_span && Map.get(module_by_file, node.source_span.file)
+      callee = node.meta[:module]
+
+      if caller && callee && caller != callee && MapSet.member?(modules, callee) do
+        Map.update(acc, caller, MapSet.new([callee]), &MapSet.put(&1, callee))
+      else
+        acc
+      end
+    end)
+    |> Map.new(fn {module, deps} -> {module, MapSet.to_list(deps)} end)
+  end
+
+  defp walk_module_cycle(_deps, _start, _current, path, max) when length(path) >= max, do: []
+
+  defp walk_module_cycle(deps, start, current, path, max) do
+    deps
+    |> Map.get(current, [])
+    |> Enum.flat_map(fn next ->
+      cond do
+        next == start and path != [] -> [Enum.reverse([current | path])]
+        next in path -> []
+        true -> walk_module_cycle(deps, start, next, [current | path], max)
+      end
+    end)
+  end
+
+  defp canonical_module_cycle(cycle) do
+    cycle
+    |> Enum.map(&inspect/1)
+    |> Enum.sort()
+  end
+
+  defp mixed_effect_candidates(project) do
+    project.nodes
+    |> Map.values()
+    |> Enum.filter(&(&1.type == :function_def and &1.source_span))
+    |> Enum.map(fn func -> {func, function_effects(func) -- [:pure]} end)
+    |> Enum.filter(fn {_func, effects} -> length(effects) >= 2 end)
+    |> Enum.sort_by(fn {func, effects} ->
+      {-length(effects), func.source_span.file, func.source_span.start_line}
+    end)
+    |> Enum.take(20)
+    |> Enum.with_index(1)
+    |> Enum.map(fn {{func, effects}, index} ->
+      id = {func.meta[:module], func.meta[:name], func.meta[:arity]}
+
+      %{
+        id: candidate_id("R2", index),
+        kind: "isolate_effects",
+        target: Format.func_id_to_string(id),
+        file: func.source_span.file,
+        line: func.source_span.start_line,
+        benefit: :medium,
+        risk: :medium,
+        evidence: ["mixed_effects"],
+        effects: Enum.map(effects, &to_string/1),
+        suggestion:
+          "Split pure decision logic from side-effect execution while preserving effect order."
+      }
+    end)
+  end
+
+  defp boundary_candidates(_project, []), do: []
+
+  defp boundary_candidates(project, config) do
+    layer_graph = layer_graph(project, config)
+
+    dependency_violations(project, config, layer_graph)
+    |> Enum.take(20)
+    |> Enum.with_index(1)
+    |> Enum.map(fn {violation, index} ->
+      %{
+        id: candidate_id("R5", index),
+        kind: "introduce_boundary",
+        target: "#{violation.caller_layer} -> #{violation.callee_layer}",
+        file: violation.file,
+        line: violation.line,
+        benefit: :high,
+        risk: :medium,
+        evidence: ["architecture_policy_violation", "forbidden_dependency"],
+        call: violation.call,
+        suggestion:
+          "Route this call through an allowed boundary or move the helper to an allowed lower layer."
+      }
+    end)
+  end
+
+  defp candidate_id(prefix, index),
+    do: "#{prefix}-#{String.pad_leading(to_string(index), 3, "0")}"
 
   defp delegated_args(opts, positional) do
     []
@@ -416,6 +557,29 @@ defmodule Mix.Tasks.Reach.Check do
 
   defp maybe_put(args, _flag, nil), do: args
   defp maybe_put(args, flag, value), do: args ++ [flag, to_string(value)]
+
+  defp render_candidates_text(%{candidates: []}) do
+    IO.puts("No refactoring candidates found.")
+  end
+
+  defp render_candidates_text(%{candidates: candidates, note: note}) do
+    IO.puts("Refactoring candidates (#{length(candidates)})")
+    IO.puts(note)
+    IO.puts("")
+
+    Enum.each(candidates, fn candidate ->
+      IO.puts("#{candidate.id} #{candidate.kind} #{candidate.target}")
+      IO.puts("  benefit=#{candidate.benefit} risk=#{candidate.risk}")
+
+      if candidate[:file] do
+        IO.puts("  location=#{candidate.file}:#{candidate.line}")
+      end
+
+      IO.puts("  evidence=#{Enum.join(candidate.evidence, ",")}")
+      IO.puts("  suggestion=#{candidate.suggestion}")
+      IO.puts("")
+    end)
+  end
 
   defp render_result(result, "json", _text_fun) do
     ensure_json_encoder!()
