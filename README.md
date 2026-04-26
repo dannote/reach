@@ -79,72 +79,90 @@ Requires optional deps:
 
 ## CLI tools
 
-Eight mix tasks for code analysis. All support `--format text` (default,
-colored), `json`, and `oneline`.
+Reach has six primary entrypoints. Analysis commands support `--format text`
+(default, colored), `json`, and `oneline` where applicable.
 
-### Codebase overview
+### Project map
 
 ```bash
-# Module inventory sorted by complexity
-mix reach.modules --sort complexity
+# Bird's-eye overview: modules, hotspots, coupling, effect boundaries
+mix reach.map
 
-# Dead code detection
-mix reach.dead_code
+# Focused summaries
+mix reach.map --modules --sort complexity
+mix reach.map --hotspots --top 10
+mix reach.map --coupling
+mix reach.map --data
 ```
 
-### Function analysis
+### Target inspection
 
 ```bash
+# Agent-readable context for one function/file/line
+mix reach.inspect MyApp.Accounts.register/2 --context
+
 # What calls this and what does it call?
-mix reach.deps MyApp.Accounts.register/2
+mix reach.inspect MyApp.Accounts.register/2 --deps
 
 # What breaks if I change this function?
-mix reach.impact MyApp.Accounts.register/2
+mix reach.inspect MyApp.Accounts.register/2 --impact
+
+# Target-local data-flow view or terminal graph
+mix reach.inspect MyApp.Accounts.register/2 --data
+mix reach.inspect MyApp.Accounts.register/2 --graph
 ```
 
-### Data flow
+### Data flow and slicing
 
 ```bash
 # Does user input reach the database?
-mix reach.flow --from conn.params --to Repo
+mix reach.trace --from conn.params --to Repo
 
 # Where is this variable defined and used?
-mix reach.flow --variable user
+mix reach.trace --variable user
 
 # What code affects this line?
-mix reach.slice lib/my_app/accounts.ex:45
+mix reach.trace --backward lib/my_app/accounts.ex:45
 
 # Where does this value flow to?
-mix reach.slice --forward lib/my_app/accounts.ex:45
+mix reach.trace --forward lib/my_app/accounts.ex:45
 ```
 
-### OTP and performance
+### OTP and process analysis
 
 ```bash
 # GenServer state machines, ETS coupling, missing handlers
 mix reach.otp
 
-# Cross-function redundant computations, suboptimal Enum patterns
-mix reach.smell
+# Concurrency-specific view
+mix reach.otp --concurrency
 ```
 
+### Structural checks
+
+```bash
+# Architecture policy from .reach.exs
+mix reach.check --arch
+
+# Changed files and configured test hints
+mix reach.check --changed --base main
+
+# Unused pure expressions and graph/effect/data-flow smells
+mix reach.check --dead-code
+mix reach.check --smells
+```
+
+Existing task names such as `mix reach.modules`, `mix reach.flow`, and
+`mix reach.impact` remain available as compatibility aliases.
 
 ### Terminal graphs
 
 With the optional `boxart` dependency, render graphs directly in the terminal:
 
 ```bash
-# Control flow graph with source code
-mix reach.graph MyApp.Server.handle_call/3
-
-# Call graph as a tree
-mix reach.graph MyApp.Server.handle_call/3 --call-graph
-
-# Any command with --graph
-mix reach.deps MyApp.Accounts.register/2 --graph
-mix reach.impact MyApp.Accounts.register/2 --graph
-mix reach.modules --graph
-mix reach.otp --graph
+mix reach.inspect MyApp.Server.handle_call/3 --graph
+mix reach.inspect MyApp.Server.handle_call/3 --impact --graph
+mix reach.inspect MyApp.Server.handle_call/3 --data --graph
 ```
 
 Requires `{:boxart, "~> 0.3"}` in your deps.
