@@ -20,17 +20,21 @@ defmodule Mix.Tasks.Reach.Inspect do
     * `--slice` — backward program slice
     * `--forward` — use a forward slice with `--slice` or `--data`
     * `--graph` — render graph output where supported
-    * `--data` — target-local data-flow view, currently implemented as a slice view
-    * `--context` — agent-readable bundle: deps plus impact
+    * `--data` — target-local data-flow view
+    * `--context` — agent-readable bundle: deps, impact, data, effects
     * `--candidates` — advisory placeholder for graph-backed refactoring candidates
     * `--depth` — transitive depth passed to deps/impact
-    * `--variable` — variable filter passed to slice
+    * `--variable` — variable filter passed to slice/data views
 
   """
 
   use Mix.Task
 
+  alias Reach.CLI.Format
+  alias Reach.CLI.Project
   alias Reach.CLI.TaskRunner
+  alias Reach.Effects
+  alias Reach.IR
 
   @shortdoc "Inspect one target's dependencies, impact, slices, and context"
 
@@ -70,6 +74,9 @@ defmodule Mix.Tasks.Reach.Inspect do
       opts[:deps] or opts[:graph] ->
         TaskRunner.run("reach.deps", target_args(target, opts, graph?: opts[:graph]))
 
+      opts[:data] and opts[:format] == "json" ->
+        render_data_json(target, opts)
+
       opts[:slice] or opts[:data] ->
         TaskRunner.run("reach.slice", slice_args(target, opts))
 
@@ -80,19 +87,153 @@ defmodule Mix.Tasks.Reach.Inspect do
 
   defp run_context(target, opts) do
     if opts[:format] == "json" do
-      Mix.shell().info("Context JSON is not consolidated yet; emitting deps followed by impact.")
+      render_context_json(target, opts)
     else
       IO.puts("# Reach context for #{target}\n")
       IO.puts("## Dependencies\n")
-    end
-
-    TaskRunner.run("reach.deps", target_args(target, opts))
-
-    unless opts[:format] == "json" do
+      TaskRunner.run("reach.deps", target_args(target, opts))
       IO.puts("\n## Impact\n")
+      TaskRunner.run("reach.impact", target_args(target, opts))
+      IO.puts("\n## Data\n")
+      render_data_text(target, opts)
     end
+  end
 
-    TaskRunner.run("reach.impact", target_args(target, opts))
+  defp render_context_json(target, opts) do
+    ensure_json_encoder!()
+    project = Project.load()
+    {mfa, func} = resolve_function!(project, target)
+    depth = opts[:depth] || 3
+
+    context = %{
+      command: "reach.inspect",
+      target: Format.func_id_to_string(mfa),
+      location: location(func),
+      effects: effects(func),
+      deps: %{
+        callers: Project.callers(project, mfa, 1) |> Enum.map(&format_call/1),
+        callees: Project.callees(project, mfa, depth) |> Enum.map(&format_callee/1)
+      },
+      impact: %{
+        direct_callers: Project.callers(project, mfa, 1) |> Enum.map(&format_call/1),
+        transitive_callers:
+          Project.callers(project, mfa, opts[:depth] || 4) |> Enum.map(&format_call/1)
+      },
+      data: data_summary(func, opts[:variable])
+    }
+
+    IO.puts(Jason.encode!(context, pretty: true))
+  end
+
+  defp render_data_json(target, opts) do
+    ensure_json_encoder!()
+    project = Project.load()
+    {mfa, func} = resolve_function!(project, target)
+
+    IO.puts(
+      Jason.encode!(
+        %{
+          command: "reach.inspect",
+          target: Format.func_id_to_string(mfa),
+          location: location(func),
+          data: data_summary(func, opts[:variable])
+        },
+        pretty: true
+      )
+    )
+  end
+
+  defp render_data_text(target, opts) do
+    project = Project.load()
+    {_mfa, func} = resolve_function!(project, target)
+    summary = data_summary(func, opts[:variable])
+
+    IO.puts("Definitions:")
+    Enum.each(summary.definitions, &IO.puts("  #{&1.name} #{&1.file}:#{&1.line}"))
+
+    IO.puts("Uses:")
+    Enum.each(summary.uses, &IO.puts("  #{&1.name} #{&1.file}:#{&1.line}"))
+
+    IO.puts("Returns:")
+    Enum.each(summary.returns, &IO.puts("  #{&1.kind} #{&1.file}:#{&1.line}"))
+  end
+
+  defp resolve_function!(project, raw) do
+    mfa = Project.resolve_target(project, raw) || Mix.raise("Function not found: #{raw}")
+
+    func =
+      Project.find_function(project, mfa) ||
+        Mix.raise("Function definition not found in IR: #{raw}")
+
+    {mfa, func}
+  end
+
+  defp data_summary(func, variable) do
+    nodes = IR.all_nodes(func)
+
+    vars =
+      nodes
+      |> Enum.filter(&(&1.type == :var))
+      |> Enum.filter(fn node -> variable == nil or to_string(node.meta[:name]) == variable end)
+
+    %{
+      definitions:
+        vars |> Enum.filter(&(&1.meta[:binding_role] == :definition)) |> Enum.map(&var_summary/1),
+      uses:
+        vars |> Enum.reject(&(&1.meta[:binding_role] == :definition)) |> Enum.map(&var_summary/1),
+      returns: return_summaries(func)
+    }
+  end
+
+  defp return_summaries(func) do
+    func.children
+    |> List.wrap()
+    |> Enum.map(&node_summary/1)
+  end
+
+  defp var_summary(node) do
+    span = node.source_span || %{}
+
+    %{
+      name: to_string(node.meta[:name]),
+      role: to_string(node.meta[:binding_role] || "use"),
+      file: span[:file],
+      line: span[:start_line]
+    }
+  end
+
+  defp node_summary(node) do
+    span = node.source_span || %{}
+
+    %{
+      kind: to_string(node.type),
+      file: span[:file],
+      line: span[:start_line]
+    }
+  end
+
+  defp effects(func) do
+    func
+    |> IR.all_nodes()
+    |> Enum.map(&Effects.classify/1)
+    |> Enum.uniq()
+    |> Enum.sort()
+    |> Enum.map(&to_string/1)
+  end
+
+  defp location(func) do
+    span = func.source_span || %{}
+    %{file: span[:file], line: span[:start_line]}
+  end
+
+  defp format_call(%{id: id}), do: Format.func_id_to_string(id)
+
+  defp format_callee(%{id: id, depth: depth, children: children}) do
+    %{
+      id: Format.func_id_to_string(id),
+      depth: depth,
+      children: Enum.map(children, &format_callee/1)
+    }
   end
 
   defp render_candidates_placeholder(target, opts) do

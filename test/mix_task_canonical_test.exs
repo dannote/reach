@@ -23,6 +23,23 @@ defmodule Mix.Tasks.Reach.CanonicalTest do
     assert data["candidates"] == []
   end
 
+  test "reach.inspect emits consolidated context json" do
+    output =
+      capture_io(fn -> Inspect.run(["Reach.to_dot/1", "--context", "--format", "json"]) end)
+
+    json =
+      output
+      |> String.split("\n")
+      |> Enum.drop_while(&(not String.starts_with?(&1, "{")))
+      |> Enum.join("\n")
+
+    assert {:ok, data} = Jason.decode(json)
+    assert data["command"] == "reach.inspect"
+    assert data["target"] == "Reach.to_dot/1"
+    assert is_map(data["deps"])
+    assert is_map(data["data"])
+  end
+
   test "reach.trace delegates variable tracing" do
     output =
       capture_io(fn ->
@@ -37,5 +54,37 @@ defmodule Mix.Tasks.Reach.CanonicalTest do
 
     assert {:ok, data} = Jason.decode(output)
     assert data["candidates"] == []
+  end
+
+  test "reach.check validates an empty architecture policy" do
+    File.write!(".reach.exs", "[layers: [cli: \"Mix.Tasks.*\", core: \"Reach.*\"]]")
+    on_exit(fn -> File.rm(".reach.exs") end)
+
+    output = capture_io(fn -> Check.run(["--arch", "--format", "json"]) end)
+
+    json =
+      output
+      |> String.split("\n")
+      |> Enum.drop_while(&(not String.starts_with?(&1, "{")))
+      |> Enum.join("\n")
+
+    assert {:ok, data} = Jason.decode(json)
+    assert data["status"] == "ok"
+    assert data["violations"] == []
+  end
+
+  test "reach.check changed mode reports files and functions" do
+    output =
+      capture_io(fn -> Check.run(["--changed", "--base", "HEAD", "--format", "json"]) end)
+
+    json =
+      output
+      |> String.split("\n")
+      |> Enum.drop_while(&(not String.starts_with?(&1, "{")))
+      |> Enum.join("\n")
+
+    assert {:ok, data} = Jason.decode(json)
+    assert is_list(data["changed_files"])
+    assert is_list(data["changed_functions"])
   end
 end
