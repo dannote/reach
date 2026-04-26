@@ -9,6 +9,10 @@ defmodule Mix.Tasks.Reach.Otp do
   ## Options
 
     * `--format` — output format: `text` (default), `json`, `oneline`
+    * `--concurrency` — delegate to `mix reach.concurrency`
+    * `--state` — focus on state-machine output (accepted for canonical CLI compatibility)
+    * `--messages` — focus on message-handler output (accepted for canonical CLI compatibility)
+    * `--supervision` — focus on supervision output (accepted for canonical CLI compatibility)
 
   """
 
@@ -16,7 +20,14 @@ defmodule Mix.Tasks.Reach.Otp do
 
   @shortdoc "Show OTP state machine analysis"
 
-  @switches [format: :string, graph: :boolean]
+  @switches [
+    format: :string,
+    graph: :boolean,
+    concurrency: :boolean,
+    state: :boolean,
+    messages: :boolean,
+    supervision: :boolean
+  ]
   @aliases [f: :format]
 
   alias Reach.CLI.BoxartGraph
@@ -32,16 +43,24 @@ defmodule Mix.Tasks.Reach.Otp do
     {opts, target_args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
     format = opts[:format] || "text"
 
-    project = Project.load()
-    scope = List.first(target_args)
+    if opts[:concurrency] do
+      Reach.CLI.TaskRunner.run("reach.concurrency", delegated_args(args))
+    else
+      project = Project.load()
+      scope = List.first(target_args)
 
-    result = analyze(project, scope)
+      result = analyze(project, scope)
 
-    case format do
-      "json" -> Format.render(result, "reach.otp", format: "json", pretty: true)
-      "oneline" -> render_oneline(result)
-      _ -> render_text(result, opts)
+      case format do
+        "json" -> Format.render(result, "reach.otp", format: "json", pretty: true)
+        "oneline" -> render_oneline(result)
+        _ -> render_text(result, opts)
+      end
     end
+  end
+
+  defp delegated_args(args) do
+    Enum.reject(args, &(&1 == "--concurrency"))
   end
 
   defp analyze(project, scope) do
