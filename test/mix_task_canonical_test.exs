@@ -14,13 +14,21 @@ defmodule Mix.Tasks.Reach.CanonicalTest do
     assert output =~ "score="
   end
 
-  test "reach.inspect emits candidate placeholder as json" do
+  test "reach.inspect emits graph-backed candidates as json" do
     output =
-      capture_io(fn -> Inspect.run(["Reach.to_dot/1", "--candidates", "--format", "json"]) end)
+      capture_io(fn ->
+        Inspect.run(["Reach.Frontend.Elixir.translate/3", "--candidates", "--format", "json"])
+      end)
 
-    assert {:ok, data} = Jason.decode(output)
-    assert data["target"] == "Reach.to_dot/1"
-    assert data["candidates"] == []
+    json =
+      output
+      |> String.split("\n")
+      |> Enum.drop_while(&(not String.starts_with?(&1, "{")))
+      |> Enum.join("\n")
+
+    assert {:ok, data} = Jason.decode(json)
+    assert data["target"] == "Reach.Frontend.Elixir.translate/3"
+    assert Enum.any?(data["candidates"], &(&1["kind"] == "extract_pure_region"))
   end
 
   test "reach.inspect emits consolidated context json" do
@@ -49,11 +57,18 @@ defmodule Mix.Tasks.Reach.CanonicalTest do
     assert output =~ "graph"
   end
 
-  test "reach.check emits candidate placeholder as json" do
+  test "reach.check emits graph-backed candidates as json" do
     output = capture_io(fn -> Check.run(["--candidates", "--format", "json"]) end)
 
-    assert {:ok, data} = Jason.decode(output)
-    assert data["candidates"] == []
+    json =
+      output
+      |> String.split("\n")
+      |> Enum.drop_while(&(not String.starts_with?(&1, "{")))
+      |> Enum.join("\n")
+
+    assert {:ok, data} = Jason.decode(json)
+    assert is_list(data["candidates"])
+    assert Enum.any?(data["candidates"], &(&1["kind"] in ["break_cycle", "isolate_effects"]))
   end
 
   test "reach.check validates an empty architecture policy" do
