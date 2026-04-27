@@ -182,7 +182,7 @@ defmodule Mix.Tasks.Reach.Inspect do
 
   defp render_cfg(target) do
     unless BoxartGraph.available?() do
-      Mix.raise("boxart is required for --graph. Add {:boxart, \"~> 0.3\"} to your deps.")
+      Mix.raise("boxart is required for --graph. Add {:boxart, \"~> 0.3.3\"} to your deps.")
     end
 
     project = Project.load()

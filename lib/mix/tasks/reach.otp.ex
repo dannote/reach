@@ -560,7 +560,7 @@ defmodule Mix.Tasks.Reach.Otp do
     graph_mode = opts[:graph] || false
 
     if graph_mode and not BoxartGraph.available?() do
-      Mix.raise("boxart is required for --graph. Add {:boxart, \"~> 0.3\"} to your deps.")
+      Mix.raise("boxart is required for --graph. Add {:boxart, \"~> 0.3.3\"} to your deps.")
     end
 
     IO.puts(Format.header("OTP Analysis"))

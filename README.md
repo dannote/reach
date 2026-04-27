@@ -188,7 +188,7 @@ mix reach.inspect MyApp.Server.handle_call/3 --impact --graph
 mix reach.inspect MyApp.Server.handle_call/3 --data --graph
 ```
 
-Requires `{:boxart, "~> 0.3"}` in your deps.
+Requires `{:boxart, "~> 0.3.3"}` in your deps.
 
 ## Core workflows
 
