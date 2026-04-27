@@ -25,7 +25,7 @@ defmodule Reach.CLI.Analyses.DeadCode do
     Mix.Task.run("compile", ["--no-warnings-as-errors"])
 
     files = collect_files(opts[:path] || List.first(args))
-    Mix.shell().info("Analyzing #{length(files)} file(s)...")
+    unless format == "json", do: Mix.shell().info("Analyzing #{length(files)} file(s)...")
 
     findings =
       files

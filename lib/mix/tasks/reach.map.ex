@@ -24,16 +24,28 @@ defmodule Mix.Tasks.Reach.Map do
     * `--depth` — show functions ranked by dominator depth
     * `--data` — show cross-function data-flow summary
     * `--top` — pass top-N limit to analyses that support it
+    * `--sort` — sort modules/coupling sections (`name`, `functions`, `complexity`, `afferent`, `efferent`, `instability`)
+    * `--module` — restrict effects to a module name fragment
+    * `--min` — minimum distinct effects for `--boundaries` (default: 2)
+    * `--orphans` — with `--coupling`, show only orphan modules
+    * `--graph` — render a terminal graph for graph-capable sections
 
   """
 
   use Mix.Task
 
+  @compile {:no_warn_undefined, [Boxart.Render.PieChart, Boxart.Render.PieChart.PieChart]}
+  @dialyzer {:nowarn_function, render_depth_row_graph: 2}
+
   alias Reach.Analysis
+  alias Reach.CLI.BoxartGraph
   alias Reach.CLI.Format
   alias Reach.CLI.Project
+  alias Reach.ControlFlow
+  alias Reach.Dominator
   alias Reach.Effects
   alias Reach.IR
+  alias Reach.IR.Helpers, as: IRHelpers
 
   @shortdoc "Project structure and risk map"
 
@@ -48,7 +60,11 @@ defmodule Mix.Tasks.Reach.Map do
     data: :boolean,
     xref: :boolean,
     top: :integer,
-    sort: :string
+    sort: :string,
+    module: :string,
+    min: :integer,
+    orphans: :boolean,
+    graph: :boolean
   ]
 
   @aliases [f: :format]
@@ -60,29 +76,33 @@ defmodule Mix.Tasks.Reach.Map do
   end
 
   defp render_map(opts, path_args) do
-    project = Project.load()
+    project = Project.load(quiet: opts[:format] == "json")
     path = List.first(path_args)
     sections = selected_keys(opts)
 
     sections =
       if sections == [], do: [:modules, :hotspots, :coupling, :boundaries], else: sections
 
-    result = %{
-      command: "reach.map",
-      summary: summary(project, path),
-      sections: Map.new(sections, &{&1, section_data(project, &1, opts, path)})
-    }
+    if opts[:graph] do
+      render_graph(project, sections, opts, path)
+    else
+      result = %{
+        command: "reach.map",
+        summary: summary(project, path),
+        sections: Map.new(sections, &{&1, section_data(project, &1, opts, path)})
+      }
 
-    case opts[:format] do
-      "json" ->
-        ensure_json_encoder!()
-        IO.puts(Jason.encode!(result, pretty: true))
+      case opts[:format] do
+        "json" ->
+          ensure_json_encoder!()
+          IO.puts(Jason.encode!(result, pretty: true))
 
-      "oneline" ->
-        render_oneline_map(result)
+        "oneline" ->
+          render_oneline_map(result)
 
-      _ ->
-        render_text_map(result)
+        _ ->
+          render_text_map(result)
+      end
     end
   end
 
@@ -128,11 +148,19 @@ defmodule Mix.Tasks.Reach.Map do
           &IO.puts("boundary #{&1.function} effects=#{Enum.join(&1.effects, "+")}")
         )
 
+      {:effects, %{distribution: distribution}} ->
+        Enum.each(distribution, fn row -> IO.puts("effect #{row.effect}=#{row.count}") end)
+
       {:effects, effects} ->
         Enum.each(effects, fn {effect, count} -> IO.puts("effect #{effect}=#{count}") end)
 
       {:data, data} ->
         Enum.each(data.top_functions, &IO.puts("data #{&1.function} edges=#{&1.data_edges}"))
+
+        Enum.each(
+          data.cross_function_edges || [],
+          &IO.puts("xref #{&1.from} -> #{&1.to} edges=#{&1.edges}")
+        )
 
       {:coupling, data} ->
         Enum.each(
@@ -141,7 +169,10 @@ defmodule Mix.Tasks.Reach.Map do
         )
 
       {:depth, rows} ->
-        Enum.each(rows, &IO.puts("depth #{&1.function} branches=#{&1.branch_count}"))
+        Enum.each(
+          rows,
+          &IO.puts("depth #{&1.function} depth=#{&1.depth} branches=#{&1.branch_count}")
+        )
     end)
   end
 
@@ -178,6 +209,15 @@ defmodule Mix.Tasks.Reach.Map do
     end
   end
 
+  defp render_text_section(:effects, %{distribution: distribution, unknown_calls: unknown_calls}) do
+    Enum.each(distribution, fn row -> IO.puts("  #{row.effect}: #{row.count} (#{row.ratio})") end)
+
+    if unknown_calls != [] do
+      IO.puts("  unknown calls:")
+      Enum.each(unknown_calls, &IO.puts("    #{&1.module}.#{&1.function}: #{&1.count}"))
+    end
+  end
+
   defp render_text_section(:effects, effects) do
     Enum.each(effects, fn {effect, count} -> IO.puts("  #{effect}: #{count}") end)
   end
@@ -191,7 +231,7 @@ defmodule Mix.Tasks.Reach.Map do
 
   defp render_text_section(:depth, rows) do
     Enum.each(rows, fn row ->
-      IO.puts("  #{Format.bright(row.function)} branches=#{row.branch_count}")
+      IO.puts("  #{Format.bright(row.function)} depth=#{row.depth} branches=#{row.branch_count}")
       IO.puts("    #{Format.faint("#{row.file}:#{row.line}")}")
     end)
   end
@@ -203,6 +243,14 @@ defmodule Mix.Tasks.Reach.Map do
       IO.puts("  #{Format.bright(row.function)} data_edges=#{row.data_edges}")
       IO.puts("    #{Format.faint("#{row.file}:#{row.line}")}")
     end)
+
+    if Map.get(data, :cross_function_edges, []) != [] do
+      IO.puts("  cross-function edges:")
+
+      Enum.each(data.cross_function_edges, fn row ->
+        IO.puts("    #{Format.bright(row.from)} -> #{Format.bright(row.to)} edges=#{row.edges}")
+      end)
+    end
   end
 
   defp section_title(:modules), do: "Modules"
@@ -255,24 +303,31 @@ defmodule Mix.Tasks.Reach.Map do
   defp section_data(project, :coupling, opts, path) do
     coupling = coupling_metrics(project, path)
 
+    modules =
+      coupling.modules
+      |> maybe_filter_orphans(opts[:orphans])
+      |> sort_coupling(opts[:sort])
+      |> Enum.take(opts[:top] || 50)
+
     %{
-      modules: coupling.modules |> sort_coupling(opts[:sort]) |> Enum.take(opts[:top] || 50),
+      modules: modules,
       cycles: coupling.cycles |> Enum.take(opts[:top] || 20)
     }
   end
 
-  defp section_data(project, :effects, _opts, path) do
+  defp section_data(project, :effects, opts, path) do
     project
-    |> function_defs(path)
-    |> effect_counts()
-    |> Map.new(fn {effect, count} -> {to_string(effect), count} end)
+    |> call_nodes(path, opts[:module])
+    |> effect_summary(opts[:top] || 20)
   end
 
   defp section_data(project, :boundaries, opts, path) do
+    min = opts[:min] || 2
+
     project
     |> function_defs(path)
-    |> Enum.map(fn func -> {func, function_effects(func) -- [:pure]} end)
-    |> Enum.filter(fn {_func, effects} -> length(effects) >= 2 end)
+    |> Enum.map(fn func -> {func, function_effects(func) -- [:pure, :unknown]} end)
+    |> Enum.filter(fn {_func, effects} -> length(effects) >= min end)
     |> Enum.sort_by(fn {func, effects} -> {-length(effects), location_sort(func)} end)
     |> Enum.take(opts[:top] || 20)
     |> Enum.map(fn {func, effects} ->
@@ -288,15 +343,8 @@ defmodule Mix.Tasks.Reach.Map do
   defp section_data(project, :depth, opts, path) do
     project
     |> function_defs(path)
-    |> Enum.map(fn func ->
-      %{
-        function: func_id(func),
-        file: func.source_span && func.source_span.file,
-        line: func.source_span && func.source_span.start_line,
-        branch_count: branch_count(func)
-      }
-    end)
-    |> Enum.sort_by(& &1.branch_count, :desc)
+    |> Enum.flat_map(&depth_metric/1)
+    |> Enum.sort_by(& &1.depth, :desc)
     |> Enum.take(opts[:top] || 20)
   end
 
@@ -325,16 +373,64 @@ defmodule Mix.Tasks.Reach.Map do
 
     %{
       total_data_edges: length(data_edges),
-      top_functions: top_functions
+      top_functions: top_functions,
+      cross_function_edges: cross_function_edges(project, data_edges, opts[:top] || 20)
     }
   end
 
   defp section_data(project, :xref, opts, path), do: section_data(project, :data, opts, path)
 
+  defp render_graph(project, sections, opts, path) do
+    ensure_boxart!()
+
+    cond do
+      :coupling in sections or :modules in sections ->
+        BoxartGraph.render_module_graph(project)
+
+      :effects in sections ->
+        render_effect_graph(section_data(project, :effects, opts, path))
+
+      :depth in sections ->
+        render_depth_graph(project, opts, path)
+
+      true ->
+        Mix.raise(
+          "--graph is supported with --modules, --coupling, or --depth. For target graphs, use mix reach.inspect TARGET --graph"
+        )
+    end
+  end
+
+  defp render_depth_graph(project, opts, path) do
+    case section_data(project, :depth, opts, path) do
+      [row | _] -> render_depth_row_graph(project, row)
+      [] -> IO.puts("  (no functions found)")
+    end
+  end
+
+  defp render_depth_row_graph(project, row) do
+    func = Project.find_function_at_location(project, row.file, row.line)
+
+    if func do
+      BoxartGraph.render_cfg(func, row.file)
+      :ok
+    else
+      Mix.raise("Function not found: #{row.function}")
+    end
+  end
+
   defp function_defs(project, path) do
     project.nodes
     |> Map.values()
     |> Enum.filter(&(&1.type == :function_def and Project.file_matches?(span_file(&1), path)))
+  end
+
+  defp call_nodes(project, path, module_filter) do
+    module_nodes = module_defs(project, nil)
+
+    project.nodes
+    |> Map.values()
+    |> Enum.filter(&(&1.type == :call and Project.file_matches?(span_file(&1), path)))
+    |> filter_by_module(module_nodes, module_filter)
   end
 
   defp module_defs(project, path) do
@@ -470,6 +566,43 @@ defmodule Mix.Tasks.Reach.Map do
     |> Enum.sort_by(fn {effect, _count} -> to_string(effect) end)
   end
 
+  defp effect_summary(call_nodes, top) do
+    distribution =
+      call_nodes
+      |> Enum.map(&Effects.classify/1)
+      |> Enum.frequencies()
+      |> Enum.sort_by(&elem(&1, 1), :desc)
+
+    total = length(call_nodes)
+
+    unknown_calls =
+      call_nodes
+      |> Enum.filter(&(Effects.classify(&1) == :unknown))
+      |> Enum.reject(fn n ->
+        is_nil(n.meta[:function]) or n.meta[:function] in [:__aliases__, :{}]
+      end)
+      |> Enum.map(fn n -> {n.meta[:module], n.meta[:function]} end)
+      |> Enum.frequencies()
+      |> Enum.sort_by(&elem(&1, 1), :desc)
+      |> Enum.take(top)
+      |> Enum.map(fn {{mod, fun}, count} ->
+        %{
+          module: if(mod, do: inspect(mod), else: "Kernel"),
+          function: to_string(fun),
+          count: count
+        }
+      end)
+
+    %{
+      total_calls: total,
+      distribution:
+        Enum.map(distribution, fn {effect, count} ->
+          %{effect: to_string(effect), count: count, ratio: Float.round(count / max(total, 1), 3)}
+        end),
+      unknown_calls: unknown_calls
+    }
+  end
+
   defp function_effects(func) do
     func
     |> IR.all_nodes()
@@ -477,6 +610,125 @@ defmodule Mix.Tasks.Reach.Map do
     |> Enum.uniq()
     |> Enum.sort()
   end
+
+  defp depth_metric(func) do
+    cfg = ControlFlow.build(func)
+    idom = Dominator.idom(cfg, :entry)
+    tree = Dominator.tree(idom)
+    depth = max_tree_depth(tree, :entry, 0, MapSet.new())
+
+    if depth > 0 do
+      [
+        %{
+          module: inspect(func.meta[:module]),
+          function: func_id(func),
+          depth: depth,
+          clauses: IRHelpers.clause_labels(func),
+          file: span_file(func),
+          line: func.source_span && func.source_span.start_line,
+          branch_count: branch_count(func)
+        }
+      ]
+    else
+      []
+    end
+  rescue
+    _ -> []
+  end
+
+  defp max_tree_depth(tree, node, depth, visited) do
+    if MapSet.member?(visited, node) do
+      depth
+    else
+      visited = MapSet.put(visited, node)
+      children = Graph.out_neighbors(tree, node)
+
+      if children == [] do
+        depth
+      else
+        children
+        |> Enum.map(&max_tree_depth(tree, &1, depth + 1, visited))
+        |> Enum.max()
+      end
+    end
+  end
+
+  defp cross_function_edges(project, data_edges, top) do
+    func_index = build_func_index(project)
+
+    data_edges
+    |> Enum.flat_map(fn edge ->
+      source_func = Map.get(func_index, edge.v1)
+      target_func = Map.get(func_index, edge.v2)
+      source_node = Map.get(project.nodes, edge.v1)
+      target_node = Map.get(project.nodes, edge.v2)
+
+      if source_func && target_func && source_func != target_func do
+        [
+          %{
+            from_func: source_func,
+            to_func: target_func,
+            label: normalize_label(edge.label),
+            from_node: node_summary(source_node),
+            to_node: node_summary(target_node)
+          }
+        ]
+      else
+        []
+      end
+    end)
+    |> Enum.group_by(&{&1.from_func, &1.to_func})
+    |> Enum.map(fn {{from, to}, edges} ->
+      labels = edges |> Enum.map(& &1.label) |> Enum.frequencies()
+
+      variables =
+        edges
+        |> Enum.flat_map(fn edge -> [edge.from_node, edge.to_node] end)
+        |> Enum.reject(&is_nil/1)
+        |> Enum.uniq()
+        |> Enum.take(5)
+
+      %{
+        from: func_id_tuple(from),
+        to: func_id_tuple(to),
+        edges: Enum.sum(Map.values(labels)),
+        labels: labels,
+        variables: variables
+      }
+    end)
+    |> Enum.sort_by(& &1.edges, :desc)
+    |> Enum.take(top)
+  end
+
+  defp build_func_index(project) do
+    project
+    |> module_defs(nil)
+    |> Enum.reduce(%{}, &index_module_functions/2)
+  end
+
+  defp index_module_functions(module, acc) do
+    module
+    |> IR.all_nodes()
+    |> Enum.filter(&(&1.type == :function_def))
+    |> Enum.reduce(acc, &index_function_nodes/2)
+  end
+
+  defp index_function_nodes(func, acc) do
+    id = {func.meta[:module], func.meta[:name], func.meta[:arity]}
+
+    func
+    |> IR.all_nodes()
+    |> Enum.reduce(acc, fn node, index -> Map.put_new(index, node.id, id) end)
+  end
+
+  defp normalize_label({label, _}), do: label
+  defp normalize_label(label), do: label
+
+  defp node_summary(nil), do: nil
+  defp node_summary(%{type: :var, meta: %{name: name}}), do: to_string(name)
+  defp node_summary(%{type: :call, meta: %{function: function}}), do: to_string(function)
+  defp node_summary(%{type: :literal, meta: %{value: value}}), do: inspect(value)
+  defp node_summary(%{type: type}), do: to_string(type)
 
   defp branch_count(func) do
     func
@@ -495,17 +747,67 @@ defmodule Mix.Tasks.Reach.Map do
   defp sort_coupling(modules, "efferent"), do: Enum.sort_by(modules, & &1.efferent, :desc)
   defp sort_coupling(modules, _), do: Enum.sort_by(modules, & &1.instability, :desc)
 
+  defp maybe_filter_orphans(modules, true),
+    do: Enum.filter(modules, &(&1.afferent == 0 and &1.efferent > 0))
+
+  defp maybe_filter_orphans(modules, _), do: modules
+
+  defp filter_by_module(call_nodes, _module_nodes, nil), do: call_nodes
+
+  defp filter_by_module(call_nodes, module_nodes, module_filter) do
+    case Enum.find(module_nodes, &(to_string(&1.meta[:name]) =~ module_filter)) do
+      nil ->
+        call_nodes
+
+      module ->
+        call_nodes
+        |> MapSet.new()
+        |> MapSet.intersection(MapSet.new(IR.all_nodes(module)))
+        |> MapSet.to_list()
+    end
+  end
+
   defp func_id(func),
     do: Format.func_id_to_string({func.meta[:module], func.meta[:name], func.meta[:arity]})
+
+  defp func_id_tuple({module, name, arity}), do: Format.func_id_to_string({module, name, arity})
 
   defp span_file(node), do: node.source_span && node.source_span.file
 
   defp location_sort(func),
     do: {span_file(func) || "", (func.source_span && func.source_span.start_line) || 0}
 
+  defp render_effect_graph(result) do
+    chart_module = Module.concat([Boxart, Render, PieChart, PieChart])
+
+    unless Code.ensure_loaded?(chart_module) and Code.ensure_loaded?(Boxart.Render.PieChart) do
+      Mix.raise("boxart is required for --graph. Add {:boxart, \"~> 0.3.3\"} to your deps.")
+    end
+
+    slices =
+      result.distribution
+      |> Enum.reject(&(&1.count == 0))
+      |> Enum.map(&{&1.effect, &1.ratio * 100})
+
+    chart =
+      struct!(chart_module,
+        title: "Effect Distribution (#{result.total_calls} calls)",
+        slices: slices,
+        show_data: true
+      )
+
+    IO.puts(Boxart.Render.PieChart.render(chart))
+  end
+
   defp ensure_json_encoder! do
     unless Code.ensure_loaded?(Jason) do
       Mix.raise("Jason is required for JSON output. Add {:jason, \"~> 1.0\"} to your deps.")
+    end
+  end
+
+  defp ensure_boxart! do
+    unless BoxartGraph.available?() do
+      Mix.raise("boxart is required for --graph. Add {:boxart, \"~> 0.3.3\"} to your deps.")
     end
   end
 end

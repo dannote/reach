@@ -23,7 +23,7 @@ defmodule Reach.CLI.Analyses.Concurrency do
     {opts, _args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
     format = opts[:format] || "text"
 
-    project = Project.load()
+    project = Project.load(quiet: opts[:format] == "json")
     result = analyze(project)
 
     case format do

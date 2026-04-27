@@ -8,6 +8,7 @@ defmodule Mix.Tasks.Reach.Inspect do
       mix reach.inspect TARGET --impact
       mix reach.inspect TARGET --slice
       mix reach.inspect TARGET --graph
+      mix reach.inspect TARGET --call-graph
       mix reach.inspect TARGET --data
       mix reach.inspect TARGET --context
       mix reach.inspect TARGET --candidates
@@ -20,6 +21,7 @@ defmodule Mix.Tasks.Reach.Inspect do
     * `--slice` — backward program slice
     * `--forward` — use a forward slice with `--slice` or `--data`
     * `--graph` — render graph output where supported
+    * `--call-graph` — render the call graph around the target
     * `--data` — target-local data-flow view
     * `--context` — agent-readable bundle: deps, impact, data, effects
     * `--candidates` — advisory placeholder for graph-backed refactoring candidates
@@ -47,6 +49,7 @@ defmodule Mix.Tasks.Reach.Inspect do
     slice: :boolean,
     forward: :boolean,
     graph: :boolean,
+    call_graph: :boolean,
     data: :boolean,
     context: :boolean,
     candidates: :boolean,
@@ -75,6 +78,7 @@ defmodule Mix.Tasks.Reach.Inspect do
       {opts[:data] == true and opts[:format] == "json", :data_json},
       {opts[:data] == true and opts[:graph] != true, :data_text},
       {opts[:slice] == true or opts[:data] == true, :slice},
+      {opts[:call_graph], :call_graph},
       {opts[:graph], :graph}
     ]
     |> Enum.find_value(:context, fn
@@ -100,7 +104,13 @@ defmodule Mix.Tasks.Reach.Inspect do
         command: "reach.inspect"
       )
 
-  defp run_action(:graph, target, _target_args, _opts), do: render_cfg(target)
+  defp run_action(:call_graph, target, _target_args, opts),
+    do:
+      TaskRunner.run("reach.deps", target_args(target, opts, graph?: true),
+        command: "reach.inspect"
+      )
+
+  defp run_action(:graph, target, _target_args, opts), do: render_cfg(target, opts)
   defp run_action(:data_json, target, _target_args, opts), do: render_data_json(target, opts)
   defp run_action(:data_text, target, _target_args, opts), do: render_data_text(target, opts)
 
@@ -123,7 +133,7 @@ defmodule Mix.Tasks.Reach.Inspect do
 
   defp render_context_json(target, opts) do
     ensure_json_encoder!()
-    project = Project.load()
+    project = Project.load(quiet: opts[:format] == "json")
     {mfa, func} = resolve_function!(project, target)
     depth = opts[:depth] || 3
 
@@ -149,7 +159,7 @@ defmodule Mix.Tasks.Reach.Inspect do
 
   defp render_data_json(target, opts) do
     ensure_json_encoder!()
-    project = Project.load()
+    project = Project.load(quiet: opts[:format] == "json")
     {mfa, func} = resolve_function!(project, target)
 
     IO.puts(
@@ -166,7 +176,7 @@ defmodule Mix.Tasks.Reach.Inspect do
   end
 
   defp render_data_text(target, opts) do
-    project = Project.load()
+    project = Project.load(quiet: opts[:format] == "json")
     {_mfa, func} = resolve_function!(project, target)
     summary = data_summary(project, func, opts[:variable])
 
@@ -180,12 +190,12 @@ defmodule Mix.Tasks.Reach.Inspect do
     Enum.each(summary.returns, &IO.puts("  #{&1.kind} #{&1.file}:#{&1.line}"))
   end
 
-  defp render_cfg(target) do
+  defp render_cfg(target, opts) do
     unless BoxartGraph.available?() do
       Mix.raise("boxart is required for --graph. Add {:boxart, \"~> 0.3.3\"} to your deps.")
     end
 
-    project = Project.load()
+    project = Project.load(quiet: opts[:format] == "json")
     {{_mod, fun, arity}, func} = resolve_function!(project, target)
     file = func.source_span && func.source_span.file
 
@@ -348,7 +358,7 @@ defmodule Mix.Tasks.Reach.Inspect do
   end
 
   defp render_candidates_placeholder(target, opts) do
-    project = Project.load()
+    project = Project.load(quiet: opts[:format] == "json")
     {mfa, func} = resolve_function!(project, target)
     candidates = target_candidates(project, mfa, func)
 

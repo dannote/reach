@@ -33,7 +33,7 @@ defmodule Reach.CLI.Analyses.Slice do
       )
     end
 
-    project = Project.load()
+    project = Project.load(quiet: opts[:format] == "json")
     format = opts[:format] || "text"
     forward? = Keyword.get(opts, :forward, false)
     var_name = opts[:variable]

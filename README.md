@@ -176,6 +176,7 @@ Older task names have been removed in Reach 2.0 and now fail fast with migration
 | `mix reach.dead_code` | `mix reach.check --dead-code` |
 | `mix reach.smell` | `mix reach.check --smells` |
 | `mix reach.graph TARGET` | `mix reach.inspect TARGET --graph` |
+| `mix reach.graph TARGET --call-graph` | `mix reach.inspect TARGET --call-graph` |
 | `mix reach.concurrency` | `mix reach.otp --concurrency` |
 
 JSON output uses canonical `command` envelopes. `.reach.exs` architecture policy is documented in [`CONFIG.md`](CONFIG.md).
