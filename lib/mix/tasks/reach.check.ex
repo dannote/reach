@@ -24,7 +24,7 @@ defmodule Mix.Tasks.Reach.Check do
 
   use Mix.Task
 
-  alias Reach.CLI.Analysis
+  alias Reach.Analysis
   alias Reach.CLI.Format
   alias Reach.CLI.Project
   alias Reach.CLI.TaskRunner
@@ -478,7 +478,8 @@ defmodule Mix.Tasks.Reach.Check do
   defp concrete_effects(func), do: function_effects(func) -- [:pure, :unknown, :exception]
 
   defp remote_call?(node) do
-    node.type == :call and node.meta[:kind] == :remote and node.meta[:module] != nil
+    node.type == :call and node.meta[:kind] == :remote and node.meta[:module] != nil and
+      node.meta[:function] not in [:__aliases__, :{}]
   end
 
   defp module_by_file(project) do

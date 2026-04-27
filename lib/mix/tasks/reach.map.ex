@@ -29,7 +29,7 @@ defmodule Mix.Tasks.Reach.Map do
 
   use Mix.Task
 
-  alias Reach.CLI.Analysis
+  alias Reach.Analysis
   alias Reach.CLI.Format
   alias Reach.CLI.Project
   alias Reach.Effects

@@ -30,7 +30,7 @@ defmodule Mix.Tasks.Reach.Inspect do
 
   use Mix.Task
 
-  alias Reach.CLI.Analysis
+  alias Reach.Analysis
   alias Reach.CLI.BoxartGraph
   alias Reach.CLI.Format
   alias Reach.CLI.Project

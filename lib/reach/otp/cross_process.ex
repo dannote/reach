@@ -1,7 +1,7 @@
 defmodule Reach.OTP.CrossProcess do
   @moduledoc false
 
-  alias Reach.CLI.Analysis
+  alias Reach.Analysis
   alias Reach.IR
   alias Reach.IR.Node
 

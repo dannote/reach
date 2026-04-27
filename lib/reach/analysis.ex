@@ -1,4 +1,4 @@
-defmodule Reach.CLI.Analysis do
+defmodule Reach.Analysis do
   @moduledoc false
 
   alias Reach.IR.Node

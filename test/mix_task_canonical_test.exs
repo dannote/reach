@@ -94,8 +94,7 @@ defmodule Mix.Tasks.Reach.CanonicalTest do
   end
 
   test "reach.check validates an empty architecture policy" do
-    File.write!(".reach.exs", "[layers: [cli: \"Mix.Tasks.*\", core: \"Reach.*\"]]")
-    on_exit(fn -> File.rm(".reach.exs") end)
+    with_reach_config(~S([layers: [cli: "Mix.Tasks.*", core: "Reach.*"]]))
 
     output = capture_io(fn -> Check.run(["--arch", "--format", "json"]) end)
 
@@ -111,8 +110,7 @@ defmodule Mix.Tasks.Reach.CanonicalTest do
   end
 
   test "reach.check reports architecture config errors" do
-    File.write!(".reach.exs", "[unknown: true, layers: :bad]")
-    on_exit(fn -> File.rm(".reach.exs") end)
+    with_reach_config("[unknown: true, layers: :bad]")
 
     assert_raise Mix.Error, ~r/Architecture policy failed/, fn ->
       capture_io(fn -> Check.run(["--arch", "--format", "json"]) end)
@@ -120,16 +118,11 @@ defmodule Mix.Tasks.Reach.CanonicalTest do
   end
 
   test "reach.check reports public and internal boundary violations" do
-    File.write!(
-      ".reach.exs",
-      ~S([
+    with_reach_config(~S([
         public_api: ["Reach"],
         internal: ["Reach.IR.*"],
         internal_callers: [{"Reach.IR.*", ["Reach.Project"]}]
-      ])
-    )
-
-    on_exit(fn -> File.rm(".reach.exs") end)
+      ]))
 
     assert_raise Mix.Error, ~r/Architecture policy failed/, fn ->
       capture_io(fn -> Check.run(["--arch", "--format", "json"]) end)
@@ -149,5 +142,18 @@ defmodule Mix.Tasks.Reach.CanonicalTest do
     assert {:ok, data} = Jason.decode(json)
     assert is_list(data["changed_files"])
     assert is_list(data["changed_functions"])
+  end
+
+  defp with_reach_config(contents) do
+    previous = if File.exists?(".reach.exs"), do: File.read!(".reach.exs")
+    File.write!(".reach.exs", contents)
+
+    on_exit(fn ->
+      if previous do
+        File.write!(".reach.exs", previous)
+      else
+        File.rm(".reach.exs")
+      end
+    end)
   end
 end
