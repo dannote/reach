@@ -1,7 +1,7 @@
 defmodule Reach.MixProject do
   use Mix.Project
 
-  @version "1.8.0"
+  @version "2.0.0"
   @source_url "https://github.com/dannote/reach"
 
   def project do
@@ -77,6 +77,7 @@ defmodule Reach.MixProject do
       extras: [
         "README.md",
         "CHANGELOG.md",
+        "CONFIG.md",
         "LICENSE"
       ],
       groups_for_modules: [
@@ -109,7 +110,7 @@ defmodule Reach.MixProject do
     [
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
-      files: ~w(lib priv mix.exs README.md CHANGELOG.md LICENSE .formatter.exs)
+      files: ~w(lib priv examples mix.exs README.md CHANGELOG.md CONFIG.md LICENSE .formatter.exs)
     ]
   end
 end

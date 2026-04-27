@@ -1,5 +1,82 @@
 # Changelog
 
+## 2.0.0
+
+### Breaking changes
+
+- **Canonical CLI surface** — Reach now centers on the new dotted command model:
+  - `mix reach.map`
+  - `mix reach.inspect TARGET`
+  - `mix reach.trace`
+  - `mix reach.check`
+  - `mix reach.otp`
+- **Legacy tasks removed** — old task names now fail fast with exact migration instructions instead of running analysis:
+  - `mix reach.modules` → `mix reach.map --modules`
+  - `mix reach.coupling` → `mix reach.map --coupling`
+  - `mix reach.hotspots` → `mix reach.map --hotspots`
+  - `mix reach.depth` → `mix reach.map --depth`
+  - `mix reach.effects` → `mix reach.map --effects`
+  - `mix reach.boundaries` → `mix reach.map --boundaries`
+  - `mix reach.xref` → `mix reach.map --data`
+  - `mix reach.deps TARGET` → `mix reach.inspect TARGET --deps`
+  - `mix reach.impact TARGET` → `mix reach.inspect TARGET --impact`
+  - `mix reach.slice TARGET` → `mix reach.trace TARGET`
+  - `mix reach.flow ...` → `mix reach.trace ...`
+  - `mix reach.dead_code` → `mix reach.check --dead-code`
+  - `mix reach.smell` → `mix reach.check --smells`
+  - `mix reach.graph TARGET` → `mix reach.inspect TARGET --graph`
+  - `mix reach.concurrency` → `mix reach.otp --concurrency`
+- **JSON envelopes changed** — canonical commands now expose canonical `command` fields. Some delegated analysis payloads also include `tool` to identify the internal analysis implementation.
+- **Optional boxart dependency bumped** — graph rendering now requires `{:boxart, "~> 0.3.3"}` to pick up Unicode-safe syntax highlighting.
+
+### New
+
+- **`mix reach.map`** — project bird's-eye view with modules, hotspots, coupling/cycles, effects, boundaries, control depth, and data-flow summaries.
+- **`mix reach.inspect TARGET`** — consolidated target view for context, dependencies, impact, data, graph rendering, slicing, and advisory refactoring candidates.
+- **`mix reach.trace`** — canonical entrypoint for taint flow, variable tracing, backward slicing, forward slicing, and slice graphs.
+- **`mix reach.check`** — structural checks for architecture policy, changed-code risk, dead code, smells, and advisory candidates.
+- **`.reach.exs` architecture policy** with:
+  - `layers`
+  - `forbidden_deps`
+  - `allowed_effects`
+  - `public_api`
+  - `internal`
+  - `internal_callers`
+  - `test_hints`
+- **Architecture violations** for forbidden dependencies, layer cycles, effect policy, public API boundaries, internal boundaries, and config errors.
+- **Changed-risk reports** with changed files, changed functions, aggregate risk, risk reasons, caller impact counts, public API touches, and suggested tests.
+- **Graph-backed advisory refactoring candidates**:
+  - `introduce_boundary`
+  - `isolate_effects`
+  - `extract_pure_region`
+  - `break_cycle`
+- **Candidate metadata** — candidates include `confidence`, `actionability`, `proof`, and cycle `representative_calls` so agents do not treat graph facts as automatic edits.
+- **Umbrella source scanning** — Mix project analysis now includes `apps/*/lib/**/*.ex` and `apps/*/src/**/*.erl`.
+- **Project dogfood policy** — Reach now ships a root `.reach.exs` and runs `mix reach.check --arch` in CI.
+
+### Improved
+
+- **Canonical implementation structure** — legacy Mix task modules are removed shims; reusable logic moved into `Reach.CLI.Analyses.*` modules used by canonical commands.
+- **Canonical JSON consistency** — canonical commands keep canonical `command` values even when using shared internal analyses.
+- **Graph rendering reliability** — Reach now relies on boxart `v0.3.3` for Unicode-safe syntax highlighting and no longer sanitizes source snippets locally.
+- **Taint tracing performance** — `reach.trace --from ... --to ...` computes reachable sinks per source instead of recomputing reachability for every source/sink pair. The Plausible validation case dropped from ~130s to ~3s.
+- **Compiler diagnostics** — BEAM frontend compilation now passes `return_diagnostics: true` and restores compiler debug-info options safely.
+- **Effect policy precision** — `:module_def` and `:function_def` classify as pure, so pure-only effect policies do not need to whitelist `:unknown` just for wrapper nodes.
+- **Public API policy precision** — public API checks now use the configured public API namespace instead of only the first top-level module segment.
+- **Candidate precision** — expected callback/effect-boundary shapes are suppressed for effect-isolation candidates, `:unknown` and `:exception` no longer inflate mixed-effect candidates, and cycles prefer minimal representative evidence.
+- **Changed deletion handling** — deletion-only hunks are no longer attributed to a synthetic current-file line.
+- **Inspect data returns** — `reach.inspect --data` now summarizes clause final expressions rather than direct clause nodes.
+
+### Documentation
+
+- Added `CONFIG.md` for `.reach.exs` policy configuration.
+- Added `examples/reach.exs` as a starting architecture policy.
+
+### Validation
+
+- Full CI passes: format, JS checks, Credo strict, ExDNA, architecture policy, Dialyzer, and ExUnit.
+- Canonical command validation passed across 20 real codebases and every canonical submode, including graph modes and removed-command behavior.
+
 ## 1.8.0
 
 ### New
