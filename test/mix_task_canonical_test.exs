@@ -42,16 +42,33 @@ defmodule Mix.Tasks.Reach.CanonicalTest do
   test "reach.map emits a consolidated json envelope" do
     output = capture_io(fn -> Map.run(["--format", "json", "--top", "2"]) end)
 
-    json =
-      output
-      |> String.split("\n")
-      |> Enum.drop_while(&(not String.starts_with?(&1, "{")))
-      |> Enum.join("\n")
-
-    assert {:ok, data} = Jason.decode(json)
+    assert String.starts_with?(output, "{")
+    assert {:ok, data} = Jason.decode(output)
     assert data["command"] == "reach.map"
     assert is_map(data["summary"])
     assert is_map(data["sections"])
+  end
+
+  test "reach.map preserves legacy overview command options" do
+    assert capture_io(fn -> Map.run(["--coupling", "--orphans", "--top", "2"]) end) =~
+             "Coupling"
+
+    assert capture_io(fn -> Map.run(["--boundaries", "--min", "3", "--top", "2"]) end) =~
+             "Effect Boundaries"
+
+    depth = capture_io(fn -> Map.run(["--depth", "--top", "1", "--format", "json"]) end)
+
+    assert {:ok, %{"sections" => %{"depth" => [%{"depth" => depth_value} | _]}}} =
+             Jason.decode(depth)
+
+    assert is_integer(depth_value)
+
+    data = capture_io(fn -> Map.run(["--data", "--top", "1", "--format", "json"]) end)
+
+    assert {:ok, %{"sections" => %{"data" => %{"cross_function_edges" => edges}}}} =
+             Jason.decode(data)
+
+    assert is_list(edges)
   end
 
   test "reach.inspect emits graph-backed candidates as json" do
@@ -86,6 +103,12 @@ defmodule Mix.Tasks.Reach.CanonicalTest do
     assert data["target"] == "Reach.to_dot/1"
     assert is_map(data["deps"])
     assert is_map(data["data"])
+  end
+
+  test "reach.inspect preserves call graph rendering option" do
+    output = capture_io(fn -> Inspect.run(["Reach.to_dot/1", "--call-graph"]) end)
+
+    assert output =~ "to_dot/1"
   end
 
   test "reach.trace delegates variable tracing" do

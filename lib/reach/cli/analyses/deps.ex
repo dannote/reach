@@ -32,7 +32,7 @@ defmodule Reach.CLI.Analyses.Deps do
       )
     end
 
-    project = Project.load()
+    project = Project.load(quiet: opts[:format] == "json")
     target = Project.resolve_target(project, hd(target_args))
 
     unless target do

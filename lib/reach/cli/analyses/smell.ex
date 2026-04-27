@@ -29,7 +29,7 @@ defmodule Reach.CLI.Analyses.Smell do
     format = opts[:format] || "text"
     path = List.first(args)
 
-    project = Project.load()
+    project = Project.load(quiet: opts[:format] == "json")
 
     findings = analyze(project)
 

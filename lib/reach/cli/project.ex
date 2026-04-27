@@ -6,13 +6,15 @@ defmodule Reach.CLI.Project do
   def load(opts \\ []) do
     Mix.Task.run("compile", ["--no-warnings-as-errors"])
 
+    quiet? = Keyword.get(opts, :quiet, false)
+
     case Keyword.get(opts, :paths) do
       nil ->
-        Mix.shell().info("Analyzing project...")
+        unless quiet?, do: Mix.shell().info("Analyzing project...")
         Reach.Project.from_mix_project()
 
       paths ->
-        Mix.shell().info("Analyzing #{length(paths)} file(s)...")
+        unless quiet?, do: Mix.shell().info("Analyzing #{length(paths)} file(s)...")
         Reach.Project.from_sources(paths)
     end
   end

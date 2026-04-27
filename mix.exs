@@ -17,7 +17,8 @@ defmodule Reach.MixProject do
         plt_add_apps: [:mix, :eex, :boxart]
       ],
       name: "Reach",
-      description: "Program dependence graph for Elixir and Erlang",
+      description:
+        "Program dependence graph for Elixir, Erlang, Gleam, JavaScript, and TypeScript",
       source_url: @source_url,
       docs: docs(),
       package: package()
