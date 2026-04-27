@@ -64,15 +64,29 @@ defmodule Reach.Project do
   @doc """
   Builds a project graph from the current Mix project.
 
-  Analyzes all `.ex` files in `lib/`, all `.erl` files in `src/`, and
-  umbrella application sources under `apps/*/lib` and `apps/*/src`.
+  Analyzes all `.ex` files in `lib/`, all `.erl` files in `src/`, umbrella
+  application sources under `apps/*/lib` and `apps/*/src`, and package-style
+  top-level application directories such as `nx/lib`.
   """
   @spec from_mix_project(keyword()) :: t()
   def from_mix_project(opts \\ []) do
-    elixir_files = Path.wildcard("lib/**/*.ex") ++ Path.wildcard("apps/*/lib/**/*.ex")
-    erlang_files = Path.wildcard("src/**/*.erl") ++ Path.wildcard("apps/*/src/**/*.erl")
+    elixir_files =
+      ["lib/**/*.ex", "apps/*/lib/**/*.ex", "*/lib/**/*.ex"]
+      |> Enum.flat_map(&Path.wildcard/1)
+      |> reject_generated_source_paths()
 
-    from_sources(elixir_files ++ erlang_files, opts)
+    erlang_files =
+      ["src/**/*.erl", "apps/*/src/**/*.erl", "*/src/**/*.erl"]
+      |> Enum.flat_map(&Path.wildcard/1)
+      |> reject_generated_source_paths()
+
+    from_sources(Enum.uniq(elixir_files ++ erlang_files), opts)
+  end
+
+  defp reject_generated_source_paths(paths) do
+    Enum.reject(paths, fn path ->
+      String.starts_with?(path, "deps/") or String.starts_with?(path, "_build/")
+    end)
   end
 
   @doc """

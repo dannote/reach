@@ -64,6 +64,22 @@ defmodule Reach.ProjectTest do
   end
 
   describe "from_mix_project/1" do
+    test "includes package-style top-level app sources" do
+      write_file("package_a/lib/package_a.ex", "defmodule PackageA do\n  def a, do: 1\nend\n")
+
+      File.cd!(@tmp_dir, fn ->
+        project = Project.from_mix_project()
+
+        modules =
+          project.nodes
+          |> Map.values()
+          |> Enum.filter(&(&1.type == :module_def))
+          |> Enum.map(& &1.meta[:name])
+
+        assert PackageA in modules
+      end)
+    end
+
     test "includes umbrella app sources" do
       write_file("apps/app_a/lib/umbrella_a.ex", "defmodule UmbrellaA do\n  def a, do: 1\nend\n")
 
