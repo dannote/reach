@@ -698,7 +698,8 @@ defmodule Mix.Tasks.Reach.Inspect do
     project.graph
     |> Graph.edges()
     |> Enum.filter(fn edge ->
-      Analysis.data_edge?(edge) and edge.v1 in node_ids and edge.v2 in node_ids and
+      Analysis.data_edge?(edge) and MapSet.member?(node_ids, edge.v1) and
+        MapSet.member?(node_ids, edge.v2) and
         (variable == nil or to_string(data_edge_label(edge)) == variable)
     end)
     |> Enum.take(200)

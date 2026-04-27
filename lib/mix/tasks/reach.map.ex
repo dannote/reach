@@ -392,27 +392,30 @@ defmodule Mix.Tasks.Reach.Map do
       |> Graph.edges()
       |> Enum.filter(&Analysis.data_edge?/1)
 
+    func_index = build_func_index(project)
+    edge_counts = data_edge_counts(data_edges, func_index)
+    top = opts[:top] || 20
+
     top_functions =
       project
       |> function_defs(path)
       |> Enum.map(fn func ->
-        ids = func |> IR.all_nodes() |> MapSet.new(& &1.id)
-        count = Enum.count(data_edges, &(&1.v1 in ids or &1.v2 in ids))
+        id = function_id(func)
 
         %{
           function: func_id(func),
           file: func.source_span && func.source_span.file,
           line: func.source_span && func.source_span.start_line,
-          data_edges: count
+          data_edges: Map.get(edge_counts, id, 0)
         }
       end)
       |> Enum.sort_by(& &1.data_edges, :desc)
-      |> Enum.take(opts[:top] || 20)
+      |> Enum.take(top)
 
     %{
       total_data_edges: length(data_edges),
       top_functions: top_functions,
-      cross_function_edges: cross_function_edges(project, data_edges, opts[:top] || 20)
+      cross_function_edges: cross_function_edges(project, data_edges, top, func_index)
     }
   end
 
@@ -712,9 +715,21 @@ defmodule Mix.Tasks.Reach.Map do
     end
   end
 
-  defp cross_function_edges(project, data_edges, top) do
-    func_index = build_func_index(project)
+  defp data_edge_counts(data_edges, func_index) do
+    Enum.reduce(data_edges, %{}, fn edge, counts ->
+      source_func = Map.get(func_index, edge.v1)
+      target_func = Map.get(func_index, edge.v2)
 
+      counts
+      |> increment_data_edge_count(source_func)
+      |> increment_data_edge_count(if(target_func == source_func, do: nil, else: target_func))
+    end)
+  end
+
+  defp increment_data_edge_count(counts, nil), do: counts
+  defp increment_data_edge_count(counts, func), do: Map.update(counts, func, 1, &(&1 + 1))
+
+  defp cross_function_edges(project, data_edges, top, func_index) do
     data_edges
     |> Enum.flat_map(fn edge ->
       source_func = Map.get(func_index, edge.v1)
@@ -916,8 +931,9 @@ defmodule Mix.Tasks.Reach.Map do
     end
   end
 
-  defp func_id(func),
-    do: Format.func_id_to_string({func.meta[:module], func.meta[:name], func.meta[:arity]})
+  defp function_id(func), do: {func.meta[:module], func.meta[:name], func.meta[:arity]}
+
+  defp func_id(func), do: Format.func_id_to_string(function_id(func))
 
   defp func_id_tuple({module, name, arity}), do: Format.func_id_to_string({module, name, arity})
 
