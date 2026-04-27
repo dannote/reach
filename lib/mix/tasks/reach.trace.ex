@@ -46,10 +46,10 @@ defmodule Mix.Tasks.Reach.Trace do
 
     case trace_action(opts, positional) do
       :flow ->
-        TaskRunner.run("reach.flow", flow_args(opts))
+        TaskRunner.run("reach.flow", flow_args(opts), command: "reach.trace")
 
       {:slice, target, direction} ->
-        TaskRunner.run("reach.slice", slice_args(target, opts, direction))
+        TaskRunner.run("reach.slice", slice_args(target, opts, direction), command: "reach.trace")
 
       :error ->
         Mix.raise("Provide --from/--to, --variable, --backward TARGET, or --forward TARGET")

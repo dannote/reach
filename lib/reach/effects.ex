@@ -107,6 +107,8 @@ defmodule Reach.Effects do
   def classify(%Node{type: :fn}), do: :pure
   def classify(%Node{type: :entry}), do: :pure
   def classify(%Node{type: :exit}), do: :pure
+  def classify(%Node{type: :module_def}), do: :pure
+  def classify(%Node{type: :function_def}), do: :pure
 
   def classify(%Node{type: :binary_op}), do: :pure
   def classify(%Node{type: :unary_op}), do: :pure

@@ -45,7 +45,7 @@ defmodule Mix.Tasks.Reach.Otp do
     format = opts[:format] || "text"
 
     if opts[:concurrency] do
-      TaskRunner.run("reach.concurrency", delegated_args(args))
+      TaskRunner.run("reach.concurrency", delegated_args(args), command: "reach.otp")
     else
       project = Project.load()
       scope = List.first(target_args)
