@@ -64,12 +64,13 @@ defmodule Reach.Project do
   @doc """
   Builds a project graph from the current Mix project.
 
-  Analyzes all `.ex` files in `lib/` and all `.erl` files in `src/`.
+  Analyzes all `.ex` files in `lib/`, all `.erl` files in `src/`, and
+  umbrella application sources under `apps/*/lib` and `apps/*/src`.
   """
   @spec from_mix_project(keyword()) :: t()
   def from_mix_project(opts \\ []) do
-    elixir_files = Path.wildcard("lib/**/*.ex")
-    erlang_files = Path.wildcard("src/**/*.erl")
+    elixir_files = Path.wildcard("lib/**/*.ex") ++ Path.wildcard("apps/*/lib/**/*.ex")
+    erlang_files = Path.wildcard("src/**/*.erl") ++ Path.wildcard("apps/*/src/**/*.erl")
 
     from_sources(elixir_files ++ erlang_files, opts)
   end

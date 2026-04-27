@@ -63,6 +63,30 @@ defmodule Reach.ProjectTest do
     end
   end
 
+  describe "from_mix_project/1" do
+    test "includes umbrella app sources" do
+      write_file("apps/app_a/lib/umbrella_a.ex", "defmodule UmbrellaA do\n  def a, do: 1\nend\n")
+
+      write_file(
+        "apps/app_b/lib/umbrella_b.ex",
+        "defmodule UmbrellaB do\n  def b, do: UmbrellaA.a()\nend\n"
+      )
+
+      File.cd!(@tmp_dir, fn ->
+        project = Project.from_mix_project()
+
+        modules =
+          project.nodes
+          |> Map.values()
+          |> Enum.filter(&(&1.type == :module_def))
+          |> Enum.map(& &1.meta[:name])
+
+        assert UmbrellaA in modules
+        assert UmbrellaB in modules
+      end)
+    end
+  end
+
   describe "from_glob/2" do
     test "finds and analyzes files" do
       write_file("lib/glob_a.ex", "defmodule GlobA do\n  def a, do: 1\nend\n")
