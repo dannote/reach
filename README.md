@@ -158,7 +158,8 @@ mix reach.check --candidates --top 10
 
 Existing task names such as `mix reach.modules`, `mix reach.flow`, and
 `mix reach.impact` remain available as compatibility aliases. Canonical JSON
-envelopes are documented in [`JSON_SCHEMAS.md`](JSON_SCHEMAS.md).
+envelopes are documented in [`JSON_SCHEMAS.md`](JSON_SCHEMAS.md). `.reach.exs`
+architecture policy is documented in [`CONFIG.md`](CONFIG.md).
 
 ### Terminal graphs
 
