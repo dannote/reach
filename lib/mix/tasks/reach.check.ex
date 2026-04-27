@@ -608,8 +608,7 @@ defmodule Mix.Tasks.Reach.Check do
           {String.replace_prefix(line, "+++ b/", ""), acc}
 
         String.starts_with?(line, "@@") and file not in [nil, "/dev/null"] ->
-          range = parse_hunk_range(line)
-          {file, Map.update(acc, file, [range], &[range | &1])}
+          {file, add_hunk_range(acc, file, parse_hunk_range(line))}
 
         true ->
           {file, acc}
@@ -619,14 +618,17 @@ defmodule Mix.Tasks.Reach.Check do
     |> Map.new(fn {file, ranges} -> {file, Enum.reverse(ranges)} end)
   end
 
+  defp add_hunk_range(acc, _file, nil), do: acc
+  defp add_hunk_range(acc, file, range), do: Map.update(acc, file, [range], &[range | &1])
+
   defp parse_hunk_range(line) do
     case Regex.run(~r/\+(\d+)(?:,(\d+))?/, line) do
       [_, start] -> {String.to_integer(start), String.to_integer(start)}
+      [_, _start, "0"] -> nil
       [_, start, count] -> range_from_count(String.to_integer(start), String.to_integer(count))
     end
   end
 
-  defp range_from_count(start, 0), do: {start, start}
   defp range_from_count(start, count), do: {start, start + count - 1}
 
   defp changed_functions(project, changed_ranges, config) do

@@ -261,8 +261,20 @@ defmodule Mix.Tasks.Reach.Inspect do
   defp return_summaries(func) do
     func.children
     |> List.wrap()
-    |> Enum.map(&node_summary/1)
+    |> Enum.flat_map(&clause_return/1)
   end
+
+  defp clause_return(%{type: :clause, children: children}) do
+    children
+    |> List.wrap()
+    |> List.last()
+    |> case do
+      nil -> []
+      node -> [node_summary(node)]
+    end
+  end
+
+  defp clause_return(node), do: [node_summary(node)]
 
   defp var_summary(node) do
     span = node.source_span || %{}
