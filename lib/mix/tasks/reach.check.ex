@@ -476,7 +476,7 @@ defmodule Mix.Tasks.Reach.Check do
     |> Enum.sort()
   end
 
-  defp concrete_effects(func), do: function_effects(func) -- [:pure, :unknown]
+  defp concrete_effects(func), do: function_effects(func) -- [:pure, :unknown, :exception]
 
   defp expected_effect_boundary?(func) do
     callback? =
@@ -782,7 +782,14 @@ defmodule Mix.Tasks.Reach.Check do
         target: Enum.join(cycle, " -> "),
         benefit: :high,
         risk: :medium,
+        confidence: :low,
+        actionability: :needs_project_policy,
         evidence: ["module_dependency_cycle"],
+        proof: [
+          "Confirm the cycle violates intended architecture before changing code.",
+          "Review representative_calls to find the smallest boundary-breaking call.",
+          "Prefer moving shared helpers downward over introducing a new abstraction."
+        ],
         suggestion:
           "Move shared code to a lower-level module or route calls through an existing boundary.",
         modules: cycle,
@@ -914,8 +921,15 @@ defmodule Mix.Tasks.Reach.Check do
         line: func.source_span.start_line,
         benefit: :medium,
         risk: :medium,
+        confidence: :medium,
+        actionability: :review_effect_order,
         evidence: ["mixed_effects"],
         effects: Enum.map(effects, &to_string/1),
+        proof: [
+          "Preserve side-effect order exactly.",
+          "Extract only pure decision/preparation code first.",
+          "Run tests covering both success and error paths."
+        ],
         suggestion:
           "Split pure decision logic from side-effect execution while preserving effect order."
       }
@@ -939,8 +953,15 @@ defmodule Mix.Tasks.Reach.Check do
         line: violation.line,
         benefit: :high,
         risk: :medium,
+        confidence: :high,
+        actionability: :policy_violation,
         evidence: ["architecture_policy_violation", "forbidden_dependency"],
         call: violation.call,
+        proof: [
+          "Verify the .reach.exs policy matches the intended architecture.",
+          "Route through an existing boundary when possible.",
+          "Avoid making internal modules public just to silence the violation."
+        ],
         suggestion:
           "Route this call through an allowed boundary or move the helper to an allowed lower layer."
       }
@@ -971,7 +992,10 @@ defmodule Mix.Tasks.Reach.Check do
 
     Enum.each(candidates, fn candidate ->
       IO.puts("#{candidate.id} #{candidate.kind} #{candidate.target}")
-      IO.puts("  benefit=#{candidate.benefit} risk=#{candidate.risk}")
+
+      IO.puts(
+        "  benefit=#{candidate.benefit} risk=#{candidate.risk} confidence=#{candidate[:confidence] || :unknown}"
+      )
 
       if candidate[:file] do
         IO.puts("  location=#{candidate.file}:#{candidate.line}")

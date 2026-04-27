@@ -149,8 +149,15 @@ mix reach.map --data --format json
       "line": 54,
       "benefit": "medium",
       "risk": "medium",
+      "confidence": "medium",
+      "actionability": "review_effect_order",
       "evidence": ["mixed_effects"],
       "effects": ["read", "write"],
+      "proof": [
+        "Preserve side-effect order exactly.",
+        "Extract only pure decision/preparation code first.",
+        "Run tests covering both success and error paths."
+      ],
       "suggestion": "Split pure decision logic from side-effect execution while preserving effect order."
     }
   ],
@@ -281,8 +288,24 @@ Violation shapes:
       "target": "Reach -> Reach.SystemDependence",
       "benefit": "high",
       "risk": "medium",
+      "confidence": "low",
+      "actionability": "needs_project_policy",
       "evidence": ["module_dependency_cycle"],
       "modules": ["Reach", "Reach.SystemDependence"],
+      "representative_calls": [
+        {
+          "caller_module": "Reach",
+          "callee_module": "Reach.SystemDependence",
+          "file": "lib/reach.ex",
+          "line": 42,
+          "call": "Reach.SystemDependence.build/2"
+        }
+      ],
+      "proof": [
+        "Confirm the cycle violates intended architecture before changing code.",
+        "Review representative_calls to find the smallest boundary-breaking call.",
+        "Prefer moving shared helpers downward over introducing a new abstraction."
+      ],
       "suggestion": "Move shared code to a lower-level module or route calls through an existing boundary."
     }
   ],
