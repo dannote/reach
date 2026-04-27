@@ -31,7 +31,6 @@ defmodule Mix.Tasks.Reach.Map do
 
   alias Reach.CLI.Format
   alias Reach.CLI.Project
-  alias Reach.CLI.TaskRunner
   alias Reach.Effects
   alias Reach.IR
 
@@ -56,26 +55,10 @@ defmodule Mix.Tasks.Reach.Map do
   @impl Mix.Task
   def run(args) do
     {opts, positional, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
-
-    if opts[:format] == "json" do
-      render_json_map(opts, positional)
-    else
-      run_delegated(opts, positional)
-    end
+    render_map(opts, positional)
   end
 
-  defp run_delegated(opts, path_args) do
-    selections = selected_sections(opts)
-    sections = if selections == [], do: default_sections(), else: selections
-
-    Enum.each(sections, fn {title, task, extra_args} ->
-      print_section(title, length(sections))
-      TaskRunner.run(task, build_args(opts, extra_args, path_args))
-    end)
-  end
-
-  defp render_json_map(opts, path_args) do
-    ensure_json_encoder!()
+  defp render_map(opts, path_args) do
     project = Project.load()
     path = List.first(path_args)
     sections = selected_keys(opts)
@@ -83,15 +66,151 @@ defmodule Mix.Tasks.Reach.Map do
     sections =
       if sections == [], do: [:modules, :hotspots, :coupling, :boundaries], else: sections
 
-    result =
-      %{
-        command: "reach.map",
-        summary: summary(project, path),
-        sections: Map.new(sections, &{&1, section_data(project, &1, opts, path)})
-      }
+    result = %{
+      command: "reach.map",
+      summary: summary(project, path),
+      sections: Map.new(sections, &{&1, section_data(project, &1, opts, path)})
+    }
 
-    IO.puts(Jason.encode!(result, pretty: true))
+    case opts[:format] do
+      "json" ->
+        ensure_json_encoder!()
+        IO.puts(Jason.encode!(result, pretty: true))
+
+      "oneline" ->
+        render_oneline_map(result)
+
+      _ ->
+        render_text_map(result)
+    end
   end
+
+  defp render_text_map(%{summary: summary, sections: sections}) do
+    IO.puts(Format.header("Reach Map"))
+    IO.puts("  modules=#{summary.modules} functions=#{summary.functions}")
+
+    IO.puts(
+      "  call_graph=#{summary.call_graph_vertices} vertices/#{summary.call_graph_edges} edges"
+    )
+
+    IO.puts("  pdg=#{summary.graph_nodes} nodes/#{summary.graph_edges} edges")
+
+    Enum.each(sections, fn {key, data} ->
+      IO.puts(Format.section(section_title(key)))
+      render_text_section(key, data)
+    end)
+  end
+
+  defp render_oneline_map(%{summary: summary, sections: sections}) do
+    IO.puts(
+      "summary modules=#{summary.modules} functions=#{summary.functions} call_edges=#{summary.call_graph_edges} graph_edges=#{summary.graph_edges}"
+    )
+
+    Enum.each(sections, fn
+      {:modules, modules} ->
+        Enum.each(
+          modules,
+          &IO.puts("module #{&1.name} functions=#{&1.functions} complexity=#{&1.complexity}")
+        )
+
+      {:hotspots, hotspots} ->
+        Enum.each(
+          hotspots,
+          &IO.puts(
+            "hotspot #{&1.function} score=#{&1.score} branches=#{&1.branches} callers=#{&1.callers}"
+          )
+        )
+
+      {:boundaries, boundaries} ->
+        Enum.each(
+          boundaries,
+          &IO.puts("boundary #{&1.function} effects=#{Enum.join(&1.effects, "+")}")
+        )
+
+      {:effects, effects} ->
+        Enum.each(effects, fn {effect, count} -> IO.puts("effect #{effect}=#{count}") end)
+
+      {:data, data} ->
+        Enum.each(data.top_functions, &IO.puts("data #{&1.function} edges=#{&1.data_edges}"))
+
+      {:coupling, data} ->
+        Enum.each(
+          data.modules,
+          &IO.puts("coupling #{&1.name} ca=#{&1.afferent} ce=#{&1.efferent} i=#{&1.instability}")
+        )
+
+      {:depth, rows} ->
+        Enum.each(rows, &IO.puts("depth #{&1.function} branches=#{&1.branch_count}"))
+    end)
+  end
+
+  defp render_text_section(:modules, modules) do
+    Enum.each(modules, fn module ->
+      IO.puts(
+        "  #{Format.bright(module.name)} functions=#{module.functions} public=#{module.public} private=#{module.private} complexity=#{module.complexity}"
+      )
+
+      IO.puts("    #{Format.faint(module.file)}")
+    end)
+  end
+
+  defp render_text_section(:hotspots, hotspots) do
+    Enum.each(hotspots, fn hotspot ->
+      IO.puts(
+        "  #{Format.bright(hotspot.function)} score=#{hotspot.score} branches=#{hotspot.branches} callers=#{hotspot.callers}"
+      )
+
+      IO.puts("    #{Format.faint("#{hotspot.file}:#{hotspot.line}")}")
+    end)
+  end
+
+  defp render_text_section(:coupling, %{modules: modules, cycles: cycles}) do
+    Enum.each(modules, fn module ->
+      IO.puts(
+        "  #{Format.bright(module.name)} Ca=#{module.afferent} Ce=#{module.efferent} I=#{module.instability}"
+      )
+    end)
+
+    if cycles != [] do
+      IO.puts("  cycles:")
+      Enum.each(cycles, &IO.puts("    #{Enum.join(&1.modules, " -> ")}"))
+    end
+  end
+
+  defp render_text_section(:effects, effects) do
+    Enum.each(effects, fn {effect, count} -> IO.puts("  #{effect}: #{count}") end)
+  end
+
+  defp render_text_section(:boundaries, boundaries) do
+    Enum.each(boundaries, fn boundary ->
+      IO.puts("  #{Format.bright(boundary.function)} effects=#{Enum.join(boundary.effects, "+")}")
+      IO.puts("    #{Format.faint("#{boundary.file}:#{boundary.line}")}")
+    end)
+  end
+
+  defp render_text_section(:depth, rows) do
+    Enum.each(rows, fn row ->
+      IO.puts("  #{Format.bright(row.function)} branches=#{row.branch_count}")
+      IO.puts("    #{Format.faint("#{row.file}:#{row.line}")}")
+    end)
+  end
+
+  defp render_text_section(:data, data) do
+    IO.puts("  total_data_edges=#{data.total_data_edges}")
+
+    Enum.each(data.top_functions, fn row ->
+      IO.puts("  #{Format.bright(row.function)} data_edges=#{row.data_edges}")
+      IO.puts("    #{Format.faint("#{row.file}:#{row.line}")}")
+    end)
+  end
+
+  defp section_title(:modules), do: "Modules"
+  defp section_title(:hotspots), do: "Hotspots"
+  defp section_title(:coupling), do: "Coupling"
+  defp section_title(:effects), do: "Effects"
+  defp section_title(:boundaries), do: "Effect Boundaries"
+  defp section_title(:depth), do: "Control Depth"
+  defp section_title(:data), do: "Data Flow"
 
   defp selected_keys(opts) do
     [:modules, :coupling, :hotspots, :effects, :boundaries, :depth, :data, :xref]
@@ -387,49 +506,6 @@ defmodule Mix.Tasks.Reach.Map do
 
   defp location_sort(func),
     do: {span_file(func) || "", (func.source_span && func.source_span.start_line) || 0}
-
-  defp selected_sections(opts) do
-    [
-      {:modules, "Modules", "reach.modules", []},
-      {:coupling, "Coupling", "reach.coupling", []},
-      {:hotspots, "Hotspots", "reach.hotspots", []},
-      {:effects, "Effects", "reach.effects", []},
-      {:boundaries, "Effect Boundaries", "reach.boundaries", []},
-      {:depth, "Control Depth", "reach.depth", []},
-      {:data, "Cross-function Data Flow", "reach.xref", []},
-      {:xref, "Cross-function Data Flow", "reach.xref", []}
-    ]
-    |> Enum.flat_map(fn {key, title, task, extra_args} ->
-      if opts[key], do: [{title, task, extra_args}], else: []
-    end)
-  end
-
-  defp default_sections do
-    [
-      {"Modules", "reach.modules", []},
-      {"Hotspots", "reach.hotspots", ["--top", "10"]},
-      {"Coupling", "reach.coupling", []},
-      {"Effect Boundaries", "reach.boundaries", []}
-    ]
-  end
-
-  defp build_args(opts, extra_args, path_args) do
-    []
-    |> maybe_put("--format", opts[:format])
-    |> maybe_put("--top", opts[:top])
-    |> maybe_put("--sort", opts[:sort])
-    |> Kernel.++(extra_args)
-    |> Kernel.++(path_args)
-  end
-
-  defp maybe_put(args, _flag, nil), do: args
-  defp maybe_put(args, flag, value), do: args ++ [flag, to_string(value)]
-
-  defp print_section(_title, 1), do: :ok
-
-  defp print_section(title, _count) do
-    IO.puts("\n== #{title} ==")
-  end
 
   defp ensure_json_encoder! do
     unless Code.ensure_loaded?(Jason) do

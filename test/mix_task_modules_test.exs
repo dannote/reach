@@ -5,32 +5,29 @@ defmodule Mix.Tasks.Reach.ModulesTest do
 
   alias Mix.Tasks.Reach.Modules
 
-  test "runs without --graph flag" do
-    output = capture_io(fn -> Modules.run([]) end)
+  test "delegates text output to reach.map --modules" do
+    output = capture_io(fn -> Modules.run(["--top", "2"]) end)
+    assert output =~ "Reach Map"
     assert output =~ "Modules"
   end
 
-  @tag :boxart
-  test "--graph flag" do
-    output = capture_io(fn -> Modules.run(["--graph"]) end)
-    assert output =~ "┌"
-  end
-
-  test "json format" do
-    output = capture_io(fn -> Modules.run(["--format", "json"]) end)
+  test "json format uses canonical reach.map envelope" do
+    output = capture_io(fn -> Modules.run(["--format", "json", "--top", "2"]) end)
     json = strip_info_lines(output)
+
     assert {:ok, data} = Jason.decode(json)
-    assert is_list(data["modules"])
+    assert data["command"] == "reach.map"
+    assert is_list(data["sections"]["modules"])
   end
 
   test "oneline format" do
-    output = capture_io(fn -> Modules.run(["--format", "oneline"]) end)
-    assert output =~ "public"
+    output = capture_io(fn -> Modules.run(["--format", "oneline", "--top", "2"]) end)
+    assert output =~ "module"
     assert output =~ "complexity="
   end
 
   test "sort by complexity" do
-    output = capture_io(fn -> Modules.run(["--sort", "complexity"]) end)
+    output = capture_io(fn -> Modules.run(["--sort", "complexity", "--top", "2"]) end)
     assert output =~ "Modules"
   end
 
