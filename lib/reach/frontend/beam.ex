@@ -39,12 +39,7 @@ defmodule Reach.Frontend.BEAM do
       tmp_file = Path.join(tmp_dir, "source.ex")
       File.write!(tmp_file, source)
 
-      prev = Code.get_compiler_option(:debug_info)
-      Code.put_compiler_option(:debug_info, true)
-
-      {:ok, modules, _} = Kernel.ParallelCompiler.compile_to_path([tmp_file], tmp_dir)
-
-      Code.put_compiler_option(:debug_info, prev)
+      modules = compile_with_debug_info(tmp_file, tmp_dir)
 
       nodes =
         Enum.flat_map(modules, fn mod ->
@@ -67,6 +62,20 @@ defmodule Reach.Frontend.BEAM do
       e -> {:error, {e.__struct__, Exception.message(e)}}
     after
       File.rm_rf(tmp_dir)
+    end
+  end
+
+  defp compile_with_debug_info(tmp_file, tmp_dir) do
+    prev = Code.get_compiler_option(:debug_info)
+    Code.put_compiler_option(:debug_info, true)
+
+    try do
+      case Kernel.ParallelCompiler.compile_to_path([tmp_file], tmp_dir, return_diagnostics: true) do
+        {:ok, modules, _diagnostics} -> modules
+        {:error, errors, _diagnostics} -> raise "compilation failed: #{inspect(errors)}"
+      end
+    after
+      Code.put_compiler_option(:debug_info, prev)
     end
   end
 
