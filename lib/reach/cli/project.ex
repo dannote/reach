@@ -4,9 +4,8 @@ defmodule Reach.CLI.Project do
   alias Reach.CLI.Format
 
   def load(opts \\ []) do
-    Mix.Task.run("compile", ["--no-warnings-as-errors"])
-
     quiet? = Keyword.get(opts, :quiet, false)
+    compile(quiet?)
 
     case Keyword.get(opts, :paths) do
       nil ->
@@ -18,6 +17,19 @@ defmodule Reach.CLI.Project do
         Reach.Project.from_sources(paths)
     end
   end
+
+  defp compile(true) do
+    shell = Mix.shell()
+    Mix.shell(Mix.Shell.Quiet)
+
+    try do
+      Mix.Task.run("compile", ["--no-warnings-as-errors"])
+    after
+      Mix.shell(shell)
+    end
+  end
+
+  defp compile(false), do: Mix.Task.run("compile", ["--no-warnings-as-errors"])
 
   def function_index(project) do
     case Process.get({__MODULE__, :func_index}) do

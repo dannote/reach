@@ -112,6 +112,9 @@ mix reach.inspect MyApp.Accounts.register/2 --impact
 # Target-local data-flow view or terminal graph
 mix reach.inspect MyApp.Accounts.register/2 --data
 mix reach.inspect MyApp.Accounts.register/2 --graph
+
+# Explain why one target reaches or depends on another
+mix reach.inspect MyApp.Accounts.register/2 --why MyApp.Mailer.deliver/1
 ```
 
 ### Data flow and slicing
