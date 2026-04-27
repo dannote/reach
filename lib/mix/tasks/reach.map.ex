@@ -107,19 +107,25 @@ defmodule Mix.Tasks.Reach.Map do
   end
 
   defp render_text_map(%{summary: summary, sections: sections}) do
-    IO.puts(Format.header("Reach Map"))
-    IO.puts("  modules=#{summary.modules} functions=#{summary.functions}")
-
-    IO.puts(
-      "  call_graph=#{summary.call_graph_vertices} vertices/#{summary.call_graph_edges} edges"
-    )
-
-    IO.puts("  pdg=#{summary.graph_nodes} nodes/#{summary.graph_edges} edges")
-
-    Enum.each(sections, fn {key, data} ->
-      IO.puts(Format.section(section_title(key)))
+    if map_size(sections) == 1 do
+      [{key, data}] = Map.to_list(sections)
+      IO.puts(Format.header(section_header(key, data)))
       render_text_section(key, data)
-    end)
+    else
+      IO.puts(Format.header("Reach Map"))
+      IO.puts("  modules=#{summary.modules} functions=#{summary.functions}")
+
+      IO.puts(
+        "  call_graph=#{summary.call_graph_vertices} vertices/#{summary.call_graph_edges} edges"
+      )
+
+      IO.puts("  pdg=#{summary.graph_nodes} nodes/#{summary.graph_edges} edges")
+
+      Enum.each(sections, fn {key, data} ->
+        IO.puts(Format.section(section_title(key)))
+        render_text_section(key, data)
+      end)
+    end
   end
 
   defp render_oneline_map(%{summary: summary, sections: sections}) do
@@ -131,7 +137,9 @@ defmodule Mix.Tasks.Reach.Map do
       {:modules, modules} ->
         Enum.each(
           modules,
-          &IO.puts("module #{&1.name} functions=#{&1.functions} complexity=#{&1.complexity}")
+          &IO.puts(
+            "module #{&1.name} functions=#{&1.total_functions} complexity=#{&1.total_complexity}"
+          )
         )
 
       {:hotspots, hotspots} ->
@@ -178,18 +186,27 @@ defmodule Mix.Tasks.Reach.Map do
 
   defp render_text_section(:modules, modules) do
     Enum.each(modules, fn module ->
+      behaviours = module_behaviour_label(module.callbacks)
+      IO.puts("  #{Format.bright(module.name)}#{Format.cyan(behaviours)}")
+
       IO.puts(
-        "  #{Format.bright(module.name)} functions=#{module.functions} public=#{module.public} private=#{module.private} complexity=#{module.complexity}"
+        "    #{module.public_count} public, #{module.private_count} private, complexity #{module.total_complexity}"
       )
 
-      IO.puts("    #{Format.faint(module.file)}")
+      if module.biggest_function,
+        do: IO.puts("    biggest: #{Format.yellow(module.biggest_function)}")
+
+      if module.file, do: IO.puts("    #{Format.faint(module.file)}")
+      IO.puts("")
     end)
   end
 
   defp render_text_section(:hotspots, hotspots) do
     Enum.each(hotspots, fn hotspot ->
+      label = Map.get(hotspot, :display_function, hotspot.function)
+
       IO.puts(
-        "  #{Format.bright(hotspot.function)} score=#{hotspot.score} branches=#{hotspot.branches} callers=#{hotspot.callers}"
+        "  #{Format.bright(label)} score=#{hotspot.score} branches=#{hotspot.branches} callers=#{hotspot.callers}"
       )
 
       IO.puts("    #{Format.faint("#{hotspot.file}:#{hotspot.line}")}")
@@ -224,7 +241,14 @@ defmodule Mix.Tasks.Reach.Map do
 
   defp render_text_section(:boundaries, boundaries) do
     Enum.each(boundaries, fn boundary ->
-      IO.puts("  #{Format.bright(boundary.function)} effects=#{Enum.join(boundary.effects, "+")}")
+      IO.puts(
+        "  #{Format.bright(boundary.display_function)} effects=#{Enum.join(boundary.effects, "+")}"
+      )
+
+      Enum.each(boundary.calls, fn call ->
+        IO.puts("    #{call.effect} #{call.call}")
+      end)
+
       IO.puts("    #{Format.faint("#{boundary.file}:#{boundary.line}")}")
     end)
   end
@@ -260,6 +284,14 @@ defmodule Mix.Tasks.Reach.Map do
   defp section_title(:boundaries), do: "Effect Boundaries"
   defp section_title(:depth), do: "Control Depth"
   defp section_title(:data), do: "Data Flow"
+
+  defp section_header(:modules, data), do: "Modules (#{length(data)})"
+  defp section_header(:hotspots, data), do: "Hotspots (#{length(data)})"
+  defp section_header(:coupling, data), do: "Module Coupling (#{length(data.modules)})"
+  defp section_header(:effects, data), do: "Effect Distribution (#{data.total_calls} calls)"
+  defp section_header(:boundaries, data), do: "Effect Boundaries (#{length(data)})"
+  defp section_header(:depth, data), do: "Dominator Depth (#{length(data)})"
+  defp section_header(:data, data), do: "Data Flow (#{length(data.top_functions)})"
 
   defp selected_keys(opts) do
     [:modules, :coupling, :hotspots, :effects, :boundaries, :depth, :data, :xref]
@@ -331,11 +363,17 @@ defmodule Mix.Tasks.Reach.Map do
     |> Enum.sort_by(fn {func, effects} -> {-length(effects), location_sort(func)} end)
     |> Enum.take(opts[:top] || 20)
     |> Enum.map(fn {func, effects} ->
+      module = inspect(func.meta[:module])
+      function = "#{func.meta[:name]}/#{func.meta[:arity]}"
+
       %{
-        function: func_id(func),
+        module: module,
+        function: function,
+        display_function: "#{module}.#{function}",
         file: func.source_span && func.source_span.file,
         line: func.source_span && func.source_span.start_line,
-        effects: Enum.map(effects, &to_string/1)
+        effects: Enum.map(effects, &to_string/1),
+        calls: effect_calls(func)
       }
     end)
   end
@@ -445,13 +483,28 @@ defmodule Mix.Tasks.Reach.Map do
     |> Enum.map(fn module ->
       funcs = module |> IR.all_nodes() |> Enum.filter(&(&1.type == :function_def))
 
+      public_count = Enum.count(funcs, &(&1.meta[:kind] == :def))
+      private_count = Enum.count(funcs, &(&1.meta[:kind] in [:defp, :defmacrop]))
+      macro_count = Enum.count(funcs, &(&1.meta[:kind] == :defmacro))
+      total_complexity = Enum.map(funcs, &branch_count/1) |> Enum.sum()
+      callbacks = detect_callbacks(module |> IR.all_nodes())
+
       %{
         name: inspect(module.meta[:name]),
         file: span_file(module),
         functions: length(funcs),
-        public: Enum.count(funcs, &(&1.meta[:kind] == :def)),
-        private: Enum.count(funcs, &(&1.meta[:kind] in [:defp, :defmacrop])),
-        complexity: Enum.map(funcs, &branch_count/1) |> Enum.sum()
+        public: public_count,
+        private: private_count,
+        complexity: total_complexity,
+        public_count: public_count,
+        private_count: private_count,
+        macro_count: macro_count,
+        total_functions: length(funcs),
+        total_complexity: total_complexity,
+        biggest_function: biggest_function(funcs),
+        callbacks: callbacks,
+        fan_in: count_fan_in(project.call_graph, funcs),
+        fan_out: count_fan_out(project.call_graph, funcs)
       }
     end)
     |> Enum.reject(&(&1.functions == 0))
@@ -466,13 +519,19 @@ defmodule Mix.Tasks.Reach.Map do
 
       branches = branch_count(func)
 
+      module = inspect(func.meta[:module])
+      function = "#{func.meta[:name]}/#{func.meta[:arity]}"
+
       %{
-        function: func_id(func),
+        module: module,
+        function: function,
+        display_function: "#{module}.#{function}",
         file: span_file(func),
         line: func.source_span && func.source_span.start_line,
         branches: branches,
         callers: length(callers),
-        score: branches * length(callers)
+        score: branches * length(callers),
+        clauses: IRHelpers.clause_labels(func)
       }
     end)
     |> Enum.filter(&(&1.score > 0))
@@ -739,8 +798,98 @@ defmodule Mix.Tasks.Reach.Map do
     )
   end
 
-  defp sort_modules(modules, "functions"), do: Enum.sort_by(modules, & &1.functions, :desc)
-  defp sort_modules(modules, "complexity"), do: Enum.sort_by(modules, & &1.complexity, :desc)
+  defp biggest_function([]), do: nil
+
+  defp biggest_function(funcs) do
+    func = Enum.max_by(funcs, &branch_count/1)
+    "#{func.meta[:name]}/#{func.meta[:arity]} (#{branch_count(func)})"
+  end
+
+  defp detect_callbacks(nodes) do
+    callbacks =
+      nodes
+      |> Enum.filter(&callback_function?/1)
+      |> Enum.map(& &1.meta[:name])
+      |> Enum.uniq()
+
+    case infer_behaviour(callbacks) do
+      nil -> callbacks
+      behaviour -> [behaviour | callbacks]
+    end
+  end
+
+  defp callback_function?(node) do
+    node.type == :function_def and
+      node.meta[:name] in [
+        :init,
+        :handle_call,
+        :handle_cast,
+        :handle_info,
+        :handle_continue,
+        :handle_event,
+        :handle_batch,
+        :perform,
+        :mount,
+        :render,
+        :handle_params
+      ]
+  end
+
+  defp infer_behaviour(callbacks) do
+    cond do
+      :handle_call in callbacks or :handle_cast in callbacks -> "GenServer"
+      :handle_event in callbacks -> "GenStage"
+      :mount in callbacks and :render in callbacks -> "LiveView"
+      :perform in callbacks -> "Oban.Worker"
+      true -> nil
+    end
+  end
+
+  defp count_fan_in(call_graph, funcs) do
+    funcs
+    |> Enum.map(&function_vertex/1)
+    |> Enum.map(fn vertex ->
+      if Graph.has_vertex?(call_graph, vertex),
+        do: length(Graph.in_neighbors(call_graph, vertex)),
+        else: 0
+    end)
+    |> Enum.sum()
+  end
+
+  defp count_fan_out(call_graph, funcs) do
+    funcs
+    |> Enum.map(&function_vertex/1)
+    |> Enum.map(fn vertex ->
+      if Graph.has_vertex?(call_graph, vertex),
+        do: length(Graph.out_neighbors(call_graph, vertex)),
+        else: 0
+    end)
+    |> Enum.sum()
+  end
+
+  defp function_vertex(func), do: {func.meta[:module], func.meta[:name], func.meta[:arity]}
+
+  defp effect_calls(func) do
+    func
+    |> IR.all_nodes()
+    |> Enum.filter(&(&1.type == :call))
+    |> Enum.reject(&(Effects.classify(&1) in [:pure, :unknown]))
+    |> Enum.map(fn call ->
+      %{effect: to_string(Effects.classify(call)), call: Format.call_name(call)}
+    end)
+    |> Enum.uniq_by(& &1.call)
+    |> Enum.sort_by(& &1.effect)
+  end
+
+  defp module_behaviour_label([]), do: ""
+  defp module_behaviour_label([behaviour | _]) when is_binary(behaviour), do: " (#{behaviour})"
+  defp module_behaviour_label(_callbacks), do: ""
+
+  defp sort_modules(modules, "functions"), do: Enum.sort_by(modules, & &1.total_functions, :desc)
+
+  defp sort_modules(modules, "complexity"),
+    do: Enum.sort_by(modules, & &1.total_complexity, :desc)
+
   defp sort_modules(modules, _), do: Enum.sort_by(modules, & &1.name)
 
   defp sort_coupling(modules, "afferent"), do: Enum.sort_by(modules, & &1.afferent, :desc)
