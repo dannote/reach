@@ -33,6 +33,7 @@ defmodule Mix.Tasks.Reach.Otp do
   alias Reach.CLI.BoxartGraph
   alias Reach.CLI.Format
   alias Reach.CLI.Project
+  alias Reach.CLI.TaskRunner
   alias Reach.IR
   alias Reach.OTP.CrossProcess
   alias Reach.OTP.DeadReply
@@ -44,7 +45,7 @@ defmodule Mix.Tasks.Reach.Otp do
     format = opts[:format] || "text"
 
     if opts[:concurrency] do
-      Reach.CLI.TaskRunner.run("reach.concurrency", delegated_args(args))
+      TaskRunner.run("reach.concurrency", delegated_args(args))
     else
       project = Project.load()
       scope = List.first(target_args)

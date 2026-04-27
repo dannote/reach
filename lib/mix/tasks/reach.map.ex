@@ -29,6 +29,7 @@ defmodule Mix.Tasks.Reach.Map do
 
   use Mix.Task
 
+  alias Reach.CLI.Analysis
   alias Reach.CLI.Format
   alias Reach.CLI.Project
   alias Reach.Effects
@@ -303,7 +304,7 @@ defmodule Mix.Tasks.Reach.Map do
     data_edges =
       project.graph
       |> Graph.edges()
-      |> Enum.filter(&data_edge?/1)
+      |> Enum.filter(&Analysis.data_edge?/1)
 
     top_functions =
       project
@@ -424,18 +425,20 @@ defmodule Mix.Tasks.Reach.Map do
       module_nodes
       |> Enum.flat_map(&IR.all_nodes/1)
       |> Enum.filter(&(&1.type == :call and &1.meta[:kind] == :remote and &1.meta[:module]))
-      |> Enum.reduce(seed, fn call, acc ->
-        caller = call.source_span && Map.get(module_by_file, call.source_span.file)
-        callee = call.meta[:module]
-
-        if caller && callee && caller != callee && MapSet.member?(internal, callee) do
-          Map.update(acc, caller, [callee], &[callee | &1])
-        else
-          acc
-        end
-      end)
+      |> Enum.reduce(seed, &add_module_dependency(&1, &2, module_by_file, internal))
     end)
     |> Map.new(fn {module, deps} -> {module, deps |> Enum.uniq() |> Enum.sort()} end)
+  end
+
+  defp add_module_dependency(call, acc, module_by_file, internal) do
+    caller = call.source_span && Map.get(module_by_file, call.source_span.file)
+    callee = call.meta[:module]
+
+    if caller && callee && caller != callee && MapSet.member?(internal, callee) do
+      Map.update(acc, caller, [callee], &[callee | &1])
+    else
+      acc
+    end
   end
 
   defp invert_deps(deps) do
@@ -483,13 +486,6 @@ defmodule Mix.Tasks.Reach.Map do
           (&1.type == :binary_op and &1.meta[:operator] in [:and, :or, :&&, :||]))
     )
   end
-
-  defp data_edge?(%Graph.Edge{label: {:data, _}}), do: true
-
-  defp data_edge?(%Graph.Edge{label: label})
-       when label in [:parameter_in, :parameter_out, :summary], do: true
-
-  defp data_edge?(_edge), do: false
 
   defp sort_modules(modules, "functions"), do: Enum.sort_by(modules, & &1.functions, :desc)
   defp sort_modules(modules, "complexity"), do: Enum.sort_by(modules, & &1.complexity, :desc)
