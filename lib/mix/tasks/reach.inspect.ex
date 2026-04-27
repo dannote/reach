@@ -348,7 +348,7 @@ defmodule Mix.Tasks.Reach.Inspect do
   end
 
   defp target_candidates(project, mfa, func) do
-    non_pure_effects = function_effect_atoms(func) -- [:pure]
+    non_pure_effects = function_effect_atoms(func) -- [:pure, :unknown]
     callers = Project.callers(project, mfa, 1)
     branch_count = branch_count(func)
 
