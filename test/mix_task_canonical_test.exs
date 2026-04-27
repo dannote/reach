@@ -83,7 +83,14 @@ defmodule Mix.Tasks.Reach.CanonicalTest do
 
     assert {:ok, data} = Jason.decode(json)
     assert is_list(data["candidates"])
-    assert Enum.any?(data["candidates"], &(&1["kind"] in ["break_cycle", "isolate_effects"]))
+
+    assert Enum.any?(
+             data["candidates"],
+             &(&1["kind"] in ["break_cycle", "isolate_effects", "extract_pure_region"])
+           )
+
+    assert Enum.all?(data["candidates"], &:maps.is_key("confidence", &1))
+    assert Enum.all?(data["candidates"], &:maps.is_key("proof", &1))
   end
 
   test "reach.check validates an empty architecture policy" do
