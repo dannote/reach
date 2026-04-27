@@ -729,9 +729,10 @@ defmodule Mix.Tasks.Reach.Check do
     config = if File.exists?(".reach.exs"), do: load_config(), else: []
 
     candidates =
-      (cycle_candidates(project) ++
-         mixed_effect_candidates(project) ++
-         boundary_candidates(project, config))
+      (mixed_effect_candidates(project) ++
+         extract_region_candidates(project) ++
+         boundary_candidates(project, config) ++
+         cycle_candidates(project))
       |> Enum.uniq_by(& &1.id)
       |> Enum.sort_by(&candidate_rank/1)
 
@@ -935,6 +936,49 @@ defmodule Mix.Tasks.Reach.Check do
       }
     end)
   end
+
+  defp extract_region_candidates(project) do
+    project.nodes
+    |> Map.values()
+    |> Enum.filter(&(&1.type == :function_def and &1.source_span))
+    |> Enum.map(fn func ->
+      {func, branch_count(func), Project.callers(project, function_id(func), 1)}
+    end)
+    |> Enum.filter(fn {_func, branches, callers} -> branches >= 8 and length(callers) >= 1 end)
+    |> Enum.reject(fn {func, _branches, _callers} ->
+      expected_effect_boundary?(func) and branch_count(func) < 20
+    end)
+    |> Enum.sort_by(fn {func, branches, callers} ->
+      {-branches * max(length(callers), 1), func.source_span.file, func.source_span.start_line}
+    end)
+    |> Enum.take(20)
+    |> Enum.with_index(1)
+    |> Enum.map(fn {{func, branches, callers}, index} ->
+      %{
+        id: candidate_id("R1", index),
+        kind: "extract_pure_region",
+        target: Format.func_id_to_string(function_id(func)),
+        file: func.source_span.file,
+        line: func.source_span.start_line,
+        benefit: :medium,
+        risk: if(length(callers) > 3, do: :high, else: :medium),
+        confidence: :medium,
+        actionability: :needs_region_proof,
+        evidence: ["branchy_function", "caller_impact"],
+        branches: branches,
+        direct_caller_count: length(callers),
+        proof: [
+          "Identify a single-entry/single-exit region before editing.",
+          "Verify extracted region has explicit inputs and one clear output.",
+          "Add or run fixture tests around behavior and source spans."
+        ],
+        suggestion:
+          "Look for a single-entry/single-exit pure branch region before extracting. Do not extract by size alone."
+      }
+    end)
+  end
+
+  defp function_id(func), do: {func.meta[:module], func.meta[:name], func.meta[:arity]}
 
   defp boundary_candidates(_project, []), do: []
 

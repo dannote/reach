@@ -181,6 +181,8 @@ A further review pass added candidate metadata to reduce overconfident agent beh
 
 Cycle candidates are now explicitly `confidence: low` and `actionability: needs_project_policy`. This makes them useful as graph evidence without presenting them as automatic refactoring instructions.
 
+Project-wide candidates now also include `extract_pure_region` findings, so small AI-adapter projects with no mixed concrete effects or cycles still produce useful branch-region candidates. Example: `Jido.Codex.Mapper.map_event/2` is now reported as a project-wide extraction candidate rather than only in target inspection.
+
 ## AI-generated / AI-heavy observations
 
 `HackTUI-Hermes-Jido` is the clearest AI-slop validation case.

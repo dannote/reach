@@ -172,6 +172,14 @@ Candidate `kind` values currently emitted:
 - `break_cycle`
 - `introduce_boundary`
 
+Project-wide candidate output may include all of these kinds. Every candidate includes:
+
+- `confidence` — `low`, `medium`, or `high`
+- `actionability` — short review state such as `needs_region_proof`, `review_effect_order`, `needs_project_policy`, or `policy_violation`
+- `proof` — checks an agent or reviewer must satisfy before editing
+
+Cycle candidates also include `representative_calls` with source locations for edges participating in the cycle.
+
 ## `mix reach.check --arch --format json`
 
 ```json
