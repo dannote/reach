@@ -115,7 +115,7 @@ defmodule Mix.Tasks.Reach.CanonicalTest do
     output =
       capture_io(fn ->
         Inspect.run([
-          "Reach.SystemDependence.to_dot/1",
+          "to_dot/1",
           "--why",
           "Graph.to_dot/1",
           "--format",

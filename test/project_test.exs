@@ -87,6 +87,20 @@ defmodule Reach.ProjectTest do
     end
   end
 
+  describe "Reach.CLI.Project" do
+    test "clears function index cache between loaded projects" do
+      path_a = write_file("lib/cache_a.ex", "defmodule CacheA do\n  def only_a, do: 1\nend\n")
+      path_b = write_file("lib/cache_b.ex", "defmodule CacheB do\n  def only_b, do: 2\nend\n")
+
+      project_a = Reach.CLI.Project.load(paths: [path_a], quiet: true)
+      assert Reach.CLI.Project.resolve_target(project_a, "only_a/0") == {nil, :only_a, 0}
+
+      project_b = Reach.CLI.Project.load(paths: [path_b], quiet: true)
+      assert Reach.CLI.Project.resolve_target(project_b, "only_b/0") == {nil, :only_b, 0}
+      assert Reach.CLI.Project.resolve_target(project_b, "only_a/0") == nil
+    end
+  end
+
   describe "from_glob/2" do
     test "finds and analyzes files" do
       write_file("lib/glob_a.ex", "defmodule GlobA do\n  def a, do: 1\nend\n")
