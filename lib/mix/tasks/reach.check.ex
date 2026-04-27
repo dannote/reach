@@ -1094,7 +1094,7 @@ defmodule Mix.Tasks.Reach.Check do
 
   defp render_result(result, "json", _text_fun) do
     ensure_json_encoder!()
-    IO.puts(Jason.encode!(result, pretty: true))
+    IO.puts(Jason.encode!(Map.put_new(result, :command, "reach.check"), pretty: true))
   end
 
   defp render_result(result, _format, text_fun), do: text_fun.(result)

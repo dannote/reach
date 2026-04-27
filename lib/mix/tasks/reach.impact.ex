@@ -50,14 +50,21 @@ defmodule Mix.Tasks.Reach.Impact do
   end
 
   defp render_result(project, target, depth, result, opts) do
-    if opts[:graph] && BoxartGraph.available?() do
-      BoxartGraph.render_caller_graph(project, target, depth)
-    else
-      case opts[:format] do
-        "json" -> Format.render(result, "reach.impact", format: "json", pretty: true)
-        "oneline" -> render_oneline(result)
-        _ -> render_text(project, result)
-      end
+    cond do
+      opts[:graph] && BoxartGraph.available?() ->
+        BoxartGraph.render_caller_graph(project, target, depth)
+
+      opts[:graph] ->
+        Mix.raise("boxart is required for --graph. Add {:boxart, \"~> 0.3\"} to your deps.")
+
+      opts[:format] == "json" ->
+        Format.render(result, "reach.impact", format: "json", pretty: true)
+
+      opts[:format] == "oneline" ->
+        render_oneline(result)
+
+      true ->
+        render_text(project, result)
     end
   end
 
