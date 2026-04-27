@@ -165,10 +165,12 @@ Cycle candidates now suppress supersets when a smaller cycle already explains th
 Additional tuning after audit:
 
 ```text
-<current branch> Discount unknown effects for isolation candidates
+cedb65b Discount unknown effects in candidates
 ```
 
 This removed cases such as `Ash.Query.Aggregate.new/4` being labeled `isolate_effects` only because it had `exception + unknown`. It remains an `extract_pure_region` candidate, which is the better classification.
+
+Follow-up review found another precision issue: expected effect boundary functions, especially OTP callbacks, application `start/2`, LiveView callbacks, and Mix task files, were being reported as `isolate_effects`. These functions are commonly side-effect boundaries by design. Candidate generation now suppresses `isolate_effects` for those entrypoint shapes while still allowing `extract_pure_region` for branch-heavy callbacks.
 
 ## AI-generated / AI-heavy observations
 
@@ -197,7 +199,7 @@ Assessment: Reach is effective at surfacing AI-slop-shaped complexity, especiall
 | Hotspots as change-risk indicators | high | Mostly accurate; not always refactoring candidates. |
 | Data-flow density | medium-high | Top functions are plausible, but edge counts need explanation in docs. |
 | `extract_pure_region` candidates | medium | Good as advisory. Needs future region extraction to become precise. |
-| `isolate_effects` candidates | medium | Useful, but `unknown` inflates results. |
+| `isolate_effects` candidates | medium-high after fixes | `unknown` no longer inflates candidates; known callbacks and Mix task files are suppressed as expected effect boundaries. |
 | `break_cycle` candidates | medium-low without project policy | Graph-true but actionability varies. Minimal-cycle filtering improved noise. |
 | `.reach.exs` permissive policy | high | Validated across all 20 repos. |
 
@@ -205,8 +207,9 @@ Assessment: Reach is effective at surfacing AI-slop-shaped complexity, especiall
 
 1. Keep wording advisory. Do not say “smell” or “must fix” for candidates.
 2. `isolate_effects` now requires two concrete effects excluding `unknown`; preserve that rule.
-3. For `break_cycle`, include representative calls in a future iteration.
-4. For `break_cycle`, consider ranking cycles below concrete local candidates unless `.reach.exs` has layer policy.
+3. `isolate_effects` suppresses known entrypoint/callback shapes; preserve that rule unless `.reach.exs` explicitly opts into callback refactoring.
+4. For `break_cycle`, include representative calls in a future iteration.
+5. For `break_cycle`, consider ranking cycles below concrete local candidates unless `.reach.exs` has layer policy.
 5. Document that hotspots mean “change risk,” not automatically “bad code.”
 6. Preserve the file-line resolution fix; it caught a real correctness issue.
 7. Preserve umbrella source scanning; it caught a real coverage issue.
