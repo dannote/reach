@@ -192,6 +192,38 @@ Violation shapes:
 
 ```json
 {
+  "type": "public_api_boundary",
+  "caller_module": "Mix.Tasks.MyTool",
+  "callee_module": "Reach.Internal.Helper",
+  "file": "lib/mix/tasks/my_tool.ex",
+  "line": 42,
+  "call": "Reach.Internal.Helper.run/1",
+  "rule": "calls into non-public API module"
+}
+```
+
+```json
+{
+  "type": "internal_boundary",
+  "caller_module": "Mix.Tasks.MyTool",
+  "callee_module": "Reach.IR.Node",
+  "file": "lib/mix/tasks/my_tool.ex",
+  "line": 42,
+  "call": "Reach.IR.Node.id/0",
+  "rule": "caller is not allowed to call configured internal module"
+}
+```
+
+```json
+{
+  "type": "config_error",
+  "key": "layers",
+  "message": "expected keyword list of layer: patterns"
+}
+```
+
+```json
+{
   "type": "layer_cycle",
   "layers": ["analysis", "frontend"]
 }
@@ -224,6 +256,14 @@ Violation shapes:
       "effects": ["pure", "read", "write", "unknown"],
       "direct_callers": ["Reach.Frontend.Elixir.parse/2"],
       "direct_caller_count": 1
+    }
+  ],
+  "public_api_changes": [
+    {
+      "id": "Reach.file_to_graph/1",
+      "file": "lib/reach.ex",
+      "line": 120,
+      "public_api": true
     }
   ],
   "suggested_tests": ["test/ir/frontend_elixir_test.exs"]

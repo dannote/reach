@@ -142,6 +142,7 @@ mix reach.otp --concurrency
 
 ```bash
 # Architecture policy from .reach.exs
+# See examples/reach.exs for a starting point.
 mix reach.check --arch
 
 # Changed files and configured test hints

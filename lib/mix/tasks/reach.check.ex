@@ -69,13 +69,20 @@ defmodule Mix.Tasks.Reach.Check do
 
   defp run_arch(opts) do
     config = load_config()
-    project = Project.load()
-    layer_graph = layer_graph(project, config)
+    config_errors = config_violations(config)
 
     violations =
-      dependency_violations(project, config, layer_graph) ++
-        layer_cycle_violations(layer_graph) ++
-        effect_policy_violations(project, config)
+      if config_errors != [] do
+        config_errors
+      else
+        project = Project.load()
+        layer_graph = layer_graph(project, config)
+
+        dependency_violations(project, config, layer_graph) ++
+          public_boundary_violations(project, config) ++
+          layer_cycle_violations(layer_graph) ++
+          effect_policy_violations(project, config)
+      end
 
     result = %{
       config: ".reach.exs",
@@ -86,7 +93,7 @@ defmodule Mix.Tasks.Reach.Check do
     render_result(result, opts[:format], &render_arch_text/1)
 
     if violations != [] do
-      System.halt(1)
+      Mix.raise("Architecture policy failed")
     end
   end
 
@@ -96,8 +103,148 @@ defmodule Mix.Tasks.Reach.Check do
     end
 
     {config, _binding} = Code.eval_file(".reach.exs")
+
+    unless is_list(config) do
+      Mix.raise(".reach.exs must evaluate to a keyword list")
+    end
+
     config
   end
+
+  @known_config_keys [
+    :layers,
+    :forbidden_deps,
+    :allowed_effects,
+    :public_api,
+    :internal,
+    :internal_callers,
+    :test_hints
+  ]
+
+  defp config_violations(config) do
+    unknown_key_violations(config) ++
+      config_shape_violations(config)
+  end
+
+  defp unknown_key_violations(config) do
+    config
+    |> Keyword.keys()
+    |> Enum.reject(&(&1 in @known_config_keys))
+    |> Enum.map(fn key ->
+      %{
+        type: "config_error",
+        key: to_string(key),
+        message: "Unknown .reach.exs key #{inspect(key)}"
+      }
+    end)
+  end
+
+  defp config_shape_violations(config) do
+    []
+    |> config_check(config, :layers, &valid_layers?/1, "expected keyword list of layer: patterns")
+    |> config_check(
+      config,
+      :forbidden_deps,
+      &valid_forbidden_deps?/1,
+      "expected list of {from_layer, to_layer}"
+    )
+    |> config_check(
+      config,
+      :allowed_effects,
+      &valid_allowed_effects?/1,
+      "expected list of {module_pattern, effects}"
+    )
+    |> config_check(
+      config,
+      :public_api,
+      &valid_pattern_list?/1,
+      "expected string or list of module patterns"
+    )
+    |> config_check(
+      config,
+      :internal,
+      &valid_pattern_list?/1,
+      "expected string or list of module patterns"
+    )
+    |> config_check(
+      config,
+      :internal_callers,
+      &valid_internal_callers?/1,
+      "expected list of {internal_pattern, caller_patterns}"
+    )
+    |> config_check(
+      config,
+      :test_hints,
+      &valid_test_hints?/1,
+      "expected list of {path_glob, test_paths}"
+    )
+  end
+
+  defp config_check(violations, config, key, validator, message) do
+    if Keyword.has_key?(config, key) and not validator.(Keyword.get(config, key)) do
+      [%{type: "config_error", key: to_string(key), message: message} | violations]
+    else
+      violations
+    end
+  end
+
+  defp valid_layers?(value) when is_list(value) do
+    Enum.all?(value, fn
+      {layer, patterns} when is_atom(layer) -> valid_pattern_list?(patterns)
+      _ -> false
+    end)
+  end
+
+  defp valid_layers?(_), do: false
+
+  defp valid_forbidden_deps?(value) when is_list(value) do
+    Enum.all?(value, fn
+      {from, to} when is_atom(from) and is_atom(to) -> true
+      _ -> false
+    end)
+  end
+
+  defp valid_forbidden_deps?(_), do: false
+
+  defp valid_allowed_effects?(value) when is_list(value) do
+    Enum.all?(value, fn
+      {pattern, effects} when is_binary(pattern) and is_list(effects) ->
+        Enum.all?(effects, &is_atom/1)
+
+      _ ->
+        false
+    end)
+  end
+
+  defp valid_allowed_effects?(_), do: false
+
+  defp valid_pattern_list?(value) when is_binary(value), do: true
+  defp valid_pattern_list?(value) when is_list(value), do: Enum.all?(value, &is_binary/1)
+  defp valid_pattern_list?(_), do: false
+
+  defp valid_internal_callers?(value) when is_list(value) do
+    Enum.all?(value, fn
+      {internal_pattern, caller_patterns} when is_binary(internal_pattern) ->
+        valid_pattern_list?(caller_patterns)
+
+      _ ->
+        false
+    end)
+  end
+
+  defp valid_internal_callers?(_), do: false
+
+  defp valid_test_hints?(value) when is_list(value) do
+    Enum.all?(value, fn
+      {pattern, tests} when is_binary(pattern) and is_list(tests) ->
+        Enum.all?(tests, &is_binary/1)
+
+      _ ->
+        false
+    end)
+  end
+
+  defp valid_test_hints?(_), do: false
 
   defp layer_graph(project, config) do
     layers = Keyword.get(config, :layers, [])
@@ -148,6 +295,104 @@ defmodule Mix.Tasks.Reach.Check do
         call: "#{inspect(edge.callee)}.#{edge.node.meta[:function]}/#{edge.node.meta[:arity]}"
       }
     end)
+  end
+
+  defp public_boundary_violations(project, config) do
+    public_api = Keyword.get(config, :public_api, []) |> List.wrap()
+    internal = Keyword.get(config, :internal, []) |> List.wrap()
+    internal_callers = Keyword.get(config, :internal_callers, [])
+    module_by_file = module_by_file(project)
+
+    project.nodes
+    |> Map.values()
+    |> Enum.filter(&remote_call?/1)
+    |> Enum.flat_map(fn node ->
+      caller = node.source_span && Map.get(module_by_file, node.source_span.file)
+      callee = node.meta[:module]
+
+      cond do
+        caller == nil or callee == nil ->
+          []
+
+        public_api != [] and top_level_api_call?(caller, callee, public_api, internal) ->
+          [
+            %{
+              type: "public_api_boundary",
+              caller_module: inspect(caller),
+              callee_module: inspect(callee),
+              file: node.source_span.file,
+              line: node.source_span.start_line,
+              call: "#{inspect(callee)}.#{node.meta[:function]}/#{node.meta[:arity]}",
+              rule: "calls into non-public API module"
+            }
+          ]
+
+        internal != [] and internal_call_violation?(caller, callee, internal, internal_callers) ->
+          [
+            %{
+              type: "internal_boundary",
+              caller_module: inspect(caller),
+              callee_module: inspect(callee),
+              file: node.source_span.file,
+              line: node.source_span.start_line,
+              call: "#{inspect(callee)}.#{node.meta[:function]}/#{node.meta[:arity]}",
+              rule: "caller is not allowed to call configured internal module"
+            }
+          ]
+
+        true ->
+          []
+      end
+    end)
+  end
+
+  defp top_level_api_call?(caller, callee, public_api, internal) do
+    public_namespaces = Enum.map(public_api, &pattern_namespace/1) |> Enum.reject(&is_nil/1)
+    callee_namespace = module_namespace(callee)
+
+    callee_namespace in public_namespaces and
+      module_namespace(caller) != callee_namespace and
+      not module_matches_any?(callee, public_api) and
+      not module_matches_any?(callee, internal)
+  end
+
+  defp internal_call_violation?(caller, callee, internal, internal_callers) do
+    module_matches_any?(callee, internal) and
+      not allowed_internal_caller?(caller, callee, internal_callers)
+  end
+
+  defp allowed_internal_caller?(caller, callee, internal_callers) do
+    matching_rule =
+      Enum.find(internal_callers, fn {internal_pattern, _caller_patterns} ->
+        module_matches_any?(callee, [internal_pattern])
+      end)
+
+    case matching_rule do
+      {_internal_pattern, caller_patterns} ->
+        module_matches_any?(caller, List.wrap(caller_patterns))
+
+      nil ->
+        module_namespace(caller) == module_namespace(callee)
+    end
+  end
+
+  defp pattern_namespace(pattern) do
+    pattern
+    |> to_string()
+    |> String.split([".", "*"])
+    |> List.first()
+    |> case do
+      "" -> nil
+      namespace -> namespace
+    end
+  end
+
+  defp module_namespace(module) do
+    module
+    |> Atom.to_string()
+    |> String.replace_leading("Elixir.", "")
+    |> String.split(".")
+    |> List.first()
   end
 
   defp layer_cycle_violations(%{adjacency: adjacency}) do
@@ -269,13 +514,14 @@ defmodule Mix.Tasks.Reach.Check do
     project = Project.load()
     files = changed_files(base)
     changed_ranges = changed_ranges(base)
-    functions = changed_functions(project, changed_ranges)
+    functions = changed_functions(project, changed_ranges, config)
     tests = suggested_tests(files, functions, Keyword.get(config, :test_hints, []))
 
     result = %{
       base: base,
       changed_files: files,
       changed_functions: functions,
+      public_api_changes: Enum.filter(functions, & &1.public_api),
       suggested_tests: tests
     }
 
@@ -326,7 +572,7 @@ defmodule Mix.Tasks.Reach.Check do
   defp range_from_count(start, 0), do: {start, start}
   defp range_from_count(start, count), do: {start, start + count - 1}
 
-  defp changed_functions(project, changed_ranges) do
+  defp changed_functions(project, changed_ranges, config) do
     changed_ranges
     |> Enum.flat_map(fn {file, ranges} ->
       ranges
@@ -335,11 +581,11 @@ defmodule Mix.Tasks.Reach.Check do
       |> Enum.reject(&is_nil/1)
     end)
     |> Enum.uniq_by(&{&1.meta[:module], &1.meta[:name], &1.meta[:arity]})
-    |> Enum.map(&function_summary(project, &1))
+    |> Enum.map(&function_summary(project, &1, config))
     |> Enum.sort_by(&{&1.file || "", &1.line || 0, &1.id})
   end
 
-  defp function_summary(project, func) do
+  defp function_summary(project, func, config) do
     id = {func.meta[:module], func.meta[:name], func.meta[:arity]}
     direct_callers = Project.callers(project, id, 1)
     transitive_callers = Project.callers(project, id, 4)
@@ -353,12 +599,18 @@ defmodule Mix.Tasks.Reach.Check do
       line: func.source_span && func.source_span.start_line,
       risk: risk,
       risk_reasons: reasons,
+      public_api: public_api_function?(func, config),
       effects: Enum.map(effects, &to_string/1),
       branch_count: branches,
       direct_callers: Enum.map(direct_callers, &Format.func_id_to_string(&1.id)),
       direct_caller_count: length(direct_callers),
       transitive_caller_count: length(transitive_callers)
     }
+  end
+
+  defp public_api_function?(func, config) do
+    func.meta[:kind] in [:def, :defmacro] and
+      module_matches_any?(func.meta[:module], Keyword.get(config, :public_api, []) |> List.wrap())
   end
 
   defp change_risk(func, direct_callers, transitive_callers, effects, branches) do
@@ -645,6 +897,9 @@ defmodule Mix.Tasks.Reach.Check do
     IO.puts("Architecture policy: #{length(violations)} violation(s)")
 
     Enum.each(violations, fn
+      %{type: "config_error"} = violation ->
+        IO.puts("  config #{violation.key}: #{violation.message}")
+
       %{type: "forbidden_dependency"} = violation ->
         IO.puts(
           "  #{violation.file}:#{violation.line} #{violation.caller_layer} -> #{violation.callee_layer} " <>
@@ -658,6 +913,11 @@ defmodule Mix.Tasks.Reach.Check do
         IO.puts(
           "  #{violation.file}:#{violation.line} #{violation.module}.#{violation.function} disallowed effects: " <>
             Enum.join(violation.disallowed_effects, ", ")
+        )
+
+      %{type: type} = violation when type in ["public_api_boundary", "internal_boundary"] ->
+        IO.puts(
+          "  #{violation.file}:#{violation.line} #{violation.caller_module} -> #{violation.callee_module} #{violation.call} (#{violation.rule})"
         )
     end)
   end
@@ -677,6 +937,11 @@ defmodule Mix.Tasks.Reach.Check do
           "  #{function.id} #{function.file}:#{function.line} risk=#{function.risk} callers=#{function.direct_caller_count}/#{function.transitive_caller_count} branches=#{function.branch_count} effects=#{Enum.join(function.effects, ",")}"
         )
       end)
+    end
+
+    if result.public_api_changes != [] do
+      IO.puts("\nPublic API touched:")
+      Enum.each(result.public_api_changes, &IO.puts("  #{&1.id} #{&1.file}:#{&1.line}"))
     end
 
     if result.suggested_tests != [] do

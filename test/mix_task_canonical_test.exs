@@ -103,6 +103,32 @@ defmodule Mix.Tasks.Reach.CanonicalTest do
     assert data["violations"] == []
   end
 
+  test "reach.check reports architecture config errors" do
+    File.write!(".reach.exs", "[unknown: true, layers: :bad]")
+    on_exit(fn -> File.rm(".reach.exs") end)
+
+    assert_raise Mix.Error, ~r/Architecture policy failed/, fn ->
+      capture_io(fn -> Check.run(["--arch", "--format", "json"]) end)
+    end
+  end
+
+  test "reach.check reports public and internal boundary violations" do
+    File.write!(
+      ".reach.exs",
+      ~S([
+        public_api: ["Reach"],
+        internal: ["Reach.IR.*"],
+        internal_callers: [{"Reach.IR.*", ["Reach.Project"]}]
+      ])
+    )
+
+    on_exit(fn -> File.rm(".reach.exs") end)
+
+    assert_raise Mix.Error, ~r/Architecture policy failed/, fn ->
+      capture_io(fn -> Check.run(["--arch", "--format", "json"]) end)
+    end
+  end
+
   test "reach.check changed mode reports files and functions" do
     output =
       capture_io(fn -> Check.run(["--changed", "--base", "HEAD", "--format", "json"]) end)
