@@ -1,5 +1,3 @@
-# Example Reach architecture policy.
-# Copy to .reach.exs and adjust layer names/patterns for your project.
 [
   layers: [
     cli: "Mix.Tasks.*",
