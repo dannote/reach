@@ -729,6 +729,7 @@ defmodule Mix.Tasks.Reach.Check do
     |> Enum.flat_map(&walk_module_cycle(deps, &1, &1, [], 5))
     |> Enum.map(&canonical_module_cycle/1)
     |> Enum.uniq()
+    |> minimal_cycles()
     |> Enum.take(20)
     |> Enum.with_index(1)
     |> Enum.map(fn {cycle, index} ->
@@ -789,6 +790,20 @@ defmodule Mix.Tasks.Reach.Check do
     cycle
     |> Enum.map(&inspect/1)
     |> Enum.sort()
+  end
+
+  defp minimal_cycles(cycles) do
+    sorted = Enum.sort_by(cycles, &length/1)
+
+    Enum.reduce(sorted, [], fn cycle, kept ->
+      cycle_set = MapSet.new(cycle)
+
+      if Enum.any?(kept, &MapSet.subset?(MapSet.new(&1), cycle_set)) do
+        kept
+      else
+        kept ++ [cycle]
+      end
+    end)
   end
 
   defp mixed_effect_candidates(project) do
