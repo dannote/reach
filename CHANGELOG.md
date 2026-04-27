@@ -32,7 +32,7 @@
 ### New
 
 - **`mix reach.map`** — project bird's-eye view with modules, hotspots, coupling/cycles, effects, boundaries, control depth, and data-flow summaries.
-- **`mix reach.inspect TARGET`** — consolidated target view for context, dependencies, impact, data, graph rendering, slicing, and advisory refactoring candidates.
+- **`mix reach.inspect TARGET`** — consolidated target view for context, dependencies, impact, data, graph rendering, slicing, advisory refactoring candidates, and `--why` relationship explanations.
 - **`mix reach.trace`** — canonical entrypoint for taint flow, variable tracing, backward slicing, forward slicing, and slice graphs.
 - **`mix reach.check`** — structural checks for architecture policy, changed-code risk, dead code, smells, and advisory candidates.
 - **`.reach.exs` architecture policy** with:

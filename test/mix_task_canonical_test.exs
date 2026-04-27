@@ -111,6 +111,35 @@ defmodule Mix.Tasks.Reach.CanonicalTest do
     assert output =~ "to_dot/1"
   end
 
+  test "reach.inspect explains why one target reaches another" do
+    output =
+      capture_io(fn ->
+        Inspect.run([
+          "Reach.SystemDependence.to_dot/1",
+          "--why",
+          "Graph.to_dot/1",
+          "--format",
+          "json"
+        ])
+      end)
+
+    assert String.starts_with?(output, "{")
+    assert {:ok, data} = Jason.decode(output)
+    assert data["command"] == "reach.inspect"
+    assert data["relation"] == "call_path"
+    assert [%{"kind" => "call", "nodes" => nodes, "evidence" => evidence}] = data["paths"]
+    assert Enum.any?(nodes, &(&1["function"] =~ "to_dot/1"))
+    assert Enum.any?(evidence, &(&1["call"] =~ "Graph.to_dot"))
+  end
+
+  test "reach.inspect explains module dependency paths" do
+    output = capture_io(fn -> Inspect.run(["Reach.CLI.Project", "--why", "Reach.Project"]) end)
+
+    assert output =~ "module_dependency_path"
+    assert output =~ "Reach.CLI.Project"
+    assert output =~ "Reach.Project"
+  end
+
   test "reach.trace delegates variable tracing" do
     output =
       capture_io(fn ->
