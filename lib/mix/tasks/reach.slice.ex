@@ -48,10 +48,15 @@ defmodule Mix.Tasks.Reach.Slice do
     slice_ids = compute_slice(project.graph, node.id, forward?)
     result = filter_and_format(project, slice_ids, var_name)
 
-    if opts[:graph] && BoxartGraph.available?() do
-      BoxartGraph.render_slice_graph(project, node.id, forward?)
-    else
-      render(format, node, result, forward?, target)
+    cond do
+      opts[:graph] && BoxartGraph.available?() ->
+        BoxartGraph.render_slice_graph(project, node.id, forward?)
+
+      opts[:graph] ->
+        Mix.raise("boxart is required for --graph. Add {:boxart, \"~> 0.3\"} to your deps.")
+
+      true ->
+        render(format, node, result, forward?, target)
     end
   end
 

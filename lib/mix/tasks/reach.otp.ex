@@ -557,12 +557,17 @@ defmodule Mix.Tasks.Reach.Otp do
   end
 
   defp render_text(result, opts) do
+    graph_mode = opts[:graph] || false
+
+    if graph_mode and not BoxartGraph.available?() do
+      Mix.raise("boxart is required for --graph. Add {:boxart, \"~> 0.3\"} to your deps.")
+    end
+
     IO.puts(Format.header("OTP Analysis"))
 
     if result.behaviours == [] and result.state_machines == [] do
       IO.puts("No OTP behaviours detected.\n")
     else
-      graph_mode = opts[:graph] || false
       Enum.each(result.behaviours, &render_behaviour(&1, graph_mode))
       Enum.each(result.state_machines, &render_state_machine/1)
     end

@@ -31,7 +31,7 @@ defmodule Reach.CLI.Format do
   end
 
   defp render_json(data, tool, opts) do
-    output = %{"tool" => tool} |> Map.merge(jsonify(data))
+    output = %{"command" => tool, "tool" => tool} |> Map.merge(jsonify(data))
     json = Jason.encode!(output, pretty: Keyword.get(opts, :pretty, true))
     IO.write(json)
     IO.write("\n")
