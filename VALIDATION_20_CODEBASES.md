@@ -170,7 +170,7 @@ cedb65b Discount unknown effects in candidates
 
 This removed cases such as `Ash.Query.Aggregate.new/4` being labeled `isolate_effects` only because it had `exception + unknown`. It remains an `extract_pure_region` candidate, which is the better classification.
 
-Follow-up review found another precision issue: expected effect boundary functions, especially OTP callbacks, application `start/2`, LiveView callbacks, and Mix task files, were being reported as `isolate_effects`. These functions are commonly side-effect boundaries by design. Candidate generation now suppresses `isolate_effects` for those entrypoint shapes while still allowing `extract_pure_region` for branch-heavy callbacks.
+Follow-up review found another precision issue: expected effect boundary functions, especially OTP callbacks, application `start/2`, `start_link/1`, Oban-style `perform/1`, LiveView callbacks, and Mix task files, were being reported as `isolate_effects`. These functions are commonly side-effect boundaries by design. Candidate generation now suppresses `isolate_effects` for those entrypoint shapes while still allowing `extract_pure_region` for branch-heavy callbacks.
 
 ## AI-generated / AI-heavy observations
 
