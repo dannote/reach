@@ -181,13 +181,23 @@ defmodule Mix.Tasks.Reach.Inspect do
   end
 
   defp resolve_function!(project, raw) do
-    mfa = Project.resolve_target(project, raw) || Mix.raise("Function not found: #{raw}")
+    case Project.parse_file_line(raw) do
+      {file, line} ->
+        func =
+          Project.find_function_at_location(project, file, line) ||
+            Mix.raise("Function not found at #{raw}")
 
-    func =
-      Project.find_function(project, mfa) ||
-        Mix.raise("Function definition not found in IR: #{raw}")
+        {{func.meta[:module], func.meta[:name], func.meta[:arity]}, func}
 
-    {mfa, func}
+      nil ->
+        mfa = Project.resolve_target(project, raw) || Mix.raise("Function not found: #{raw}")
+
+        func =
+          Project.find_function(project, mfa) ||
+            Mix.raise("Function definition not found in IR: #{raw}")
+
+        {mfa, func}
+    end
   end
 
   defp data_summary(project, func, variable) do
