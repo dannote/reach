@@ -14,7 +14,7 @@ defmodule Mix.Tasks.Reach.Check do
     * `--format` — output format: `text` or `json`
     * `--arch` — check `.reach.exs` architecture policy
     * `--changed` — report changed functions and configured test hints
-    * `--base` — git base ref for `--changed` (default: `main`)
+    * `--base` — git base ref for `--changed` (default: auto-detect `main`, `master`, or upstream)
     * `--dead-code` — find unused pure expressions
     * `--smells` — find graph/effect/data-flow performance smells
     * `--candidates` — emit advisory refactoring candidates
@@ -511,7 +511,7 @@ defmodule Mix.Tasks.Reach.Check do
   end
 
   defp run_changed(opts) do
-    base = opts[:base] || "main"
+    base = opts[:base] || default_base_ref()
     config = if File.exists?(".reach.exs"), do: load_config(), else: []
     project = Project.load()
     files = changed_files(base)
@@ -519,8 +519,12 @@ defmodule Mix.Tasks.Reach.Check do
     functions = changed_functions(project, changed_ranges, config)
     tests = suggested_tests(files, functions, Keyword.get(config, :test_hints, []))
 
+    {risk, risk_reasons} = aggregate_change_risk(functions)
+
     result = %{
       base: base,
+      risk: risk,
+      risk_reasons: risk_reasons,
       changed_files: files,
       changed_functions: functions,
       public_api_changes: Enum.filter(functions, & &1.public_api),
@@ -528,6 +532,31 @@ defmodule Mix.Tasks.Reach.Check do
     }
 
     render_result(result, opts[:format], &render_changed_text/1)
+  end
+
+  defp default_base_ref do
+    cond do
+      git_ref?("main") -> "main"
+      git_ref?("master") -> "master"
+      upstream = git_upstream() -> upstream
+      true -> "HEAD"
+    end
+  end
+
+  defp git_ref?(ref) do
+    case System.cmd("git", ["rev-parse", "--verify", "--quiet", ref], stderr_to_stdout: true) do
+      {_output, 0} -> true
+      {_output, _status} -> false
+    end
+  end
+
+  defp git_upstream do
+    case System.cmd("git", ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
+           stderr_to_stdout: true
+         ) do
+      {output, 0} -> String.trim(output)
+      {_output, _status} -> nil
+    end
   end
 
   defp changed_files(base) do
@@ -608,6 +637,26 @@ defmodule Mix.Tasks.Reach.Check do
       direct_caller_count: length(direct_callers),
       transitive_caller_count: length(transitive_callers)
     }
+  end
+
+  defp aggregate_change_risk([]), do: {:low, []}
+
+  defp aggregate_change_risk(functions) do
+    reasons =
+      functions
+      |> Enum.flat_map(& &1.risk_reasons)
+      |> Enum.frequencies()
+      |> Enum.sort_by(fn {reason, count} -> {-count, reason} end)
+      |> Enum.map(fn {reason, count} -> "#{reason} (#{count})" end)
+
+    risk =
+      cond do
+        Enum.any?(functions, &(&1.risk == :high)) -> :high
+        Enum.any?(functions, &(&1.risk == :medium)) -> :medium
+        true -> :low
+      end
+
+    {risk, reasons}
   end
 
   defp public_api_function?(func, config) do
@@ -1085,6 +1134,11 @@ defmodule Mix.Tasks.Reach.Check do
 
   defp render_changed_text(result) do
     IO.puts("Changed files against #{result.base}:")
+    IO.puts("Overall risk: #{result.risk}")
+
+    if result.risk_reasons != [] do
+      IO.puts("Risk reasons: #{Enum.join(result.risk_reasons, ", ")}")
+    end
 
     Enum.each(result.changed_files, fn file ->
       IO.puts("  #{file}")
