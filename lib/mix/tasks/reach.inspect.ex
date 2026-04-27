@@ -435,7 +435,12 @@ defmodule Mix.Tasks.Reach.Inspect do
         {:code_change, 3},
         {:mount, 3},
         {:handle_event, 3},
-        {:handle_params, 3}
+        {:handle_params, 3},
+        {:start_link, 1},
+        {:child_spec, 1},
+        {:perform, 1},
+        {:handle_batch, 1},
+        {:handle_batch, 2}
       ]
 
     mix_task? = func.meta[:module] |> inspect() |> String.starts_with?("Mix.Tasks.")

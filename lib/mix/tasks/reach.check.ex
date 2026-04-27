@@ -491,7 +491,12 @@ defmodule Mix.Tasks.Reach.Check do
         {:code_change, 3},
         {:mount, 3},
         {:handle_event, 3},
-        {:handle_params, 3}
+        {:handle_params, 3},
+        {:start_link, 1},
+        {:child_spec, 1},
+        {:perform, 1},
+        {:handle_batch, 1},
+        {:handle_batch, 2}
       ]
 
     mix_task? = func.meta[:module] |> inspect() |> String.starts_with?("Mix.Tasks.")
@@ -740,15 +745,27 @@ defmodule Mix.Tasks.Reach.Check do
   end
 
   defp candidate_rank(candidate) do
+    kind_rank = %{
+      "introduce_boundary" => 0,
+      "isolate_effects" => 1,
+      "extract_pure_region" => 2,
+      "break_cycle" => 3
+    }
+
     risk_rank = %{high: 0, medium: 1, low: 2}
     benefit_rank = %{high: 0, medium: 1, low: 2}
 
-    {Map.get(risk_rank, candidate.risk, 3), Map.get(benefit_rank, candidate.benefit, 3),
-     candidate.id}
+    {
+      Map.get(kind_rank, candidate.kind, 9),
+      Map.get(risk_rank, candidate.risk, 3),
+      Map.get(benefit_rank, candidate.benefit, 3),
+      candidate.id
+    }
   end
 
   defp cycle_candidates(project) do
     deps = module_dependency_map(project)
+    call_examples = module_call_examples(project)
 
     deps
     |> Map.keys()
@@ -768,12 +785,31 @@ defmodule Mix.Tasks.Reach.Check do
         evidence: ["module_dependency_cycle"],
         suggestion:
           "Move shared code to a lower-level module or route calls through an existing boundary.",
-        modules: cycle
+        modules: cycle,
+        representative_calls: representative_cycle_calls(cycle, call_examples)
       }
     end)
   end
 
   defp module_dependency_map(project) do
+    project
+    |> module_call_edges()
+    |> Enum.reduce(%{}, fn edge, acc ->
+      Map.update(acc, edge.caller, MapSet.new([edge.callee]), &MapSet.put(&1, edge.callee))
+    end)
+    |> Map.new(fn {module, deps} -> {module, MapSet.to_list(deps)} end)
+  end
+
+  defp module_call_examples(project) do
+    project
+    |> module_call_edges()
+    |> Enum.group_by(&{inspect(&1.caller), inspect(&1.callee)})
+    |> Map.new(fn {key, edges} ->
+      {key, Enum.take(edges, 3) |> Enum.map(&representative_call/1)}
+    end)
+  end
+
+  defp module_call_edges(project) do
     modules =
       project.nodes
       |> Map.values()
@@ -785,17 +821,40 @@ defmodule Mix.Tasks.Reach.Check do
     project.nodes
     |> Map.values()
     |> Enum.filter(&remote_call?/1)
-    |> Enum.reduce(%{}, fn node, acc ->
+    |> Enum.flat_map(fn node ->
       caller = node.source_span && Map.get(module_by_file, node.source_span.file)
       callee = node.meta[:module]
 
       if caller && callee && caller != callee && MapSet.member?(modules, callee) do
-        Map.update(acc, caller, MapSet.new([callee]), &MapSet.put(&1, callee))
+        [%{caller: caller, callee: callee, node: node}]
       else
-        acc
+        []
       end
     end)
-    |> Map.new(fn {module, deps} -> {module, MapSet.to_list(deps)} end)
+  end
+
+  defp representative_cycle_calls(cycle, call_examples) do
+    cycle
+    |> cycle_pairs()
+    |> Enum.flat_map(&Map.get(call_examples, &1, []))
+    |> Enum.take(10)
+  end
+
+  defp cycle_pairs(cycle) do
+    cycle
+    |> Enum.zip(tl(cycle) ++ [hd(cycle)])
+    |> Enum.flat_map(fn {left, right} -> [{left, right}, {right, left}] end)
+    |> Enum.uniq()
+  end
+
+  defp representative_call(%{caller: caller, callee: callee, node: node}) do
+    %{
+      caller_module: inspect(caller),
+      callee_module: inspect(callee),
+      file: node.source_span && node.source_span.file,
+      line: node.source_span && node.source_span.start_line,
+      call: "#{inspect(callee)}.#{node.meta[:function]}/#{node.meta[:arity]}"
+    }
   end
 
   defp walk_module_cycle(_deps, _start, _current, path, max) when length(path) >= max, do: []
@@ -919,6 +978,15 @@ defmodule Mix.Tasks.Reach.Check do
       end
 
       IO.puts("  evidence=#{Enum.join(candidate.evidence, ",")}")
+
+      if candidate[:representative_calls] && candidate.representative_calls != [] do
+        IO.puts("  representative calls:")
+
+        Enum.each(candidate.representative_calls, fn call ->
+          IO.puts("    #{call.file}:#{call.line} #{call.caller_module} -> #{call.call}")
+        end)
+      end
+
       IO.puts("  suggestion=#{candidate.suggestion}")
       IO.puts("")
     end)
