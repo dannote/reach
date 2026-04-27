@@ -1,14 +1,14 @@
 # Reach
 
-Program dependence graph for Elixir, Erlang, and Gleam.
+Program dependence graph for Elixir, Erlang, Gleam, JavaScript, and TypeScript.
 
 Reach builds a graph of **what depends on what** in your code — data
 flow, control flow, and side effects. Trace any value back to its
 origin, find tainted paths from user input to dangerous sinks, or check
 whether two statements can be safely reordered.
 
-Works on Elixir source, Erlang source, Gleam source, and compiled BEAM
-bytecode. Elixir 1.18+ / OTP 27+.
+Works on Elixir source, Erlang source, Gleam source, JavaScript/TypeScript
+source, and compiled BEAM bytecode. Elixir 1.18+ / OTP 27+.
 
 ## Quick start
 
@@ -16,7 +16,7 @@ Add Reach to your dependencies:
 
 ```elixir
 def deps do
-  [{:reach, "~> 1.2"}]
+  [{:reach, "~> 2.0"}]
 end
 ```
 
@@ -53,6 +53,7 @@ Or check whether two statements can be safely reordered:
 ```elixir
 Reach.independent?(graph, node_a.id, node_b.id)
 ```
+
 ## Interactive visualization
 
 ```bash
@@ -79,8 +80,9 @@ Requires optional deps:
 
 ## CLI tools
 
-Reach has six primary entrypoints. Analysis commands support `--format text`
-(default, colored), `json`, and `oneline` where applicable.
+Reach has six primary entrypoints: the HTML report task (`mix reach`) plus five
+canonical analysis tasks. Analysis commands support `--format text` (default,
+colored), `json`, and `oneline` where applicable.
 
 ### Project map
 
@@ -146,7 +148,7 @@ mix reach.otp --concurrency
 mix reach.check --arch
 
 # Changed files and configured test hints
-mix reach.check --changed --base main
+mix reach.check --changed
 
 # Unused pure expressions and graph/effect/data-flow smells
 mix reach.check --dead-code
@@ -247,6 +249,9 @@ graph = Reach.file_to_graph!("lib/my_module.ex")
 
 # Erlang source (auto-detected by extension)
 {:ok, graph} = Reach.file_to_graph("src/my_module.erl")
+
+# JavaScript / TypeScript source (requires quickbeam)
+{:ok, graph} = Reach.file_to_graph("assets/app.ts")
 
 # Pre-parsed AST (for Credo/ExDNA integration)
 {:ok, graph} = Reach.ast_to_graph(ast)
@@ -379,19 +384,18 @@ nodes are expressions and edges are data/control dependencies. Multiple
 function PDGs are connected into a **system dependence graph** (SDG) via
 call/summary edges for interprocedural analysis.
 
-## Performance
+## Validation
 
-Single-threaded, Apple M1 Pro:
+Reach 2.0's canonical CLI was validated across 20 real Elixir codebases,
+including Jido projects, Livebook, Plausible Analytics, Supabase Realtime, Ash,
+Absinthe, Surface, Nerves, Broadway, and Commanded. The validation covered every
+canonical command family, JSON output, graph rendering, architecture checks,
+changed-code risk, advisory candidates, OTP/concurrency analysis, and
+removed-command migration errors.
 
-| Project | Files | Time |
-|---------|-------|------|
-| Livebook | 72 | 160ms |
-| Oban | 64 | 195ms |
-| Keila | 190 | 282ms |
-| Phoenix | 74 | 333ms |
-| Absinthe | 282 | 375ms |
-
-740 files, zero crashes.
+Project-wide commands intentionally trade speed for breadth. For large codebases,
+start with `--top`, focused section flags such as `--hotspots` or `--data`, or
+target-specific `mix reach.inspect` commands.
 
 ## References
 
