@@ -172,6 +172,15 @@ This removed cases such as `Ash.Query.Aggregate.new/4` being labeled `isolate_ef
 
 Follow-up review found another precision issue: expected effect boundary functions, especially OTP callbacks, application `start/2`, `start_link/1`, Oban-style `perform/1`, LiveView callbacks, and Mix task files, were being reported as `isolate_effects`. These functions are commonly side-effect boundaries by design. Candidate generation now suppresses `isolate_effects` for those entrypoint shapes while still allowing `extract_pure_region` for branch-heavy callbacks.
 
+A further review pass added candidate metadata to reduce overconfident agent behavior:
+
+- `confidence`
+- `actionability`
+- `proof`
+- `representative_calls` for cycle candidates
+
+Cycle candidates are now explicitly `confidence: low` and `actionability: needs_project_policy`. This makes them useful as graph evidence without presenting them as automatic refactoring instructions.
+
 ## AI-generated / AI-heavy observations
 
 `HackTUI-Hermes-Jido` is the clearest AI-slop validation case.
@@ -200,7 +209,7 @@ Assessment: Reach is effective at surfacing AI-slop-shaped complexity, especiall
 | Data-flow density | medium-high | Top functions are plausible, but edge counts need explanation in docs. |
 | `extract_pure_region` candidates | medium | Good as advisory. Needs future region extraction to become precise. |
 | `isolate_effects` candidates | medium-high after fixes | `unknown` no longer inflates candidates; known callbacks and Mix task files are suppressed as expected effect boundaries. |
-| `break_cycle` candidates | medium-low without project policy | Graph-true but actionability varies. Minimal-cycle filtering improved noise. |
+| `break_cycle` candidates | medium with metadata, low as automatic refactors | Graph-true but actionability varies. Minimal-cycle filtering and representative calls improved reviewability. |
 | `.reach.exs` permissive policy | high | Validated across all 20 repos. |
 
 ## Recommendations before release
