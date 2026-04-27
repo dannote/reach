@@ -11,10 +11,13 @@ defmodule Mix.Tasks.Reach.Depth do
 
   use Mix.Task
 
-  @shortdoc "Show control depth"
+  alias Reach.CLI.Deprecation
+
+  @shortdoc "Deprecated: Show control depth"
 
   @impl Mix.Task
   def run(args) do
+    Deprecation.warn("reach.depth", "reach.map --depth")
     Mix.Tasks.Reach.Map.run(["--depth" | args])
   end
 end

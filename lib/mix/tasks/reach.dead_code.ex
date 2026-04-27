@@ -15,15 +15,18 @@ defmodule Mix.Tasks.Reach.DeadCode do
 
   use Mix.Task
 
+  alias Reach.CLI.Deprecation
   alias Reach.CLI.Format
 
-  @shortdoc "Find dead code (unused pure expressions)"
+  @shortdoc "Deprecated: Find dead code (unused pure expressions)"
 
   @switches [format: :string, path: :string]
   @aliases [f: :format]
 
   @impl Mix.Task
   def run(args) do
+    Deprecation.warn("reach.dead_code", "reach.check --dead-code")
+
     {opts, args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
     format = opts[:format] || "text"
 

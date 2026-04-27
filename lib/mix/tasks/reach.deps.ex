@@ -16,17 +16,20 @@ defmodule Mix.Tasks.Reach.Deps do
 
   use Mix.Task
 
-  @shortdoc "Show function dependencies (callers, callees, shared state)"
+  @shortdoc "Deprecated: Show function dependencies (callers, callees, shared state)"
 
   @switches [format: :string, depth: :integer, graph: :boolean]
   @aliases [f: :format]
 
   alias Reach.CLI.BoxartGraph
+  alias Reach.CLI.Deprecation
   alias Reach.CLI.Format
   alias Reach.CLI.Project
 
   @impl Mix.Task
   def run(args) do
+    Deprecation.warn("reach.deps TARGET", "reach.inspect TARGET --deps")
+
     {opts, target_args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
 
     unless target_args != [] do

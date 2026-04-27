@@ -19,7 +19,7 @@ defmodule Mix.Tasks.Reach.Flow do
 
   use Mix.Task
 
-  @shortdoc "Trace data flow and taint paths"
+  @shortdoc "Deprecated: Trace data flow and taint paths"
 
   @switches [
     format: :string,
@@ -31,12 +31,15 @@ defmodule Mix.Tasks.Reach.Flow do
 
   @aliases [f: :format]
 
+  alias Reach.CLI.Deprecation
   alias Reach.CLI.Format
   alias Reach.CLI.Project
   alias Reach.IR
 
   @impl Mix.Task
   def run(args) do
+    Deprecation.warn("reach.flow", "reach.trace")
+
     {opts, _args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
     format = opts[:format] || "text"
 

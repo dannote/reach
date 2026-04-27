@@ -11,10 +11,13 @@ defmodule Mix.Tasks.Reach.Hotspots do
 
   use Mix.Task
 
-  @shortdoc "Show hotspots"
+  alias Reach.CLI.Deprecation
+
+  @shortdoc "Deprecated: Show hotspots"
 
   @impl Mix.Task
   def run(args) do
+    Deprecation.warn("reach.hotspots", "reach.map --hotspots")
     Mix.Tasks.Reach.Map.run(["--hotspots" | args])
   end
 end

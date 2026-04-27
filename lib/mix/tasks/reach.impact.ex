@@ -15,18 +15,21 @@ defmodule Mix.Tasks.Reach.Impact do
 
   use Mix.Task
 
-  @shortdoc "Show change impact analysis for a function"
+  @shortdoc "Deprecated: Show change impact analysis for a function"
 
   @switches [format: :string, depth: :integer, graph: :boolean]
   @aliases [f: :format]
 
   alias Reach.CLI.BoxartGraph
+  alias Reach.CLI.Deprecation
   alias Reach.CLI.Format
   alias Reach.CLI.Project
   alias Reach.IR
 
   @impl Mix.Task
   def run(args) do
+    Deprecation.warn("reach.impact TARGET", "reach.inspect TARGET --impact")
+
     {opts, target_args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
 
     unless target_args != [] do

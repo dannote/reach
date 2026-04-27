@@ -6,7 +6,27 @@ defmodule Mix.Tasks.Reach.CanonicalTest do
   alias Mix.Tasks.Reach.Check
   alias Mix.Tasks.Reach.Inspect
   alias Mix.Tasks.Reach.Map
+  alias Mix.Tasks.Reach.Modules
   alias Mix.Tasks.Reach.Trace
+
+  test "deprecated compatibility tasks print migration guidance" do
+    warning =
+      capture_io(:stderr, fn ->
+        capture_io(fn -> Modules.run(["--format", "oneline", "--top", "1"]) end)
+      end)
+
+    assert warning =~ "mix reach.modules is deprecated"
+    assert warning =~ "mix reach.map --modules"
+  end
+
+  test "canonical delegated commands suppress compatibility warnings" do
+    warning =
+      capture_io(:stderr, fn ->
+        capture_io(fn -> Inspect.run(["Reach.to_dot/1", "--deps", "--format", "json"]) end)
+      end)
+
+    assert warning == ""
+  end
 
   test "reach.map delegates to selected project summaries" do
     output = capture_io(fn -> Map.run(["--hotspots", "--top", "1", "--format", "oneline"]) end)

@@ -11,10 +11,13 @@ defmodule Mix.Tasks.Reach.Modules do
 
   use Mix.Task
 
-  @shortdoc "List modules"
+  alias Reach.CLI.Deprecation
+
+  @shortdoc "Deprecated: List modules"
 
   @impl Mix.Task
   def run(args) do
+    Deprecation.warn("reach.modules", "reach.map --modules")
     Mix.Tasks.Reach.Map.run(["--modules" | args])
   end
 end
