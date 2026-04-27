@@ -476,6 +476,8 @@ defmodule Mix.Tasks.Reach.Check do
     |> Enum.sort()
   end
 
+  defp concrete_effects(func), do: function_effects(func) -- [:pure, :unknown]
+
   defp remote_call?(node) do
     node.type == :call and node.meta[:kind] == :remote and node.meta[:module] != nil
   end
@@ -810,7 +812,7 @@ defmodule Mix.Tasks.Reach.Check do
     project.nodes
     |> Map.values()
     |> Enum.filter(&(&1.type == :function_def and &1.source_span))
-    |> Enum.map(fn func -> {func, function_effects(func) -- [:pure]} end)
+    |> Enum.map(fn func -> {func, concrete_effects(func)} end)
     |> Enum.filter(fn {_func, effects} -> length(effects) >= 2 end)
     |> Enum.sort_by(fn {func, effects} ->
       {-length(effects), func.source_span.file, func.source_span.start_line}

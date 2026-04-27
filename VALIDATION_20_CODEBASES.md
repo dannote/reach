@@ -139,7 +139,7 @@ Representative review:
 | Jido AI | `Signal.Helpers.normalize_error/4` | false positive for “isolate effects” if only `unknown`/exception-like behavior | Mostly pure normalization with `Code.ensure_loaded?` and exception/message handling. Better classified as normalization complexity, not side-effect isolation. |
 | Phoenix | `CodeReloader.Server.handle_call/3` | true positive but expected OTP style | Mixed effects are normal for GenServer callbacks. Should be lower priority unless policy says callbacks should delegate. |
 
-False-positive risk: medium-high when `unknown` is included. Recommendation: candidate generation should discount `unknown` or require at least two concrete non-unknown effects before emitting `isolate_effects`.
+False-positive risk was medium-high when `unknown` was included. This was fixed after audit: `isolate_effects` now requires at least two concrete non-unknown effects. `unknown` still appears in general effect summaries, but no longer creates an isolation candidate by itself.
 
 ### `break_cycle` candidates
 
@@ -161,6 +161,14 @@ Change made after review:
 ```
 
 Cycle candidates now suppress supersets when a smaller cycle already explains the issue. This reduced noisy long-cycle candidates substantially, but the remaining two-module cycles still require project policy/context.
+
+Additional tuning after audit:
+
+```text
+<current branch> Discount unknown effects for isolation candidates
+```
+
+This removed cases such as `Ash.Query.Aggregate.new/4` being labeled `isolate_effects` only because it had `exception + unknown`. It remains an `extract_pure_region` candidate, which is the better classification.
 
 ## AI-generated / AI-heavy observations
 
@@ -196,7 +204,7 @@ Assessment: Reach is effective at surfacing AI-slop-shaped complexity, especiall
 ## Recommendations before release
 
 1. Keep wording advisory. Do not say “smell” or “must fix” for candidates.
-2. For `isolate_effects`, consider requiring two concrete effects excluding `unknown`.
+2. `isolate_effects` now requires two concrete effects excluding `unknown`; preserve that rule.
 3. For `break_cycle`, include representative calls in a future iteration.
 4. For `break_cycle`, consider ranking cycles below concrete local candidates unless `.reach.exs` has layer policy.
 5. Document that hotspots mean “change risk,” not automatically “bad code.”
