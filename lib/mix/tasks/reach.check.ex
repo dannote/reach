@@ -342,15 +342,64 @@ defmodule Mix.Tasks.Reach.Check do
   defp function_summary(project, func) do
     id = {func.meta[:module], func.meta[:name], func.meta[:arity]}
     direct_callers = Project.callers(project, id, 1)
+    transitive_callers = Project.callers(project, id, 4)
+    effects = function_effects(func)
+    branches = branch_count(func)
+    {risk, reasons} = change_risk(func, direct_callers, transitive_callers, effects, branches)
 
     %{
       id: Format.func_id_to_string(id),
       file: func.source_span && func.source_span.file,
       line: func.source_span && func.source_span.start_line,
-      effects: Enum.map(function_effects(func), &to_string/1),
+      risk: risk,
+      risk_reasons: reasons,
+      effects: Enum.map(effects, &to_string/1),
+      branch_count: branches,
       direct_callers: Enum.map(direct_callers, &Format.func_id_to_string(&1.id)),
-      direct_caller_count: length(direct_callers)
+      direct_caller_count: length(direct_callers),
+      transitive_caller_count: length(transitive_callers)
     }
+  end
+
+  defp change_risk(func, direct_callers, transitive_callers, effects, branches) do
+    reasons =
+      []
+      |> maybe_reason(length(direct_callers) >= 5, "many direct callers")
+      |> maybe_reason(length(transitive_callers) >= 10, "wide transitive impact")
+      |> maybe_reason(branches >= 8, "branch-heavy function")
+      |> maybe_reason(length(effects -- [:pure]) >= 2, "mixed side effects")
+      |> maybe_reason(core_module?(func.meta[:module]), "core Reach module")
+
+    risk =
+      cond do
+        length(reasons) >= 3 -> :high
+        length(reasons) >= 1 -> :medium
+        true -> :low
+      end
+
+    {risk, reasons}
+  end
+
+  defp maybe_reason(reasons, true, reason), do: reasons ++ [reason]
+  defp maybe_reason(reasons, false, _reason), do: reasons
+
+  defp core_module?(module) do
+    module in [
+      Reach,
+      Reach.Project,
+      Reach.SystemDependence,
+      Reach.ControlFlow,
+      Reach.DataDependence
+    ]
+  end
+
+  defp branch_count(func) do
+    func
+    |> IR.all_nodes()
+    |> Enum.count(
+      &(&1.type in [:case, :receive, :try] or
+          (&1.type == :binary_op and &1.meta[:operator] in [:and, :or, :&&, :||]))
+    )
   end
 
   defp suggested_tests(files, functions, hints) do
@@ -625,7 +674,7 @@ defmodule Mix.Tasks.Reach.Check do
 
       Enum.each(result.changed_functions, fn function ->
         IO.puts(
-          "  #{function.id} #{function.file}:#{function.line} callers=#{function.direct_caller_count} effects=#{Enum.join(function.effects, ",")}"
+          "  #{function.id} #{function.file}:#{function.line} risk=#{function.risk} callers=#{function.direct_caller_count}/#{function.transitive_caller_count} branches=#{function.branch_count} effects=#{Enum.join(function.effects, ",")}"
         )
       end)
     end

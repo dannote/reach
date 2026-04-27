@@ -30,6 +30,7 @@ defmodule Mix.Tasks.Reach.Inspect do
 
   use Mix.Task
 
+  alias Reach.CLI.BoxartGraph
   alias Reach.CLI.Format
   alias Reach.CLI.Project
   alias Reach.CLI.TaskRunner
@@ -71,8 +72,11 @@ defmodule Mix.Tasks.Reach.Inspect do
       opts[:impact] ->
         TaskRunner.run("reach.impact", target_args(target, opts, graph?: opts[:graph]))
 
-      opts[:deps] or opts[:graph] ->
+      opts[:deps] ->
         TaskRunner.run("reach.deps", target_args(target, opts, graph?: opts[:graph]))
+
+      opts[:graph] ->
+        render_cfg(target)
 
       opts[:data] and opts[:format] == "json" ->
         render_data_json(target, opts)
@@ -119,7 +123,7 @@ defmodule Mix.Tasks.Reach.Inspect do
         transitive_callers:
           Project.callers(project, mfa, opts[:depth] || 4) |> Enum.map(&format_call/1)
       },
-      data: data_summary(func, opts[:variable])
+      data: data_summary(project, func, opts[:variable])
     }
 
     IO.puts(Jason.encode!(context, pretty: true))
@@ -136,7 +140,7 @@ defmodule Mix.Tasks.Reach.Inspect do
           command: "reach.inspect",
           target: Format.func_id_to_string(mfa),
           location: location(func),
-          data: data_summary(func, opts[:variable])
+          data: data_summary(project, func, opts[:variable])
         },
         pretty: true
       )
@@ -146,7 +150,7 @@ defmodule Mix.Tasks.Reach.Inspect do
   defp render_data_text(target, opts) do
     project = Project.load()
     {_mfa, func} = resolve_function!(project, target)
-    summary = data_summary(func, opts[:variable])
+    summary = data_summary(project, func, opts[:variable])
 
     IO.puts("Definitions:")
     Enum.each(summary.definitions, &IO.puts("  #{&1.name} #{&1.file}:#{&1.line}"))
@@ -156,6 +160,24 @@ defmodule Mix.Tasks.Reach.Inspect do
 
     IO.puts("Returns:")
     Enum.each(summary.returns, &IO.puts("  #{&1.kind} #{&1.file}:#{&1.line}"))
+  end
+
+  defp render_cfg(target) do
+    unless BoxartGraph.available?() do
+      Mix.raise("boxart is required for --graph. Add {:boxart, \"~> 0.3\"} to your deps.")
+    end
+
+    project = Project.load()
+    {{_mod, fun, arity}, func} = resolve_function!(project, target)
+    file = func.source_span && func.source_span.file
+
+    IO.puts(Format.header("#{fun}/#{arity}"))
+
+    if file do
+      BoxartGraph.render_cfg(func, file)
+    else
+      IO.puts("  (no source file available)")
+    end
   end
 
   defp resolve_function!(project, raw) do
@@ -168,8 +190,10 @@ defmodule Mix.Tasks.Reach.Inspect do
     {mfa, func}
   end
 
-  defp data_summary(func, variable) do
+  defp data_summary(project, func, variable) do
     nodes = IR.all_nodes(func)
+    node_ids = MapSet.new(nodes, & &1.id)
+    nodes_by_id = Map.new(nodes, &{&1.id, &1})
 
     vars =
       nodes
@@ -181,9 +205,38 @@ defmodule Mix.Tasks.Reach.Inspect do
         vars |> Enum.filter(&(&1.meta[:binding_role] == :definition)) |> Enum.map(&var_summary/1),
       uses:
         vars |> Enum.reject(&(&1.meta[:binding_role] == :definition)) |> Enum.map(&var_summary/1),
-      returns: return_summaries(func)
+      returns: return_summaries(func),
+      edges: data_edges(project, node_ids, nodes_by_id, variable)
     }
   end
+
+  defp data_edges(project, node_ids, nodes_by_id, variable) do
+    project.graph
+    |> Graph.edges()
+    |> Enum.filter(&data_edge?/1)
+    |> Enum.filter(&(&1.v1 in node_ids and &1.v2 in node_ids))
+    |> Enum.filter(fn edge ->
+      variable == nil or to_string(data_edge_label(edge)) == variable
+    end)
+    |> Enum.take(200)
+    |> Enum.map(fn edge ->
+      %{
+        from: Map.get(nodes_by_id, edge.v1) |> compact_node_summary(),
+        to: Map.get(nodes_by_id, edge.v2) |> compact_node_summary(),
+        label: inspect(edge.label)
+      }
+    end)
+  end
+
+  defp data_edge?(%Graph.Edge{label: {:data, _}}), do: true
+
+  defp data_edge?(%Graph.Edge{label: label})
+       when label in [:parameter_in, :parameter_out, :summary], do: true
+
+  defp data_edge?(_edge), do: false
+
+  defp data_edge_label(%Graph.Edge{label: {:data, var}}), do: var
+  defp data_edge_label(%Graph.Edge{label: label}), do: label
 
   defp return_summaries(func) do
     func.children
@@ -210,6 +263,32 @@ defmodule Mix.Tasks.Reach.Inspect do
       file: span[:file],
       line: span[:start_line]
     }
+  end
+
+  defp compact_node_summary(nil), do: nil
+
+  defp compact_node_summary(node) do
+    span = node.source_span || %{}
+
+    %{
+      id: node.id,
+      kind: to_string(node.type),
+      name: compact_node_name(node),
+      file: span[:file],
+      line: span[:start_line]
+    }
+  end
+
+  defp compact_node_name(%{type: :var, meta: meta}), do: meta[:name] && to_string(meta[:name])
+  defp compact_node_name(%{type: :call, meta: meta}), do: call_name(meta)
+  defp compact_node_name(%{meta: meta}), do: meta[:name] && to_string(meta[:name])
+
+  defp call_name(meta) do
+    if meta[:module] do
+      "#{inspect(meta[:module])}.#{meta[:function]}/#{meta[:arity]}"
+    else
+      "#{meta[:function]}/#{meta[:arity]}"
+    end
   end
 
   defp effects(func) do
