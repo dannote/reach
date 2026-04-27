@@ -9,23 +9,28 @@ defmodule Mix.Tasks.Reach.CanonicalTest do
   alias Mix.Tasks.Reach.Modules
   alias Mix.Tasks.Reach.Trace
 
-  test "deprecated compatibility tasks print migration guidance" do
-    warning =
-      capture_io(:stderr, fn ->
-        capture_io(fn -> Modules.run(["--format", "oneline", "--top", "1"]) end)
-      end)
-
-    assert warning =~ "mix reach.modules is deprecated"
-    assert warning =~ "mix reach.map --modules"
+  test "removed compatibility tasks raise with migration guidance" do
+    assert_raise Mix.Error,
+                 ~r/mix reach.modules has been removed; use mix reach.map --modules/,
+                 fn ->
+                   Modules.run(["--format", "oneline", "--top", "1"])
+                 end
   end
 
-  test "canonical delegated commands suppress compatibility warnings" do
-    warning =
-      capture_io(:stderr, fn ->
-        capture_io(fn -> Inspect.run(["Reach.to_dot/1", "--deps", "--format", "json"]) end)
+  test "canonical delegated commands suppress compatibility warnings and keep canonical command" do
+    output =
+      capture_io(fn ->
+        warning =
+          capture_io(:stderr, fn ->
+            Inspect.run(["Reach.to_dot/1", "--deps", "--format", "json"])
+          end)
+
+        assert warning == ""
       end)
 
-    assert warning == ""
+    data = decode_json(output)
+    assert data["command"] == "reach.inspect"
+    assert data["tool"] == "reach.deps"
   end
 
   test "reach.map delegates to selected project summaries" do
@@ -162,6 +167,17 @@ defmodule Mix.Tasks.Reach.CanonicalTest do
     assert {:ok, data} = Jason.decode(json)
     assert is_list(data["changed_files"])
     assert is_list(data["changed_functions"])
+  end
+
+  defp decode_json(output) do
+    json =
+      output
+      |> String.split("\n")
+      |> Enum.drop_while(&(not String.starts_with?(&1, "{")))
+      |> Enum.join("\n")
+
+    assert {:ok, data} = Jason.decode(json)
+    data
   end
 
   defp with_reach_config(contents) do

@@ -52,12 +52,25 @@ defmodule Mix.Tasks.Reach.Check do
     {opts, positional, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
 
     cond do
-      opts[:arch] -> run_arch(opts)
-      opts[:changed] -> run_changed(opts)
-      opts[:dead_code] -> TaskRunner.run("reach.dead_code", delegated_args(opts, positional))
-      opts[:smells] -> TaskRunner.run("reach.smell", delegated_args(opts, positional))
-      opts[:candidates] -> render_candidates_placeholder(opts)
-      true -> run_default(opts)
+      opts[:arch] ->
+        run_arch(opts)
+
+      opts[:changed] ->
+        run_changed(opts)
+
+      opts[:dead_code] ->
+        TaskRunner.run("reach.dead_code", delegated_args(opts, positional),
+          command: "reach.check"
+        )
+
+      opts[:smells] ->
+        TaskRunner.run("reach.smell", delegated_args(opts, positional), command: "reach.check")
+
+      opts[:candidates] ->
+        render_candidates_placeholder(opts)
+
+      true ->
+        run_default(opts)
     end
   end
 
@@ -350,13 +363,15 @@ defmodule Mix.Tasks.Reach.Check do
   end
 
   defp top_level_api_call?(caller, callee, public_api, internal) do
-    public_namespaces = Enum.map(public_api, &pattern_namespace/1) |> Enum.reject(&is_nil/1)
-    callee_namespace = module_namespace(callee)
-
-    callee_namespace in public_namespaces and
-      module_namespace(caller) != callee_namespace and
-      not module_matches_any?(callee, public_api) and
-      not module_matches_any?(callee, internal)
+    public_api
+    |> Enum.map(&public_api_namespace/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.any?(fn namespace ->
+      module_under_namespace?(callee, namespace) and
+        not module_under_namespace?(caller, namespace) and
+        not module_matches_any?(callee, public_api) and
+        not module_matches_any?(callee, internal)
+    end)
   end
 
   defp internal_call_violation?(caller, callee, internal, internal_callers) do
@@ -379,23 +394,34 @@ defmodule Mix.Tasks.Reach.Check do
     end
   end
 
-  defp pattern_namespace(pattern) do
+  defp public_api_namespace(pattern) do
     pattern
     |> to_string()
-    |> String.split([".", "*"])
-    |> List.first()
+    |> String.replace_suffix(".*", "")
+    |> String.trim_trailing("*")
+    |> String.trim_trailing(".")
     |> case do
       "" -> nil
       namespace -> namespace
     end
   end
 
+  defp module_under_namespace?(module, namespace) do
+    name = module_name(module)
+    name == namespace or String.starts_with?(name, namespace <> ".")
+  end
+
   defp module_namespace(module) do
+    module
+    |> module_name()
+    |> String.split(".")
+    |> List.first()
+  end
+
+  defp module_name(module) do
     module
     |> Atom.to_string()
     |> String.replace_leading("Elixir.", "")
-    |> String.split(".")
-    |> List.first()
   end
 
   defp layer_cycle_violations(%{adjacency: adjacency}) do

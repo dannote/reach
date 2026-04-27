@@ -72,9 +72,10 @@ defmodule Mix.Tasks.Reach.Inspect do
       {opts[:candidates], :candidates},
       {opts[:impact], :impact},
       {opts[:deps], :deps},
-      {opts[:graph], :graph},
       {opts[:data] == true and opts[:format] == "json", :data_json},
-      {opts[:slice] == true or opts[:data] == true, :slice}
+      {opts[:data] == true and opts[:graph] != true, :data_text},
+      {opts[:slice] == true or opts[:data] == true, :slice},
+      {opts[:graph], :graph}
     ]
     |> Enum.find_value(:context, fn
       {true, action} -> action
@@ -88,16 +89,23 @@ defmodule Mix.Tasks.Reach.Inspect do
     do: render_candidates_placeholder(target, opts)
 
   defp run_action(:impact, target, _target_args, opts),
-    do: TaskRunner.run("reach.impact", target_args(target, opts, graph?: opts[:graph]))
+    do:
+      TaskRunner.run("reach.impact", target_args(target, opts, graph?: opts[:graph]),
+        command: "reach.inspect"
+      )
 
   defp run_action(:deps, target, _target_args, opts),
-    do: TaskRunner.run("reach.deps", target_args(target, opts, graph?: opts[:graph]))
+    do:
+      TaskRunner.run("reach.deps", target_args(target, opts, graph?: opts[:graph]),
+        command: "reach.inspect"
+      )
 
   defp run_action(:graph, target, _target_args, _opts), do: render_cfg(target)
   defp run_action(:data_json, target, _target_args, opts), do: render_data_json(target, opts)
+  defp run_action(:data_text, target, _target_args, opts), do: render_data_text(target, opts)
 
   defp run_action(:slice, target, _target_args, opts),
-    do: TaskRunner.run("reach.slice", slice_args(target, opts))
+    do: TaskRunner.run("reach.slice", slice_args(target, opts), command: "reach.inspect")
 
   defp run_context(target, opts) do
     if opts[:format] == "json" do
@@ -105,9 +113,9 @@ defmodule Mix.Tasks.Reach.Inspect do
     else
       IO.puts("# Reach context for #{target}\n")
       IO.puts("## Dependencies\n")
-      TaskRunner.run("reach.deps", target_args(target, opts))
+      TaskRunner.run("reach.deps", target_args(target, opts), command: "reach.inspect")
       IO.puts("\n## Impact\n")
-      TaskRunner.run("reach.impact", target_args(target, opts))
+      TaskRunner.run("reach.impact", target_args(target, opts), command: "reach.inspect")
       IO.puts("\n## Data\n")
       render_data_text(target, opts)
     end

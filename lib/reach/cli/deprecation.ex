@@ -16,7 +16,7 @@ defmodule Reach.CLI.Deprecation do
 
   def warn(old, new) do
     unless Process.get(@delegation_key, false) do
-      IO.puts(:stderr, "warning: mix #{old} is deprecated; use mix #{new}")
+      Mix.raise("mix #{old} has been removed; use mix #{new}")
     end
   end
 end
