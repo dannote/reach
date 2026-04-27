@@ -11,10 +11,13 @@ defmodule Mix.Tasks.Reach.Effects do
 
   use Mix.Task
 
-  @shortdoc "Show effect distribution"
+  alias Reach.CLI.Deprecation
+
+  @shortdoc "Deprecated: Show effect distribution"
 
   @impl Mix.Task
   def run(args) do
+    Deprecation.warn("reach.effects", "reach.map --effects")
     Mix.Tasks.Reach.Map.run(["--effects" | args])
   end
 end

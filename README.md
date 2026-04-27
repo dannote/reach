@@ -156,10 +156,27 @@ mix reach.check --smells
 mix reach.check --candidates --top 10
 ```
 
-Existing task names such as `mix reach.modules`, `mix reach.flow`, and
-`mix reach.impact` remain available as compatibility aliases. Canonical JSON
-envelopes are documented in [`JSON_SCHEMAS.md`](JSON_SCHEMAS.md). `.reach.exs`
-architecture policy is documented in [`CONFIG.md`](CONFIG.md).
+Older task names remain available as deprecated compatibility aliases and print migration instructions on stderr. Prefer the canonical commands:
+
+| Deprecated | Use instead |
+|---|---|
+| `mix reach.modules` | `mix reach.map --modules` |
+| `mix reach.coupling` | `mix reach.map --coupling` |
+| `mix reach.hotspots` | `mix reach.map --hotspots` |
+| `mix reach.depth` | `mix reach.map --depth` |
+| `mix reach.effects` | `mix reach.map --effects` |
+| `mix reach.boundaries` | `mix reach.map --boundaries` |
+| `mix reach.xref` | `mix reach.map --data` |
+| `mix reach.deps TARGET` | `mix reach.inspect TARGET --deps` |
+| `mix reach.impact TARGET` | `mix reach.inspect TARGET --impact` |
+| `mix reach.slice TARGET` | `mix reach.trace TARGET` |
+| `mix reach.flow ...` | `mix reach.trace ...` |
+| `mix reach.dead_code` | `mix reach.check --dead-code` |
+| `mix reach.smell` | `mix reach.check --smells` |
+| `mix reach.graph TARGET` | `mix reach.inspect TARGET --graph` |
+| `mix reach.concurrency` | `mix reach.otp --concurrency` |
+
+Canonical JSON envelopes are documented in [`JSON_SCHEMAS.md`](JSON_SCHEMAS.md). `.reach.exs` architecture policy is documented in [`CONFIG.md`](CONFIG.md).
 
 ### Terminal graphs
 

@@ -14,17 +14,20 @@ defmodule Mix.Tasks.Reach.Concurrency do
 
   use Mix.Task
 
+  alias Reach.CLI.Deprecation
   alias Reach.CLI.Format
   alias Reach.CLI.Project
   alias Reach.IR
 
-  @shortdoc "Concurrency patterns (Task, monitors, spawn, supervisors)"
+  @shortdoc "Deprecated: Concurrency patterns (Task, monitors, spawn, supervisors)"
 
   @switches [format: :string]
   @aliases [f: :format]
 
   @impl Mix.Task
   def run(args) do
+    Deprecation.warn("reach.concurrency", "reach.otp --concurrency")
+
     {opts, _args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
     format = opts[:format] || "text"
 

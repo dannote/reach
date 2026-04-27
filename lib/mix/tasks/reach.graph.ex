@@ -19,9 +19,9 @@ defmodule Mix.Tasks.Reach.Graph do
 
   use Mix.Task
 
-  alias Reach.CLI.{BoxartGraph, Format, Project}
+  alias Reach.CLI.{BoxartGraph, Deprecation, Format, Project}
 
-  @shortdoc "Render control flow graph in terminal (requires boxart)"
+  @shortdoc "Deprecated: Render control flow graph in terminal (requires boxart)"
 
   @dialyzer {:nowarn_function, render_cfg: 2}
 
@@ -29,6 +29,8 @@ defmodule Mix.Tasks.Reach.Graph do
 
   @impl Mix.Task
   def run(args) do
+    Deprecation.warn("reach.graph TARGET", "reach.inspect TARGET --graph")
+
     unless BoxartGraph.available?() do
       Mix.raise("boxart is required. Add {:boxart, \"~> 0.3\"} to your deps.")
     end

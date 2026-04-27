@@ -17,17 +17,20 @@ defmodule Mix.Tasks.Reach.Slice do
 
   use Mix.Task
 
-  @shortdoc "Program slicing — minimum code affecting a value"
+  @shortdoc "Deprecated: Program slicing — minimum code affecting a value"
 
   @switches [format: :string, forward: :boolean, variable: :string, graph: :boolean]
   @aliases [f: :format]
 
   alias Reach.CLI.BoxartGraph
+  alias Reach.CLI.Deprecation
   alias Reach.CLI.Format
   alias Reach.CLI.Project
 
   @impl Mix.Task
   def run(args) do
+    Deprecation.warn("reach.slice TARGET", "reach.trace TARGET")
+
     {opts, target_args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
 
     unless target_args != [] do

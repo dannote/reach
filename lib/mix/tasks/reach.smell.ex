@@ -18,11 +18,12 @@ defmodule Mix.Tasks.Reach.Smell do
 
   use Mix.Task
 
-  @shortdoc "Find cross-function performance anti-patterns"
+  @shortdoc "Deprecated: Find cross-function performance anti-patterns"
 
   @switches [format: :string]
   @aliases [f: :format]
 
+  alias Reach.CLI.Deprecation
   alias Reach.CLI.Format
   alias Reach.CLI.Project
   alias Reach.Effects
@@ -30,6 +31,8 @@ defmodule Mix.Tasks.Reach.Smell do
 
   @impl Mix.Task
   def run(args) do
+    Deprecation.warn("reach.smell", "reach.check --smells")
+
     {opts, args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
     format = opts[:format] || "text"
     path = List.first(args)
