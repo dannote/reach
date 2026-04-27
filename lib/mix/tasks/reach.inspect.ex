@@ -357,22 +357,29 @@ defmodule Mix.Tasks.Reach.Inspect do
     |> maybe_candidate(extract_region_candidate(mfa, func, branch_count, callers))
   end
 
-  defp isolate_effects_candidate(_mfa, _func, effects) when length(effects) < 2, do: nil
-
   defp isolate_effects_candidate(mfa, func, effects) do
-    %{
-      id: "R2-001",
-      kind: "isolate_effects",
-      target: Format.func_id_to_string(mfa),
-      file: func.source_span && func.source_span.file,
-      line: func.source_span && func.source_span.start_line,
-      benefit: :medium,
-      risk: :medium,
-      evidence: ["mixed_effects"],
-      effects: Enum.map(effects, &to_string/1),
-      suggestion:
-        "Split pure decision logic from side-effect execution while preserving effect order."
-    }
+    cond do
+      length(effects) < 2 ->
+        nil
+
+      expected_effect_boundary?(func) ->
+        nil
+
+      true ->
+        %{
+          id: "R2-001",
+          kind: "isolate_effects",
+          target: Format.func_id_to_string(mfa),
+          file: func.source_span && func.source_span.file,
+          line: func.source_span && func.source_span.start_line,
+          benefit: :medium,
+          risk: :medium,
+          evidence: ["mixed_effects"],
+          effects: Enum.map(effects, &to_string/1),
+          suggestion:
+            "Split pure decision logic from side-effect execution while preserving effect order."
+        }
+    end
   end
 
   defp extract_region_candidate(_mfa, _func, branch_count, _callers) when branch_count < 4,
@@ -413,6 +420,30 @@ defmodule Mix.Tasks.Reach.Inspect do
     |> Enum.map(&Effects.classify/1)
     |> Enum.uniq()
     |> Enum.sort()
+  end
+
+  defp expected_effect_boundary?(func) do
+    callback? =
+      {func.meta[:name], func.meta[:arity]} in [
+        {:start, 2},
+        {:init, 1},
+        {:handle_call, 3},
+        {:handle_cast, 2},
+        {:handle_info, 2},
+        {:handle_continue, 2},
+        {:terminate, 2},
+        {:code_change, 3},
+        {:mount, 3},
+        {:handle_event, 3},
+        {:handle_params, 3}
+      ]
+
+    mix_task? = func.meta[:module] |> inspect() |> String.starts_with?("Mix.Tasks.")
+
+    mix_task_file? =
+      func.source_span && String.starts_with?(func.source_span.file || "", "lib/mix/tasks/")
+
+    callback? or mix_task? or mix_task_file?
   end
 
   defp render_candidates_text(%{target: target, candidates: []}) do

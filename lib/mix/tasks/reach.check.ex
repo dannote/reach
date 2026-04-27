@@ -478,6 +478,30 @@ defmodule Mix.Tasks.Reach.Check do
 
   defp concrete_effects(func), do: function_effects(func) -- [:pure, :unknown]
 
+  defp expected_effect_boundary?(func) do
+    callback? =
+      {func.meta[:name], func.meta[:arity]} in [
+        {:start, 2},
+        {:init, 1},
+        {:handle_call, 3},
+        {:handle_cast, 2},
+        {:handle_info, 2},
+        {:handle_continue, 2},
+        {:terminate, 2},
+        {:code_change, 3},
+        {:mount, 3},
+        {:handle_event, 3},
+        {:handle_params, 3}
+      ]
+
+    mix_task? = func.meta[:module] |> inspect() |> String.starts_with?("Mix.Tasks.")
+
+    mix_task_file? =
+      func.source_span && String.starts_with?(func.source_span.file || "", "lib/mix/tasks/")
+
+    callback? or mix_task? or mix_task_file?
+  end
+
   defp remote_call?(node) do
     node.type == :call and node.meta[:kind] == :remote and node.meta[:module] != nil
   end
@@ -812,6 +836,7 @@ defmodule Mix.Tasks.Reach.Check do
     project.nodes
     |> Map.values()
     |> Enum.filter(&(&1.type == :function_def and &1.source_span))
+    |> Enum.reject(&expected_effect_boundary?/1)
     |> Enum.map(fn func -> {func, concrete_effects(func)} end)
     |> Enum.filter(fn {_func, effects} -> length(effects) >= 2 end)
     |> Enum.sort_by(fn {func, effects} ->
