@@ -7,15 +7,19 @@ defmodule Reach.CLI.Project do
     quiet? = Keyword.get(opts, :quiet, false)
     compile(quiet?)
 
-    case Keyword.get(opts, :paths) do
-      nil ->
-        unless quiet?, do: Mix.shell().info("Analyzing project...")
-        Reach.Project.from_mix_project()
+    project =
+      case Keyword.get(opts, :paths) do
+        nil ->
+          unless quiet?, do: Mix.shell().info("Analyzing project...")
+          Reach.Project.from_mix_project()
 
-      paths ->
-        unless quiet?, do: Mix.shell().info("Analyzing #{length(paths)} file(s)...")
-        Reach.Project.from_sources(paths)
-    end
+        paths ->
+          unless quiet?, do: Mix.shell().info("Analyzing #{length(paths)} file(s)...")
+          Reach.Project.from_sources(paths)
+      end
+
+    Process.delete({__MODULE__, :func_index})
+    project
   end
 
   defp compile(true) do
@@ -247,8 +251,22 @@ defmodule Reach.CLI.Project do
         resolve_in_call_graph(project.call_graph, mod_str, fun_str, arity)
 
       nil ->
-        resolve_by_function_name(project, name)
+        resolve_unqualified_function_reference(project, name) ||
+          resolve_by_function_name(project, name)
     end
+  end
+
+  defp resolve_unqualified_function_reference(project, name) do
+    with [fun_str, arity_str] <- String.split(name, "/", parts: 2),
+         {arity, ""} <- Integer.parse(arity_str),
+         fun <- String.to_existing_atom(fun_str),
+         [node | _] <- Map.get(function_index(project).by_name_arity, {fun, arity}, []) do
+      {node.meta[:module], node.meta[:name], node.meta[:arity]}
+    else
+      _ -> nil
+    end
+  rescue
+    ArgumentError -> nil
   end
 
   defp resolve_in_call_graph(cg, mod_str, fun_str, arity) do

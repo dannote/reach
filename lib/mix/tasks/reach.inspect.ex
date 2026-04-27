@@ -605,8 +605,16 @@ defmodule Mix.Tasks.Reach.Inspect do
 
   defp render_why_text(%{paths: []} = result) do
     IO.puts(Format.header("Why #{result.target} -> #{result.why}"))
-    IO.puts("  No #{result.relation} found.")
-    if result[:reason], do: IO.puts("  reason=#{result.reason}")
+
+    message =
+      case result[:reason] do
+        nil -> "No #{result.relation} found."
+        "source_not_found" -> "Source target could not be resolved."
+        "target_not_found" -> "Why target could not be resolved."
+        reason -> "No relationship found (#{reason})."
+      end
+
+    IO.puts("  #{message}")
   end
 
   defp render_why_text(result) do
