@@ -60,19 +60,7 @@ defmodule Reach.CLI.Analyses.Flow do
     sources = find_nodes(project, build_filter(from_pattern))
     sinks = find_nodes(project, build_filter(to_pattern))
 
-    sdg = %Reach.SystemDependence{
-      graph: project.graph,
-      nodes: project.nodes,
-      function_pdgs: %{},
-      call_graph: project.call_graph
-    }
-
-    paths =
-      for source <- sources,
-          sink <- sinks,
-          Reach.data_flows?(sdg, source.id, sink.id) do
-        build_path(project, source, sink)
-      end
+    paths = find_taint_paths(project, sources, sinks)
 
     %{type: :taint, from: from_pattern, to: to_pattern, paths: paths}
   end
@@ -143,6 +131,29 @@ defmodule Reach.CLI.Analyses.Flow do
 
   defp find_nodes(project, filter) do
     Map.values(project.nodes) |> Enum.filter(filter)
+  end
+
+  defp find_taint_paths(project, sources, sinks) do
+    graph = project.graph
+    sink_by_id = Map.new(sinks, &{&1.id, &1})
+    sink_ids = MapSet.new(Map.keys(sink_by_id))
+
+    sources
+    |> Stream.flat_map(fn source -> reachable_sinks(graph, source, sink_ids, sink_by_id) end)
+    |> Stream.map(fn {source, sink} -> build_path(project, source, sink) end)
+    |> Enum.take(50)
+  end
+
+  defp reachable_sinks(graph, source, sink_ids, sink_by_id) do
+    if Graph.has_vertex?(graph, source.id) do
+      graph
+      |> Graph.reachable([source.id])
+      |> MapSet.new()
+      |> MapSet.intersection(sink_ids)
+      |> Enum.map(&{source, Map.fetch!(sink_by_id, &1)})
+    else
+      []
+    end
   end
 
   defp build_path(project, source, sink) do

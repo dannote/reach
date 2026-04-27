@@ -307,7 +307,7 @@ defmodule Reach.CLI.BoxartGraph do
         source = read_lines_range(file, node.start_line, node.end_line)
 
         if source do
-          [source: source, start_line: node.start_line, language: :elixir]
+          [source: sanitize_boxart_source(source), start_line: node.start_line, language: :elixir]
         else
           [label: node.label || to_string(node.type)]
         end
@@ -334,6 +334,17 @@ defmodule Reach.CLI.BoxartGraph do
   end
 
   defp read_lines_range(_, _, _), do: nil
+
+  defp sanitize_boxart_source(source) do
+    source
+    |> String.to_charlist()
+    |> Enum.map(fn
+      char when char in 9..13 -> char
+      char when char in 32..126 -> char
+      _char -> ??
+    end)
+    |> List.to_string()
+  end
 
   defp collect_subgraph(cg, roots, depth) do
     collect_subgraph(cg, roots, depth, MapSet.new(), [])
