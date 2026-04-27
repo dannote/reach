@@ -61,7 +61,7 @@ defmodule Reach.CLI.Analyses.Deps do
       if BoxartGraph.available?() do
         BoxartGraph.render_call_graph(project, target, depth)
       else
-        Mix.raise("boxart is required for --graph. Add {:boxart, \"~> 0.3\"} to your deps.")
+        Mix.raise("boxart is required for --graph. Add {:boxart, \"~> 0.3.3\"} to your deps.")
       end
     else
       case format do

@@ -59,7 +59,7 @@ defmodule Reach.CLI.BoxartGraph do
   def render_otp_state_diagram(callbacks) do
     unless Code.ensure_loaded?(Boxart.Render.StateDiagram.State) do
       Mix.raise(
-        "boxart is required for OTP state diagrams. Add {:boxart, \"~> 0.3\"} to your deps."
+        "boxart is required for OTP state diagrams. Add {:boxart, \"~> 0.3.3\"} to your deps."
       )
     end
 
@@ -307,7 +307,7 @@ defmodule Reach.CLI.BoxartGraph do
         source = read_lines_range(file, node.start_line, node.end_line)
 
         if source do
-          [source: sanitize_boxart_source(source), start_line: node.start_line, language: :elixir]
+          [source: source, start_line: node.start_line, language: :elixir]
         else
           [label: node.label || to_string(node.type)]
         end
@@ -334,17 +334,6 @@ defmodule Reach.CLI.BoxartGraph do
   end
 
   defp read_lines_range(_, _, _), do: nil
-
-  defp sanitize_boxart_source(source) do
-    source
-    |> String.to_charlist()
-    |> Enum.map(fn
-      char when char in 9..13 -> char
-      char when char in 32..126 -> char
-      _char -> ??
-    end)
-    |> List.to_string()
-  end
 
   defp collect_subgraph(cg, roots, depth) do
     collect_subgraph(cg, roots, depth, MapSet.new(), [])

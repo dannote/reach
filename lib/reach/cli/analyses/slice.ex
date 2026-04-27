@@ -48,7 +48,7 @@ defmodule Reach.CLI.Analyses.Slice do
         BoxartGraph.render_slice_graph(project, node.id, forward?)
 
       opts[:graph] ->
-        Mix.raise("boxart is required for --graph. Add {:boxart, \"~> 0.3\"} to your deps.")
+        Mix.raise("boxart is required for --graph. Add {:boxart, \"~> 0.3.3\"} to your deps.")
 
       true ->
         render(format, node, result, forward?, target)

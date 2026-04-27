@@ -32,7 +32,7 @@ defmodule Mix.Tasks.Reach.Graph do
     Deprecation.warn("reach.graph TARGET", "reach.inspect TARGET --graph")
 
     unless BoxartGraph.available?() do
-      Mix.raise("boxart is required. Add {:boxart, \"~> 0.3\"} to your deps.")
+      Mix.raise("boxart is required. Add {:boxart, \"~> 0.3.3\"} to your deps.")
     end
 
     {opts, target_args, _} = OptionParser.parse(args, switches: @switches)
