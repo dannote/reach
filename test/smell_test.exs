@@ -1,7 +1,7 @@
 defmodule Reach.SmellTest do
   use ExUnit.Case, async: true
 
-  alias Mix.Tasks.Reach.Smell
+  alias Reach.CLI.Analyses.Smell
 
   defp project_from_string(code) do
     path = Path.join(System.tmp_dir!(), "smell_test_#{:erlang.unique_integer([:positive])}.ex")
