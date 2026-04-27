@@ -39,30 +39,30 @@ Artifacts:
 
 ## Summary
 
-All 20 repositories passed command execution and JSON shape validation.
+All 20 repositories passed command execution and JSON shape validation. Candidate counts reflect the default project-wide cap of 40.
 
-| Repo | Status | Functions | Modules | Hotspot |
-|---|---:|---:|---:|---|
-| `agentjido/jido` | ok | 1322 | 170 | `lib/jido/error.ex:328` |
-| `agentjido/jido_ai` | ok | 2074 | 174 | `lib/jido_ai/tool_adapter.ex:161` |
-| `agentjido/jido_harness` | ok | 128 | 40 | `lib/jido_harness/exec.ex:86` |
-| `agentjido/jido_shell` | ok | 393 | 50 | `lib/jido_shell/environment/sprite.ex:203` |
-| `agentjido/jido_vfs` | ok | 442 | 55 | `lib/jido_vfs/relative_path.ex:14` |
-| `agentjido/jido_claude` | ok | 175 | 37 | `lib/jido_claude/executor/shell.ex:504` |
-| `agentjido/jido_codex` | ok | 98 | 23 | `lib/jido_codex/mapper.ex:14` |
-| `agentjido/jido_gemini` | ok | 39 | 19 | `lib/jido_gemini/mapper.ex:131` |
-| `robertohluna/jido_claw` | ok | 837 | 193 | `lib/jido_claw/forge/bootstrap.ex:5` |
-| `HackTuah/HackTUI-Hermes-Jido` | ok | 513 | 128 | `apps/hacktui_tui/lib/hacktui_tui/live_dashboard_view.ex:584` |
-| `livebook-dev/livebook` | ok | 3341 | 267 | `lib/livebook_web/live/session_live.ex:217` |
-| `plausible/analytics` | ok | 3111 | 491 | `lib/plausible_web/controllers/api/stats_controller.ex:1393` |
-| `supabase/realtime` | ok | 917 | 275 | `lib/realtime_web/channels/realtime_channel/broadcast_handler.ex:25` |
-| `ash-project/ash` | ok | 4227 | 648 | `lib/ash/query/aggregate.ex:214` |
-| `ash-project/ash_postgres` | ok | 600 | 94 | `lib/data_layer.ex:1114` |
-| `absinthe-graphql/absinthe` | ok | 1126 | 270 | `lib/absinthe/blueprint/input.ex:92` |
-| `surface-ui/surface` | ok | 874 | 135 | `lib/surface/compiler.ex:368` |
-| `nerves-project/nerves` | ok | 336 | 50 | `lib/nerves/artifact/resolvers/github_api.ex:79` |
-| `dashbitco/broadway` | ok | 175 | 22 | `lib/broadway/topology.ex:479` |
-| `commanded/commanded` | ok | 450 | 66 | `lib/commanded/event_store/adapters/in_memory.ex:470` |
+| Repo | Status | Functions | Modules | Candidates | Hotspot |
+|---|---:|---:|---:|---:|---|
+| `agentjido/jido` | ok | 1322 | 170 | 31 | `lib/jido/error.ex:328` |
+| `agentjido/jido_ai` | ok | 2074 | 174 | 37 | `lib/jido_ai/tool_adapter.ex:161` |
+| `agentjido/jido_harness` | ok | 128 | 40 | 1 | `lib/jido_harness/exec.ex:86` |
+| `agentjido/jido_shell` | ok | 393 | 50 | 13 | `lib/jido_shell/environment/sprite.ex:203` |
+| `agentjido/jido_vfs` | ok | 442 | 55 | 22 | `lib/jido_vfs/relative_path.ex:14` |
+| `agentjido/jido_claude` | ok | 175 | 37 | 2 | `lib/jido_claude/executor/shell.ex:504` |
+| `agentjido/jido_codex` | ok | 98 | 23 | 2 | `lib/jido_codex/mapper.ex:14` |
+| `agentjido/jido_gemini` | ok | 39 | 19 | 2 | `lib/jido_gemini/mapper.ex:131` |
+| `robertohluna/jido_claw` | ok | 837 | 193 | 23 | `lib/jido_claw/forge/bootstrap.ex:5` |
+| `HackTuah/HackTUI-Hermes-Jido` | ok | 513 | 128 | 15 | `apps/hacktui_tui/lib/hacktui_tui/live_dashboard_view.ex:584` |
+| `livebook-dev/livebook` | ok | 3341 | 267 | 40 | `lib/livebook_web/live/session_live.ex:217` |
+| `plausible/analytics` | ok | 3111 | 491 | 40 | `lib/plausible_web/controllers/api/stats_controller.ex:1393` |
+| `supabase/realtime` | ok | 917 | 275 | 29 | `lib/realtime_web/channels/realtime_channel/broadcast_handler.ex:25` |
+| `ash-project/ash` | ok | 4227 | 648 | 40 | `lib/ash/query/aggregate.ex:214` |
+| `ash-project/ash_postgres` | ok | 600 | 94 | 27 | `lib/data_layer.ex:1114` |
+| `absinthe-graphql/absinthe` | ok | 1126 | 270 | 9 | `lib/absinthe/blueprint/input.ex:92` |
+| `surface-ui/surface` | ok | 874 | 135 | 13 | `lib/surface/compiler.ex:368` |
+| `nerves-project/nerves` | ok | 336 | 50 | 16 | `lib/nerves/artifact/resolvers/github_api.ex:79` |
+| `dashbitco/broadway` | ok | 175 | 22 | 7 | `lib/broadway/topology.ex:479` |
+| `commanded/commanded` | ok | 450 | 66 | 19 | `lib/commanded/event_store/adapters/in_memory.ex:470` |
 
 ## Bugs found
 

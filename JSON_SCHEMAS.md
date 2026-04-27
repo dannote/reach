@@ -287,6 +287,8 @@ Violation shapes:
 
 ## `mix reach.check --candidates --format json`
 
+Use `--top N` to limit the number of returned candidates.
+
 ```json
 {
   "candidates": [

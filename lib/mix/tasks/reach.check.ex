@@ -17,7 +17,8 @@ defmodule Mix.Tasks.Reach.Check do
     * `--base` — git base ref for `--changed` (default: `main`)
     * `--dead-code` — find unused pure expressions
     * `--smells` — find graph/effect/data-flow performance smells
-    * `--candidates` — emit advisory refactoring candidate placeholder
+    * `--candidates` — emit advisory refactoring candidates
+    * `--top` — limit candidate output for `--candidates`
 
   """
 
@@ -39,7 +40,8 @@ defmodule Mix.Tasks.Reach.Check do
     dead_code: :boolean,
     smells: :boolean,
     candidates: :boolean,
-    path: :string
+    path: :string,
+    top: :integer
   ]
 
   @aliases [f: :format]
@@ -735,6 +737,7 @@ defmodule Mix.Tasks.Reach.Check do
          cycle_candidates(project))
       |> Enum.uniq_by(& &1.id)
       |> Enum.sort_by(&candidate_rank/1)
+      |> Enum.take(opts[:top] || 40)
 
     result = %{
       candidates: candidates,

@@ -151,6 +151,9 @@ mix reach.check --changed --base main
 # Unused pure expressions and graph/effect/data-flow smells
 mix reach.check --dead-code
 mix reach.check --smells
+
+# Advisory refactoring candidates with proof requirements
+mix reach.check --candidates --top 10
 ```
 
 Existing task names such as `mix reach.modules`, `mix reach.flow`, and
