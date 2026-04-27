@@ -457,34 +457,44 @@ defmodule Mix.Tasks.Reach.Smell do
   defp detect_map_join_interpolation(calls) do
     joins = Enum.filter(calls, &enum_call?(&1, :join))
 
-    Enum.flat_map(joins, fn join ->
-      case find_piped_producer(join, calls) do
-        %{meta: %{function: :map, module: Enum}} = map_call ->
-          if callback_builds_strings?(map_call) do
-            [%{
-              kind: :string_building,
-              message: "Enum.map(& \"...\#{}\") |> Enum.join: builds intermediate strings. Return iolists from map and pass to IO directly",
-              location: Format.location(join)
-            }]
-          else
-            []
-          end
+    Enum.flat_map(joins, &map_join_interpolation_smell(&1, calls))
+  end
 
-        _ ->
-          []
-      end
-    end)
+  defp map_join_interpolation_smell(join, calls) do
+    case find_piped_producer(join, calls) do
+      %{meta: %{function: :map, module: Enum}} = map_call ->
+        string_building_smell(
+          callback_builds_strings?(map_call),
+          "Enum.map(& \"...\#{}\") |> Enum.join: builds intermediate strings. Return iolists from map and pass to IO directly",
+          join
+        )
+
+      _ ->
+        []
+    end
+  end
+
+  defp string_building_smell(false, _message, _node), do: []
+
+  defp string_building_smell(true, message, node) do
+    [
+      %{
+        kind: :string_building,
+        message: message,
+        location: Format.location(node)
+      }
+    ]
   end
 
   # Enum.map_join(items, fn -> "...\#{x}..." end)
   defp detect_map_join_concat(calls) do
     calls
-    |> Enum.filter(&enum_call?(&1, :map_join))
-    |> Enum.filter(&callback_builds_strings?/1)
+    |> Enum.filter(&(enum_call?(&1, :map_join) and callback_builds_strings?(&1)))
     |> Enum.map(fn call ->
       %{
         kind: :string_building,
-        message: "Enum.map_join with string interpolation: builds N intermediate strings. Use Enum.map/2 returning iolists",
+        message:
+          "Enum.map_join with string interpolation: builds N intermediate strings. Use Enum.map/2 returning iolists",
         location: Format.location(call)
       }
     end)
@@ -493,13 +503,9 @@ defmodule Mix.Tasks.Reach.Smell do
   # "<div>" <> Enum.join(parts) <> "</div>"
   defp detect_concat_around_join(all) do
     concat_ids_with_join =
-      all
-      |> Enum.filter(fn n ->
-        n.type == :binary_op and n.meta[:operator] == :<> and n.source_span != nil
-      end)
-      |> Enum.filter(fn concat ->
-        subtree = IR.all_nodes(concat)
-        Enum.any?(subtree, &enum_call?(&1, :join))
+      Enum.filter(all, fn node ->
+        node.type == :binary_op and node.meta[:operator] == :<> and node.source_span != nil and
+          Enum.any?(IR.all_nodes(node), &enum_call?(&1, :join))
       end)
 
     nested_ids =
@@ -512,7 +518,8 @@ defmodule Mix.Tasks.Reach.Smell do
     |> Enum.map(fn concat ->
       %{
         kind: :string_building,
-        message: "String concatenation around Enum.join: wrap in a list instead — [\"<div>\", parts, \"</div>\"]",
+        message:
+          "String concatenation around Enum.join: wrap in a list instead — [\"<div>\", parts, \"</div>\"]",
         location: Format.location(concat)
       }
     end)
@@ -521,14 +528,15 @@ defmodule Mix.Tasks.Reach.Smell do
   # Enum.reduce(items, "", fn item, acc -> acc <> "..." end)
   defp detect_reduce_string_concat(calls, all) do
     calls
-    |> Enum.filter(&enum_call?(&1, :reduce))
     |> Enum.filter(fn reduce ->
-      has_empty_string_acc?(reduce) and callback_uses_string_concat?(reduce, all)
+      enum_call?(reduce, :reduce) and has_empty_string_acc?(reduce) and
+        callback_uses_string_concat?(reduce, all)
     end)
     |> Enum.map(fn reduce ->
       %{
         kind: :string_building,
-        message: "Enum.reduce building string with <>: O(n²) copying. Use iolists or Enum.map_join",
+        message:
+          "Enum.reduce building string with <>: O(n²) copying. Use iolists or Enum.map_join",
         location: Format.location(reduce)
       }
     end)

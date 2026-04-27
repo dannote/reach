@@ -44,23 +44,35 @@ defmodule Mix.Tasks.Reach.Trace do
   def run(args) do
     {opts, positional, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
 
-    cond do
-      opts[:from] || opts[:to] || (opts[:variable] && opts[:in]) ||
-          (opts[:variable] && positional == []) ->
+    case trace_action(opts, positional) do
+      :flow ->
         TaskRunner.run("reach.flow", flow_args(opts))
 
-      opts[:backward] ->
-        TaskRunner.run("reach.slice", slice_args(opts[:backward], opts, forward?: false))
+      {:slice, target, direction} ->
+        TaskRunner.run("reach.slice", slice_args(target, opts, direction))
 
-      opts[:forward] ->
-        TaskRunner.run("reach.slice", slice_args(opts[:forward], opts, forward?: true))
-
-      positional != [] ->
-        TaskRunner.run("reach.slice", slice_args(List.first(positional), opts, forward?: false))
-
-      true ->
+      :error ->
         Mix.raise("Provide --from/--to, --variable, --backward TARGET, or --forward TARGET")
     end
+  end
+
+  defp trace_action(opts, positional) do
+    [
+      {flow_trace?(opts, positional), :flow},
+      {opts[:backward], {:slice, opts[:backward], forward?: false}},
+      {opts[:forward], {:slice, opts[:forward], forward?: true}},
+      {positional != [], {:slice, List.first(positional), forward?: false}}
+    ]
+    |> Enum.find_value(:error, fn
+      {nil, _action} -> nil
+      {false, _action} -> nil
+      {_enabled, action} -> action
+    end)
+  end
+
+  defp flow_trace?(opts, positional) do
+    opts[:from] || opts[:to] || (opts[:variable] && opts[:in]) ||
+      (opts[:variable] && positional == [])
   end
 
   defp flow_args(opts) do

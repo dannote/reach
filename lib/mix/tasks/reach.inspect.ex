@@ -30,6 +30,7 @@ defmodule Mix.Tasks.Reach.Inspect do
 
   use Mix.Task
 
+  alias Reach.CLI.Analysis
   alias Reach.CLI.BoxartGraph
   alias Reach.CLI.Format
   alias Reach.CLI.Project
@@ -62,32 +63,41 @@ defmodule Mix.Tasks.Reach.Inspect do
     target =
       List.first(target_args) || Mix.raise("Expected a target. Usage: mix reach.inspect TARGET")
 
-    cond do
-      opts[:context] ->
-        run_context(target, opts)
-
-      opts[:candidates] ->
-        render_candidates_placeholder(target, opts)
-
-      opts[:impact] ->
-        TaskRunner.run("reach.impact", target_args(target, opts, graph?: opts[:graph]))
-
-      opts[:deps] ->
-        TaskRunner.run("reach.deps", target_args(target, opts, graph?: opts[:graph]))
-
-      opts[:graph] ->
-        render_cfg(target)
-
-      opts[:data] and opts[:format] == "json" ->
-        render_data_json(target, opts)
-
-      opts[:slice] or opts[:data] ->
-        TaskRunner.run("reach.slice", slice_args(target, opts))
-
-      true ->
-        run_context(target, opts)
-    end
+    run_action(inspect_action(opts), target, target_args, opts)
   end
+
+  defp inspect_action(opts) do
+    [
+      {opts[:context], :context},
+      {opts[:candidates], :candidates},
+      {opts[:impact], :impact},
+      {opts[:deps], :deps},
+      {opts[:graph], :graph},
+      {opts[:data] == true and opts[:format] == "json", :data_json},
+      {opts[:slice] == true or opts[:data] == true, :slice}
+    ]
+    |> Enum.find_value(:context, fn
+      {true, action} -> action
+      {_enabled, _action} -> nil
+    end)
+  end
+
+  defp run_action(:context, target, _target_args, opts), do: run_context(target, opts)
+
+  defp run_action(:candidates, target, _target_args, opts),
+    do: render_candidates_placeholder(target, opts)
+
+  defp run_action(:impact, target, _target_args, opts),
+    do: TaskRunner.run("reach.impact", target_args(target, opts, graph?: opts[:graph]))
+
+  defp run_action(:deps, target, _target_args, opts),
+    do: TaskRunner.run("reach.deps", target_args(target, opts, graph?: opts[:graph]))
+
+  defp run_action(:graph, target, _target_args, _opts), do: render_cfg(target)
+  defp run_action(:data_json, target, _target_args, opts), do: render_data_json(target, opts)
+
+  defp run_action(:slice, target, _target_args, opts),
+    do: TaskRunner.run("reach.slice", slice_args(target, opts))
 
   defp run_context(target, opts) do
     if opts[:format] == "json" do
@@ -206,9 +216,9 @@ defmodule Mix.Tasks.Reach.Inspect do
     nodes_by_id = Map.new(nodes, &{&1.id, &1})
 
     vars =
-      nodes
-      |> Enum.filter(&(&1.type == :var))
-      |> Enum.filter(fn node -> variable == nil or to_string(node.meta[:name]) == variable end)
+      Enum.filter(nodes, fn node ->
+        node.type == :var and (variable == nil or to_string(node.meta[:name]) == variable)
+      end)
 
     %{
       definitions:
@@ -223,10 +233,9 @@ defmodule Mix.Tasks.Reach.Inspect do
   defp data_edges(project, node_ids, nodes_by_id, variable) do
     project.graph
     |> Graph.edges()
-    |> Enum.filter(&data_edge?/1)
-    |> Enum.filter(&(&1.v1 in node_ids and &1.v2 in node_ids))
     |> Enum.filter(fn edge ->
-      variable == nil or to_string(data_edge_label(edge)) == variable
+      Analysis.data_edge?(edge) and edge.v1 in node_ids and edge.v2 in node_ids and
+        (variable == nil or to_string(data_edge_label(edge)) == variable)
     end)
     |> Enum.take(200)
     |> Enum.map(fn edge ->
@@ -237,13 +246,6 @@ defmodule Mix.Tasks.Reach.Inspect do
       }
     end)
   end
-
-  defp data_edge?(%Graph.Edge{label: {:data, _}}), do: true
-
-  defp data_edge?(%Graph.Edge{label: label})
-       when label in [:parameter_in, :parameter_out, :summary], do: true
-
-  defp data_edge?(_edge), do: false
 
   defp data_edge_label(%Graph.Edge{label: {:data, var}}), do: var
   defp data_edge_label(%Graph.Edge{label: label}), do: label
@@ -362,7 +364,7 @@ defmodule Mix.Tasks.Reach.Inspect do
       length(effects) < 2 ->
         nil
 
-      expected_effect_boundary?(func) ->
+      Analysis.expected_effect_boundary?(func) ->
         nil
 
       true ->
@@ -434,35 +436,6 @@ defmodule Mix.Tasks.Reach.Inspect do
     |> Enum.map(&Effects.classify/1)
     |> Enum.uniq()
     |> Enum.sort()
-  end
-
-  defp expected_effect_boundary?(func) do
-    callback? =
-      {func.meta[:name], func.meta[:arity]} in [
-        {:start, 2},
-        {:init, 1},
-        {:handle_call, 3},
-        {:handle_cast, 2},
-        {:handle_info, 2},
-        {:handle_continue, 2},
-        {:terminate, 2},
-        {:code_change, 3},
-        {:mount, 3},
-        {:handle_event, 3},
-        {:handle_params, 3},
-        {:start_link, 1},
-        {:child_spec, 1},
-        {:perform, 1},
-        {:handle_batch, 1},
-        {:handle_batch, 2}
-      ]
-
-    mix_task? = func.meta[:module] |> inspect() |> String.starts_with?("Mix.Tasks.")
-
-    mix_task_file? =
-      func.source_span && String.starts_with?(func.source_span.file || "", "lib/mix/tasks/")
-
-    callback? or mix_task? or mix_task_file?
   end
 
   defp render_candidates_text(%{target: target, candidates: []}) do

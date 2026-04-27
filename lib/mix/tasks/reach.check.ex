@@ -24,6 +24,7 @@ defmodule Mix.Tasks.Reach.Check do
 
   use Mix.Task
 
+  alias Reach.CLI.Analysis
   alias Reach.CLI.Format
   alias Reach.CLI.Project
   alias Reach.CLI.TaskRunner
@@ -434,34 +435,30 @@ defmodule Mix.Tasks.Reach.Check do
     project.nodes
     |> Map.values()
     |> Enum.filter(&(&1.type == :function_def))
-    |> Enum.flat_map(fn func ->
-      module = func.meta[:module]
-      allowed = allowed_effects_for(module, policies)
+    |> Enum.flat_map(&effect_policy_violation(&1, policies))
+  end
 
-      if allowed do
-        effects = function_effects(func)
-        disallowed = effects -- allowed
+  defp effect_policy_violation(func, policies) do
+    module = func.meta[:module]
 
-        if disallowed == [] do
-          []
-        else
-          [
-            %{
-              type: "effect_policy",
-              module: inspect(module),
-              function: "#{func.meta[:name]}/#{func.meta[:arity]}",
-              allowed_effects: Enum.map(allowed, &to_string/1),
-              actual_effects: Enum.map(effects, &to_string/1),
-              disallowed_effects: Enum.map(disallowed, &to_string/1),
-              file: func.source_span && func.source_span.file,
-              line: func.source_span && func.source_span.start_line
-            }
-          ]
-        end
-      else
-        []
-      end
-    end)
+    with allowed when not is_nil(allowed) <- allowed_effects_for(module, policies),
+         effects <- function_effects(func),
+         disallowed when disallowed != [] <- effects -- allowed do
+      [
+        %{
+          type: "effect_policy",
+          module: inspect(module),
+          function: "#{func.meta[:name]}/#{func.meta[:arity]}",
+          allowed_effects: Enum.map(allowed, &to_string/1),
+          actual_effects: Enum.map(effects, &to_string/1),
+          disallowed_effects: Enum.map(disallowed, &to_string/1),
+          file: func.source_span && func.source_span.file,
+          line: func.source_span && func.source_span.start_line
+        }
+      ]
+    else
+      _ -> []
+    end
   end
 
   defp allowed_effects_for(module, policies) do
@@ -479,35 +476,6 @@ defmodule Mix.Tasks.Reach.Check do
   end
 
   defp concrete_effects(func), do: function_effects(func) -- [:pure, :unknown, :exception]
-
-  defp expected_effect_boundary?(func) do
-    callback? =
-      {func.meta[:name], func.meta[:arity]} in [
-        {:start, 2},
-        {:init, 1},
-        {:handle_call, 3},
-        {:handle_cast, 2},
-        {:handle_info, 2},
-        {:handle_continue, 2},
-        {:terminate, 2},
-        {:code_change, 3},
-        {:mount, 3},
-        {:handle_event, 3},
-        {:handle_params, 3},
-        {:start_link, 1},
-        {:child_spec, 1},
-        {:perform, 1},
-        {:handle_batch, 1},
-        {:handle_batch, 2}
-      ]
-
-    mix_task? = func.meta[:module] |> inspect() |> String.starts_with?("Mix.Tasks.")
-
-    mix_task_file? =
-      func.source_span && String.starts_with?(func.source_span.file || "", "lib/mix/tasks/")
-
-    callback? or mix_task? or mix_task_file?
-  end
 
   defp remote_call?(node) do
     node.type == :call and node.meta[:kind] == :remote and node.meta[:module] != nil
@@ -652,18 +620,25 @@ defmodule Mix.Tasks.Reach.Check do
       |> maybe_reason(length(direct_callers) >= 5, "many direct callers")
       |> maybe_reason(length(transitive_callers) >= 10, "wide transitive impact")
       |> maybe_reason(branches >= 8, "branch-heavy function")
-      |> maybe_reason(length(effects -- [:pure]) >= 2, "mixed side effects")
+      |> maybe_reason(multiple?(effects -- [:pure]), "mixed side effects")
       |> maybe_reason(core_module?(func.meta[:module]), "core Reach module")
 
     risk =
       cond do
-        length(reasons) >= 3 -> :high
-        length(reasons) >= 1 -> :medium
+        at_least_three?(reasons) -> :high
+        reasons != [] -> :medium
         true -> :low
       end
 
     {risk, reasons}
   end
+
+  defp at_least_three?([_, _, _ | _]), do: true
+  defp at_least_three?(_reasons), do: false
+
+  defp multiple?([]), do: false
+  defp multiple?([_one]), do: false
+  defp multiple?([_one, _two | _rest]), do: true
 
   defp maybe_reason(reasons, true, reason), do: reasons ++ [reason]
   defp maybe_reason(reasons, false, _reason), do: reasons
@@ -906,7 +881,7 @@ defmodule Mix.Tasks.Reach.Check do
     project.nodes
     |> Map.values()
     |> Enum.filter(&(&1.type == :function_def and &1.source_span))
-    |> Enum.reject(&expected_effect_boundary?/1)
+    |> Enum.reject(&Analysis.expected_effect_boundary?/1)
     |> Enum.map(fn func -> {func, concrete_effects(func)} end)
     |> Enum.filter(fn {_func, effects} -> length(effects) >= 2 end)
     |> Enum.sort_by(fn {func, effects} ->
@@ -947,9 +922,9 @@ defmodule Mix.Tasks.Reach.Check do
     |> Enum.map(fn func ->
       {func, branch_count(func), Project.callers(project, function_id(func), 1)}
     end)
-    |> Enum.filter(fn {_func, branches, callers} -> branches >= 8 and length(callers) >= 1 end)
+    |> Enum.filter(fn {_func, branches, callers} -> branches >= 8 and callers != [] end)
     |> Enum.reject(fn {func, _branches, _callers} ->
-      expected_effect_boundary?(func) and branch_count(func) < 20
+      Analysis.expected_effect_boundary?(func) and branch_count(func) < 20
     end)
     |> Enum.sort_by(fn {func, branches, callers} ->
       {-branches * max(length(callers), 1), func.source_span.file, func.source_span.start_line}
@@ -1050,18 +1025,22 @@ defmodule Mix.Tasks.Reach.Check do
 
       IO.puts("  evidence=#{Enum.join(candidate.evidence, ",")}")
 
-      if candidate[:representative_calls] && candidate.representative_calls != [] do
-        IO.puts("  representative calls:")
-
-        Enum.each(candidate.representative_calls, fn call ->
-          IO.puts("    #{call.file}:#{call.line} #{call.caller_module} -> #{call.call}")
-        end)
-      end
+      render_representative_calls(candidate)
 
       IO.puts("  suggestion=#{candidate.suggestion}")
       IO.puts("")
     end)
   end
+
+  defp render_representative_calls(%{representative_calls: calls}) when calls != [] do
+    IO.puts("  representative calls:")
+
+    Enum.each(calls, fn call ->
+      IO.puts("    #{call.file}:#{call.line} #{call.caller_module} -> #{call.call}")
+    end)
+  end
+
+  defp render_representative_calls(_candidate), do: :ok
 
   defp render_result(result, "json", _text_fun) do
     ensure_json_encoder!()
