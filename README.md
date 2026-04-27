@@ -156,7 +156,7 @@ mix reach.check --smells
 mix reach.check --candidates --top 10
 ```
 
-Older task names remain available as deprecated compatibility aliases and print migration instructions on stderr. Prefer the canonical commands:
+Older task names have been removed in Reach 2.0 and now fail fast with migration instructions. Use the canonical commands:
 
 | Deprecated | Use instead |
 |---|---|
@@ -176,7 +176,7 @@ Older task names remain available as deprecated compatibility aliases and print 
 | `mix reach.graph TARGET` | `mix reach.inspect TARGET --graph` |
 | `mix reach.concurrency` | `mix reach.otp --concurrency` |
 
-Canonical JSON envelopes are documented in [`JSON_SCHEMAS.md`](JSON_SCHEMAS.md). `.reach.exs` architecture policy is documented in [`CONFIG.md`](CONFIG.md).
+JSON output uses canonical `command` envelopes. `.reach.exs` architecture policy is documented in [`CONFIG.md`](CONFIG.md).
 
 ### Terminal graphs
 
