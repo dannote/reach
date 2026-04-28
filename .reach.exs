@@ -33,14 +33,14 @@
     {:plugins, :cli_support}
   ],
   allowed_effects: [
-    {"Reach.IR.*", [:pure, :unknown]},
+    {"Reach.IR.*", [:pure, :unknown, :write]},
     {"Reach.ControlFlow", [:pure, :unknown]},
     {"Reach.Dominator", [:pure, :unknown]},
     {"Reach.DataDependence", [:pure, :unknown]},
     {"Reach.ControlDependence", [:pure, :unknown]},
     {"Reach.SystemDependence", [:pure, :unknown]},
-    {"Reach.Effects", [:pure, :unknown]},
-    {"Reach.CLI.Format", [:pure, :unknown]}
+    {"Reach.Effects", [:pure, :unknown, :io, :read, :write]},
+    {"Reach.CLI.Format", [:pure, :unknown, :io, :read, :write]}
   ],
   public_api: [],
   internal: [],
