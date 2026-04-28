@@ -457,15 +457,17 @@ defmodule Mix.Tasks.Reach.Check do
 
   defp effect_policy_violations(project, config) do
     policies = Keyword.get(config, :allowed_effects, [])
+    module_by_file = module_by_file(project)
 
     project.nodes
     |> Map.values()
     |> Enum.filter(&(&1.type == :function_def))
-    |> Enum.flat_map(&effect_policy_violation(&1, policies))
+    |> Enum.flat_map(&effect_policy_violation(&1, policies, module_by_file))
   end
 
-  defp effect_policy_violation(func, policies) do
-    module = func.meta[:module]
+  defp effect_policy_violation(func, policies, module_by_file) do
+    module =
+      func.meta[:module] || (func.source_span && Map.get(module_by_file, func.source_span.file))
 
     with allowed when not is_nil(allowed) <- allowed_effects_for(module, policies),
          effects <- function_effects(func),
