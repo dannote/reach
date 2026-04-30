@@ -29,6 +29,8 @@ defmodule Mix.Tasks.Reach.Inspect do
     * `--why` — explain the shortest graph-backed relationship to another target
     * `--depth` — transitive depth passed to deps/impact
     * `--variable` — variable filter passed to slice/data views
+    * `--limit` — text display limit for truncated context sections
+    * `--all` — show all text rows in context output
 
   """
 
@@ -57,7 +59,9 @@ defmodule Mix.Tasks.Reach.Inspect do
     candidates: :boolean,
     why: :string,
     depth: :integer,
-    variable: :string
+    variable: :string,
+    limit: :integer,
+    all: :boolean
   ]
 
   @aliases [f: :format]
@@ -164,19 +168,44 @@ defmodule Mix.Tasks.Reach.Inspect do
     )
 
     IO.puts(Format.section("Callers"))
-    render_limited(Enum.map(direct_callers, &format_call/1), &IO.puts("  #{&1}"))
+
+    render_limited(
+      Enum.map(direct_callers, &format_call/1),
+      display_limit(opts),
+      &IO.puts("  #{&1}")
+    )
 
     IO.puts(Format.section("Callees"))
-    render_limited(Enum.map(callees, &format_callee_line/1), &IO.puts("  #{&1}"))
+
+    render_limited(
+      Enum.map(callees, &format_callee_line/1),
+      display_limit(opts),
+      &IO.puts("  #{&1}")
+    )
 
     IO.puts(Format.section("Definitions"))
-    render_limited(Enum.map(data.definitions, &format_var_summary/1), &IO.puts("  #{&1}"))
+
+    render_limited(
+      Enum.map(data.definitions, &format_var_summary/1),
+      display_limit(opts),
+      &IO.puts("  #{&1}")
+    )
 
     IO.puts(Format.section("Uses"))
-    render_limited(Enum.map(data.uses, &format_var_summary/1), &IO.puts("  #{&1}"))
+
+    render_limited(
+      Enum.map(data.uses, &format_var_summary/1),
+      display_limit(opts),
+      &IO.puts("  #{&1}")
+    )
 
     IO.puts(Format.section("Returns"))
-    render_limited(Enum.map(data.returns, &format_return_summary/1), &IO.puts("  #{&1}"))
+
+    render_limited(
+      Enum.map(data.returns, &format_return_summary/1),
+      display_limit(opts),
+      &IO.puts("  #{&1}")
+    )
   end
 
   defp render_context_json(target, opts) do
@@ -210,14 +239,26 @@ defmodule Mix.Tasks.Reach.Inspect do
 
   defp format_location(_location), do: "unknown"
 
-  defp render_limited(items, render_fun, limit \\ 20) do
+  defp display_limit(opts) do
+    cond do
+      opts[:all] -> :all
+      is_integer(opts[:limit]) and opts[:limit] > 0 -> opts[:limit]
+      true -> 20
+    end
+  end
+
+  defp render_limited(items, :all, render_fun) do
+    Enum.each(items, render_fun)
+  end
+
+  defp render_limited(items, limit, render_fun) do
     shown = Enum.take(items, limit)
     Enum.each(shown, render_fun)
 
     remaining = length(items) - length(shown)
 
     if remaining > 0 do
-      IO.puts("  ... #{remaining} more")
+      IO.puts("  ... #{remaining} more omitted. Use --limit N, --all, or --format json.")
     end
   end
 

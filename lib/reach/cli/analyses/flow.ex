@@ -14,6 +14,8 @@ defmodule Reach.CLI.Analyses.Flow do
     * `--variable` — trace a specific variable name
     * `--in` — restrict to a specific function
     * `--format` — output format: `text` (default), `json`, `oneline`
+    * `--limit` — text display limit; also caps taint paths unless `--all` is set
+    * `--all` — show all text rows/paths and collect all taint paths
 
   """
 
@@ -22,7 +24,9 @@ defmodule Reach.CLI.Analyses.Flow do
     from: :string,
     to: :string,
     variable: :string,
-    in: :string
+    in: :string,
+    limit: :integer,
+    all: :boolean
   ]
 
   @aliases [f: :format]
@@ -40,7 +44,7 @@ defmodule Reach.CLI.Analyses.Flow do
     result =
       cond do
         opts[:from] && opts[:to] ->
-          analyze_taint(project, opts[:from], opts[:to])
+          analyze_taint(project, opts[:from], opts[:to], path_limit(opts))
 
         opts[:variable] ->
           analyze_variable(project, opts[:variable], opts[:in])
@@ -52,15 +56,31 @@ defmodule Reach.CLI.Analyses.Flow do
     case format do
       "json" -> Format.render(result, "reach.flow", format: "json", pretty: true)
       "oneline" -> render_oneline(result)
-      _ -> render_text(project, result)
+      _ -> render_text(project, result, display_limit(opts))
     end
   end
 
-  defp analyze_taint(project, from_pattern, to_pattern) do
+  defp path_limit(opts) do
+    cond do
+      opts[:all] -> :all
+      is_integer(opts[:limit]) and opts[:limit] > 50 -> opts[:limit]
+      true -> 50
+    end
+  end
+
+  defp display_limit(opts) do
+    cond do
+      opts[:all] -> :all
+      is_integer(opts[:limit]) and opts[:limit] > 0 -> opts[:limit]
+      true -> 30
+    end
+  end
+
+  defp analyze_taint(project, from_pattern, to_pattern, max_paths) do
     sources = find_nodes(project, build_filter(from_pattern))
     sinks = find_nodes(project, build_filter(to_pattern))
 
-    paths = find_taint_paths(project, sources, sinks)
+    paths = find_taint_paths(project, sources, sinks, max_paths)
 
     %{type: :taint, from: from_pattern, to: to_pattern, paths: paths}
   end
@@ -137,15 +157,17 @@ defmodule Reach.CLI.Analyses.Flow do
     Map.values(project.nodes) |> Enum.filter(filter)
   end
 
-  defp find_taint_paths(project, sources, sinks) do
+  defp find_taint_paths(project, sources, sinks, max_paths) do
     graph = project.graph
     sink_by_id = Map.new(sinks, &{&1.id, &1})
     sink_ids = MapSet.new(Map.keys(sink_by_id))
 
-    sources
-    |> Stream.flat_map(fn source -> reachable_sinks(graph, source, sink_ids, sink_by_id) end)
-    |> Stream.map(fn {source, sink} -> build_path(project, source, sink) end)
-    |> Enum.take(50)
+    stream =
+      sources
+      |> Stream.flat_map(fn source -> reachable_sinks(graph, source, sink_ids, sink_by_id) end)
+      |> Stream.map(fn {source, sink} -> build_path(project, source, sink) end)
+
+    if max_paths == :all, do: Enum.to_list(stream), else: Enum.take(stream, max_paths)
   end
 
   defp reachable_sinks(graph, source, sink_ids, sink_by_id) do
@@ -183,27 +205,23 @@ defmodule Reach.CLI.Analyses.Flow do
     end
   end
 
-  defp render_text(project, result) do
+  defp render_text(project, result, limit) do
     case result.type do
-      :taint -> render_taint_text(project, result)
-      :variable -> render_variable_text(result)
+      :taint -> render_taint_text(project, result, limit)
+      :variable -> render_variable_text(result, limit)
     end
   end
 
-  defp render_taint_text(_project, result) do
+  defp render_taint_text(_project, result, limit) do
     IO.puts(Format.header("Taint: #{result.from} → #{result.to}"))
 
     if result.paths == [] do
       IO.puts("\nNo data flow paths found.\n")
     else
-      IO.puts("#{length(result.paths)} path(s) found. Showing up to 10.\n")
-      result.paths |> Enum.take(10) |> Enum.with_index() |> Enum.each(&print_path/1)
-
-      if length(result.paths) > 10 do
-        IO.puts(
-          "... #{length(result.paths) - 10} more path(s) omitted. Use --format json for the full result.\n"
-        )
-      end
+      shown = take_limited(result.paths, limit)
+      IO.puts("#{length(result.paths)} path(s) found. Showing #{length(shown)}.\n")
+      shown |> Enum.with_index() |> Enum.each(&print_path/1)
+      render_omitted_hint(length(result.paths) - length(shown), "path(s)")
     end
   end
 
@@ -215,26 +233,31 @@ defmodule Reach.CLI.Analyses.Flow do
     IO.puts("")
   end
 
-  defp render_variable_text(result) do
+  defp render_variable_text(result, limit) do
     IO.puts(Format.header("Variable: #{result.variable}"))
     IO.puts("  definitions=#{length(result.definitions)} uses=#{length(result.uses)}")
 
     IO.puts(Format.section("Definitions"))
-    render_limited_nodes(result.definitions)
+    render_limited_nodes(result.definitions, limit)
 
     IO.puts(Format.section("Uses"))
-    render_limited_nodes(result.uses)
+    render_limited_nodes(result.uses, limit)
   end
 
-  defp render_limited_nodes(nodes, limit \\ 30) do
-    shown = Enum.take(nodes, limit)
+  defp render_limited_nodes(nodes, limit) do
+    shown = take_limited(nodes, limit)
     Enum.each(shown, fn node -> IO.puts("  #{fmt_node(node)}") end)
 
-    remaining = length(nodes) - length(shown)
+    render_omitted_hint(length(nodes) - length(shown), "more")
+  end
 
-    if remaining > 0 do
-      IO.puts("  ... #{remaining} more")
-    end
+  defp take_limited(items, :all), do: items
+  defp take_limited(items, limit), do: Enum.take(items, limit)
+
+  defp render_omitted_hint(remaining, _label) when remaining <= 0, do: :ok
+
+  defp render_omitted_hint(remaining, label) do
+    IO.puts("  ... #{remaining} #{label} omitted. Use --limit N, --all, or --format json.")
   end
 
   defp location_key(node) do
