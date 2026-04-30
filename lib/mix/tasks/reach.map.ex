@@ -968,11 +968,8 @@ defmodule Mix.Tasks.Reach.Map do
     do: {span_file(func) || "", (func.source_span && func.source_span.start_line) || 0}
 
   defp render_effect_graph(result) do
+    BoxartGraph.require_pie_chart!()
     chart_module = Module.concat([Boxart, Render, PieChart, PieChart])
-
-    unless Code.ensure_loaded?(chart_module) and Code.ensure_loaded?(Boxart.Render.PieChart) do
-      Mix.raise("boxart is required for --graph. Add {:boxart, \"~> 0.3.3\"} to your deps.")
-    end
 
     slices =
       result.distribution
@@ -995,9 +992,5 @@ defmodule Mix.Tasks.Reach.Map do
     end
   end
 
-  defp ensure_boxart! do
-    unless BoxartGraph.available?() do
-      Mix.raise("boxart is required for --graph. Add {:boxart, \"~> 0.3.3\"} to your deps.")
-    end
-  end
+  defp ensure_boxart!, do: BoxartGraph.require!()
 end

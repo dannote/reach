@@ -568,9 +568,7 @@ defmodule Mix.Tasks.Reach.Otp do
   defp render_text(result, opts) do
     graph_mode = opts[:graph] || false
 
-    if graph_mode and not BoxartGraph.available?() do
-      Mix.raise("boxart is required for --graph. Add {:boxart, \"~> 0.3.3\"} to your deps.")
-    end
+    if graph_mode, do: BoxartGraph.require!()
 
     IO.puts(Format.header("OTP Analysis"))
 
@@ -592,7 +590,7 @@ defmodule Mix.Tasks.Reach.Otp do
   defp render_behaviour(gs, graph_mode) do
     IO.puts(Format.section("#{gs.module} #{Format.faint("(" <> gs.behaviour <> ")")}"))
 
-    if graph_mode and BoxartGraph.available?() do
+    if graph_mode do
       BoxartGraph.render_otp_state_diagram(gs.state_transforms)
     end
 

@@ -58,11 +58,8 @@ defmodule Reach.CLI.Analyses.Deps do
 
   defp render_output(format, result, project, target, depth, opts) do
     if opts[:graph] do
-      if BoxartGraph.available?() do
-        BoxartGraph.render_call_graph(project, target, depth)
-      else
-        Mix.raise("boxart is required for --graph. Add {:boxart, \"~> 0.3.3\"} to your deps.")
-      end
+      BoxartGraph.require!()
+      BoxartGraph.render_call_graph(project, target, depth)
     else
       case format do
         "json" -> Format.render(result, "reach.deps", format: "json", pretty: true)
