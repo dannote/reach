@@ -2,7 +2,7 @@ defmodule Reach.MixProject do
   use Mix.Project
 
   @version "1.8.0"
-  @source_url "https://github.com/dannote/reach"
+  @source_url "https://github.com/elixir-vibe/reach"
 
   def project do
     [
