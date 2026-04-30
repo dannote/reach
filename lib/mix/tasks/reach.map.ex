@@ -363,13 +363,14 @@ defmodule Mix.Tasks.Reach.Map do
     |> Enum.sort_by(fn {func, effects} -> {-length(effects), location_sort(func)} end)
     |> Enum.take(opts[:top] || 20)
     |> Enum.map(fn {func, effects} ->
-      module = inspect(func.meta[:module])
+      mfa = {func.meta[:module], func.meta[:name], func.meta[:arity]}
+      module = func.meta[:module] && inspect(func.meta[:module])
       function = "#{func.meta[:name]}/#{func.meta[:arity]}"
 
       %{
         module: module,
         function: function,
-        display_function: "#{module}.#{function}",
+        display_function: Format.func_id_to_string(mfa),
         file: func.source_span && func.source_span.file,
         line: func.source_span && func.source_span.start_line,
         effects: Enum.map(effects, &to_string/1),
@@ -522,13 +523,14 @@ defmodule Mix.Tasks.Reach.Map do
       callers = caller_count(func, caller_counts)
       branches = branch_count(func)
 
-      module = inspect(func.meta[:module])
+      mfa = {func.meta[:module], func.meta[:name], func.meta[:arity]}
+      module = func.meta[:module] && inspect(func.meta[:module])
       function = "#{func.meta[:name]}/#{func.meta[:arity]}"
 
       %{
         module: module,
         function: function,
-        display_function: "#{module}.#{function}",
+        display_function: Format.func_id_to_string(mfa),
         file: span_file(func),
         line: func.source_span && func.source_span.start_line,
         branches: branches,

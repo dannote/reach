@@ -139,14 +139,44 @@ defmodule Mix.Tasks.Reach.Inspect do
     if opts[:format] == "json" do
       render_context_json(target, opts)
     else
-      IO.puts("# Reach context for #{target}\n")
-      IO.puts("## Dependencies\n")
-      TaskRunner.run("reach.deps", target_args(target, opts), command: "reach.inspect")
-      IO.puts("\n## Impact\n")
-      TaskRunner.run("reach.impact", target_args(target, opts), command: "reach.inspect")
-      IO.puts("\n## Data\n")
-      render_data_text(target, opts)
+      render_context_text(target, opts)
     end
+  end
+
+  defp render_context_text(target, opts) do
+    project = Project.load()
+    {mfa, func} = resolve_function!(project, target)
+    data = data_summary(project, func, opts[:variable])
+    direct_callers = Project.callers(project, mfa, 1)
+    transitive_callers = Project.callers(project, mfa, opts[:depth] || 4)
+    callees = Project.callees(project, mfa, opts[:depth] || 3)
+
+    IO.puts(Format.header("Reach context: #{Format.func_id_to_string(mfa)}"))
+    IO.puts("  location: #{format_location(location(func))}")
+    IO.puts("  effects: #{Enum.join(effects(func), ", ")}")
+
+    IO.puts(
+      "  callers: #{length(direct_callers)} direct, #{length(transitive_callers)} transitive"
+    )
+
+    IO.puts(
+      "  data: #{length(data.definitions)} definitions, #{length(data.uses)} uses, #{length(data.returns)} returns"
+    )
+
+    IO.puts(Format.section("Callers"))
+    render_limited(Enum.map(direct_callers, &format_call/1), &IO.puts("  #{&1}"))
+
+    IO.puts(Format.section("Callees"))
+    render_limited(Enum.map(callees, &format_callee_line/1), &IO.puts("  #{&1}"))
+
+    IO.puts(Format.section("Definitions"))
+    render_limited(Enum.map(data.definitions, &format_var_summary/1), &IO.puts("  #{&1}"))
+
+    IO.puts(Format.section("Uses"))
+    render_limited(Enum.map(data.uses, &format_var_summary/1), &IO.puts("  #{&1}"))
+
+    IO.puts(Format.section("Returns"))
+    render_limited(Enum.map(data.returns, &format_return_summary/1), &IO.puts("  #{&1}"))
   end
 
   defp render_context_json(target, opts) do
@@ -173,6 +203,36 @@ defmodule Mix.Tasks.Reach.Inspect do
     }
 
     IO.puts(Jason.encode!(context, pretty: true))
+  end
+
+  defp format_location(%{file: file, line: line}) when is_binary(file) and is_integer(line),
+    do: "#{file}:#{line}"
+
+  defp format_location(_location), do: "unknown"
+
+  defp render_limited(items, render_fun, limit \\ 20) do
+    shown = Enum.take(items, limit)
+    Enum.each(shown, render_fun)
+
+    remaining = length(items) - length(shown)
+
+    if remaining > 0 do
+      IO.puts("  ... #{remaining} more")
+    end
+  end
+
+  defp format_callee_line(%{id: id, depth: depth}) do
+    String.duplicate("  ", depth - 1) <> Format.func_id_to_string(id)
+  end
+
+  defp format_var_summary(item) do
+    location = if item.file && item.line, do: "#{item.file}:#{item.line}", else: "unknown"
+    "#{item.name} #{Format.faint(location)}"
+  end
+
+  defp format_return_summary(item) do
+    location = if item.file && item.line, do: "#{item.file}:#{item.line}", else: "unknown"
+    "#{item.kind} #{Format.faint(location)}"
   end
 
   defp render_data_json(target, opts) do
@@ -957,7 +1017,7 @@ defmodule Mix.Tasks.Reach.Inspect do
     end)
   end
 
-  defp target_args(target, opts, extra \\ []) do
+  defp target_args(target, opts, extra) do
     [target]
     |> maybe_put("--format", opts[:format])
     |> maybe_put("--depth", opts[:depth])

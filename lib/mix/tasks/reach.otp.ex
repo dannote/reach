@@ -439,7 +439,7 @@ defmodule Mix.Tasks.Reach.Otp do
       end)
       |> Enum.map(fn n ->
         children = extract_supervisor_children(n)
-        %{module: n.meta[:module], location: Format.location(n), children: children}
+        %{module: module_for_node(nodes, n), location: Format.location(n), children: children}
       end)
 
     inline_supervisors =
@@ -451,12 +451,21 @@ defmodule Mix.Tasks.Reach.Otp do
       |> Enum.map(fn n ->
         parent = find_containing_function(nodes, n.id)
         children = if parent, do: extract_children_from_scope(parent, n), else: []
-        mod = (parent && parent.meta[:module]) || find_enclosing_module(nodes, n.id)
+
+        mod =
+          if parent, do: module_for_node(nodes, parent), else: find_enclosing_module(nodes, n.id)
 
         %{module: mod, location: Format.location(n), children: children}
       end)
 
-    Enum.uniq_by(init_supervisors ++ inline_supervisors, & &1.module)
+    init_supervisors
+    |> Kernel.++(inline_supervisors)
+    |> Enum.reject(&is_nil(&1.module))
+    |> Enum.uniq_by(& &1.module)
+  end
+
+  defp module_for_node(nodes, node) do
+    node.meta[:module] || find_enclosing_module(nodes, node.id)
   end
 
   defp supervisor_init?(node) do

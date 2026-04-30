@@ -207,18 +207,24 @@ defmodule Reach.CLI.Analyses.Flow do
 
   defp render_variable_text(result) do
     IO.puts(Format.header("Variable: #{result.variable}"))
+    IO.puts("  definitions=#{length(result.definitions)} uses=#{length(result.uses)}")
 
     IO.puts(Format.section("Definitions"))
-
-    Enum.each(result.definitions, fn node ->
-      IO.puts("  #{fmt_node(node)}")
-    end)
+    render_limited_nodes(result.definitions)
 
     IO.puts(Format.section("Uses"))
+    render_limited_nodes(result.uses)
+  end
 
-    Enum.each(result.uses, fn node ->
-      IO.puts("  #{fmt_node(node)}")
-    end)
+  defp render_limited_nodes(nodes, limit \\ 30) do
+    shown = Enum.take(nodes, limit)
+    Enum.each(shown, fn node -> IO.puts("  #{fmt_node(node)}") end)
+
+    remaining = length(nodes) - length(shown)
+
+    if remaining > 0 do
+      IO.puts("  ... #{remaining} more")
+    end
   end
 
   defp fmt_node(node) do
