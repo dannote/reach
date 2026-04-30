@@ -1,5 +1,7 @@
 # Reach — Agent Guidelines
 
+This repository is part of the Elixir Vibe organization.
+
 ## Architecture
 
 Reach builds a Program Dependence Graph from Elixir/Erlang source code and visualizes it as interactive HTML reports with three views: Control Flow, Call Graph, Data Flow.
