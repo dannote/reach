@@ -59,7 +59,10 @@
 - **Canonical implementation structure** — legacy Mix task modules are removed shims; reusable logic moved into `Reach.CLI.Analyses.*` modules used by canonical commands.
 - **Canonical JSON consistency** — canonical commands keep canonical `command` values even when using shared internal analyses.
 - **Graph rendering reliability** — Reach now relies on boxart `v0.3.3` for Unicode-safe syntax highlighting and no longer sanitizes source snippets locally.
+- **Text output polish** — default text output is capped and formatted for readability on large projects, with `--limit N` and `--all` expansion controls for `reach.trace` and `reach.inspect --context`.
+- **Large graph UX** — `reach.inspect FILE:LINE --graph` uses a targeted single-file load and summarizes very large CFGs instead of flooding the terminal with huge Boxart output.
 - **Taint tracing performance** — `reach.trace --from ... --to ...` computes reachable sinks per source instead of recomputing reachability for every source/sink pair. The Plausible validation case dropped from ~130s to ~3s.
+- **ProgramFacts integration** — Reach now uses generated Elixir projects from `program_facts` in test/dev validation for call paths, layouts, data flow, branches, effects, architecture policies, and advisory candidates.
 - **Compiler diagnostics** — BEAM frontend compilation now passes `return_diagnostics: true` and restores compiler debug-info options safely.
 - **Effect policy precision** — `:module_def` and `:function_def` classify as pure, so pure-only effect policies do not need to whitelist `:unknown` just for wrapper nodes.
 - **Public API policy precision** — public API checks now use the configured public API namespace instead of only the first top-level module segment.

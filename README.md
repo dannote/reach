@@ -103,6 +103,10 @@ mix reach.map --data
 # Agent-readable context for one function/file/line
 mix reach.inspect MyApp.Accounts.register/2 --context
 
+# Expand capped text sections when you need more detail
+mix reach.inspect MyApp.Accounts.register/2 --context --limit 100
+mix reach.inspect MyApp.Accounts.register/2 --context --all
+
 # What calls this and what does it call?
 mix reach.inspect MyApp.Accounts.register/2 --deps
 
@@ -122,9 +126,14 @@ mix reach.inspect MyApp.Accounts.register/2 --why MyApp.Mailer.deliver/1
 ```bash
 # Does user input reach the database?
 mix reach.trace --from conn.params --to Repo
+mix reach.trace --from conn.params --to Repo --limit 25
 
 # Where is this variable defined and used?
 mix reach.trace --variable user
+
+# Expand capped text output, or use JSON for machine-readable full output
+mix reach.trace --variable user --limit 100
+mix reach.trace --variable user --all
 
 # What code affects this line?
 mix reach.trace --backward lib/my_app/accounts.ex:45
@@ -183,6 +192,8 @@ Older task names have been removed in Reach 2.0 and now fail fast with migration
 | `mix reach.concurrency` | `mix reach.otp --concurrency` |
 
 JSON output uses canonical `command` envelopes. `.reach.exs` architecture policy is documented in [`CONFIG.md`](CONFIG.md).
+
+Text output is intentionally concise for large projects. When a section reports omitted rows, use `--limit N` to expand it, `--all` to print the full text view, or `--format json` for complete machine-readable output. This currently applies to `mix reach.trace` and `mix reach.inspect --context`.
 
 ### Terminal graphs
 
