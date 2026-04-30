@@ -69,16 +69,20 @@ defmodule Reach.CLI.Analyses.Flow do
     scope_nodes = resolve_scope_nodes(project, scope)
 
     definitions =
-      Enum.filter(scope_nodes, fn n ->
+      scope_nodes
+      |> Enum.filter(fn n ->
         n.type == :var and n.meta[:binding_role] == :definition and
           to_string(n.meta[:name]) == var_name
       end)
+      |> Enum.sort_by(&location_key/1)
 
     uses =
-      Enum.filter(scope_nodes, fn n ->
+      scope_nodes
+      |> Enum.filter(fn n ->
         n.type == :var and n.meta[:binding_role] != :definition and
           to_string(n.meta[:name]) == var_name
       end)
+      |> Enum.sort_by(&location_key/1)
 
     %{type: :variable, variable: var_name, definitions: definitions, uses: uses}
   end
@@ -192,8 +196,14 @@ defmodule Reach.CLI.Analyses.Flow do
     if result.paths == [] do
       IO.puts("\nNo data flow paths found.\n")
     else
-      IO.puts("#{length(result.paths)} path(s) found:\n")
-      result.paths |> Enum.with_index() |> Enum.each(&print_path/1)
+      IO.puts("#{length(result.paths)} path(s) found. Showing up to 10.\n")
+      result.paths |> Enum.take(10) |> Enum.with_index() |> Enum.each(&print_path/1)
+
+      if length(result.paths) > 10 do
+        IO.puts(
+          "... #{length(result.paths) - 10} more path(s) omitted. Use --format json for the full result.\n"
+        )
+      end
     end
   end
 
@@ -227,13 +237,18 @@ defmodule Reach.CLI.Analyses.Flow do
     end
   end
 
+  defp location_key(node) do
+    span = node.source_span || %{}
+    {span[:file] || "", span[:start_line] || 0, node.id}
+  end
+
   defp fmt_node(node) do
     loc = Format.location(node)
 
     desc =
       case node.type do
         :var -> "var #{node.meta[:name]}"
-        :call -> "#{node.meta[:module] && inspect(node.meta[:module])}.#{node.meta[:function]}"
+        :call -> Format.call_name(node)
         other -> to_string(other)
       end
 
