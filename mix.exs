@@ -56,7 +56,7 @@ defmodule Reach.MixProject do
   defp deps do
     [
       {:libgraph, "~> 0.16.0"},
-      {:program_facts, path: "../program_facts", only: [:dev, :test]},
+      {:program_facts, "~> 0.1.0", only: [:dev, :test], runtime: false},
       {:stream_data, "~> 1.0", only: [:test, :dev]},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
