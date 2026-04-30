@@ -68,6 +68,7 @@ defmodule Mix.Tasks.Reach.Map do
   ]
 
   @aliases [f: :format]
+  @section_order [:hotspots, :boundaries, :coupling, :modules, :effects, :depth, :data, :xref]
 
   @impl Mix.Task
   def run(args) do
@@ -81,7 +82,7 @@ defmodule Mix.Tasks.Reach.Map do
     sections = selected_keys(opts)
 
     sections =
-      if sections == [], do: [:modules, :hotspots, :coupling, :boundaries], else: sections
+      if sections == [], do: [:hotspots, :boundaries, :coupling, :modules], else: sections
 
     if opts[:graph] do
       render_graph(project, sections, opts, path)
@@ -121,7 +122,7 @@ defmodule Mix.Tasks.Reach.Map do
 
       IO.puts("  pdg=#{summary.graph_nodes} nodes/#{summary.graph_edges} edges")
 
-      Enum.each(sections, fn {key, data} ->
+      Enum.each(ordered_sections(sections), fn {key, data} ->
         IO.puts(Format.section(section_title(key)))
         render_text_section(key, data)
       end)
@@ -133,7 +134,7 @@ defmodule Mix.Tasks.Reach.Map do
       "summary modules=#{summary.modules} functions=#{summary.functions} call_edges=#{summary.call_graph_edges} graph_edges=#{summary.graph_edges}"
     )
 
-    Enum.each(sections, fn
+    Enum.each(ordered_sections(sections), fn
       {:modules, modules} ->
         Enum.each(
           modules,
@@ -262,19 +263,38 @@ defmodule Mix.Tasks.Reach.Map do
 
   defp render_text_section(:data, data) do
     IO.puts("  total_data_edges=#{data.total_data_edges}")
+    render_cross_function_flows(Map.get(data, :cross_function_edges, []))
+    render_top_data_functions(data.top_functions)
+  end
 
-    Enum.each(data.top_functions, fn row ->
-      IO.puts("  #{Format.bright(row.function)} data_edges=#{row.data_edges}")
-      IO.puts("    #{Format.faint("#{row.file}:#{row.line}")}")
+  defp render_cross_function_flows([]), do: :ok
+
+  defp render_cross_function_flows(edges) do
+    IO.puts("\n  Cross-function flows:")
+    Enum.each(edges, &render_cross_function_flow/1)
+  end
+
+  defp render_cross_function_flow(row) do
+    labels = row.labels |> Enum.map_join(", ", fn {label, count} -> "#{label}=#{count}" end)
+    variables = Enum.join(row.variables, ", ")
+    IO.puts("    #{Format.bright(row.from)} → #{Format.bright(row.to)} edges=#{row.edges}")
+    IO.puts("      labels: #{labels}")
+    if variables != "", do: IO.puts("      vars: #{variables}")
+  end
+
+  defp render_top_data_functions(rows) do
+    IO.puts("\n  Functions by data edges:")
+
+    Enum.each(rows, fn row ->
+      IO.puts("    #{Format.bright(row.function)} data_edges=#{row.data_edges}")
+      IO.puts("      #{Format.faint("#{row.file}:#{row.line}")}")
     end)
+  end
 
-    if Map.get(data, :cross_function_edges, []) != [] do
-      IO.puts("  cross-function edges:")
-
-      Enum.each(data.cross_function_edges, fn row ->
-        IO.puts("    #{Format.bright(row.from)} -> #{Format.bright(row.to)} edges=#{row.edges}")
-      end)
-    end
+  defp ordered_sections(sections) do
+    Enum.sort_by(sections, fn {key, _data} ->
+      Enum.find_index(@section_order, &(&1 == key)) || 999
+    end)
   end
 
   defp section_title(:modules), do: "Modules"
