@@ -18,6 +18,8 @@ defmodule Mix.Tasks.Reach.Trace do
     * `--forward` — compute a forward slice from a target
     * `--format` — output format: `text`, `json`, `oneline`
     * `--graph` — render slice graph where supported
+    * `--limit` — text display limit for paths/rows; also caps taint paths unless `--all` is set
+    * `--all` — show all text rows/paths and collect all taint paths
 
   """
 
@@ -35,7 +37,9 @@ defmodule Mix.Tasks.Reach.Trace do
     in: :string,
     backward: :string,
     forward: :string,
-    graph: :boolean
+    graph: :boolean,
+    limit: :integer,
+    all: :boolean
   ]
 
   @aliases [f: :format]
@@ -82,6 +86,8 @@ defmodule Mix.Tasks.Reach.Trace do
     |> maybe_put("--to", opts[:to])
     |> maybe_put("--variable", opts[:variable])
     |> maybe_put("--in", opts[:in])
+    |> maybe_put("--limit", opts[:limit])
+    |> maybe_flag("--all", opts[:all])
   end
 
   defp slice_args(target, opts, extra) do
