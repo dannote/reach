@@ -46,11 +46,9 @@ defmodule Reach.CLI.Analyses.Impact do
 
   defp render_result(project, target, depth, result, opts) do
     cond do
-      opts[:graph] && BoxartGraph.available?() ->
-        BoxartGraph.render_caller_graph(project, target, depth)
-
       opts[:graph] ->
-        Mix.raise("boxart is required for --graph. Add {:boxart, \"~> 0.3.3\"} to your deps.")
+        BoxartGraph.require!()
+        BoxartGraph.render_caller_graph(project, target, depth)
 
       opts[:format] == "json" ->
         Format.render(result, "reach.impact", format: "json", pretty: true)

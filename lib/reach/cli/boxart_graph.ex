@@ -25,7 +25,8 @@ defmodule Reach.CLI.BoxartGraph do
              render_caller_graph: 3,
              render_module_graph: 1,
              render_slice_graph: 3,
-             render_boxart: 1}
+             render_boxart: 1,
+             raise_missing!: 1}
 
   defp term_width do
     case :io.columns() do
@@ -35,10 +36,33 @@ defmodule Reach.CLI.BoxartGraph do
   end
 
   @max_terminal_cfg_nodes 80
+  @install_hint "Add {:boxart, \"~> 0.3.3\"} to your deps."
 
   def available? do
     Code.ensure_loaded?(Boxart)
   end
+
+  def require!(context \\ "--graph") do
+    unless available?(), do: raise_missing!(context)
+  end
+
+  def require_state_diagram! do
+    require!("OTP state diagrams")
+
+    unless Code.ensure_loaded?(Boxart.Render.StateDiagram.State),
+      do: raise_missing!("OTP state diagrams")
+  end
+
+  def require_pie_chart! do
+    require!("effect graphs")
+
+    unless Code.ensure_loaded?(Boxart.Render.PieChart) and
+             Code.ensure_loaded?(Module.concat([Boxart, Render, PieChart, PieChart])),
+           do: raise_missing!("effect graphs")
+  end
+
+  defp raise_missing!(context),
+    do: Mix.raise("boxart is required for #{context}. #{@install_hint}")
 
   def render_call_graph(project, target, depth) do
     cg = project.call_graph
@@ -59,11 +83,7 @@ defmodule Reach.CLI.BoxartGraph do
   end
 
   def render_otp_state_diagram(callbacks) do
-    unless Code.ensure_loaded?(Boxart.Render.StateDiagram.State) do
-      Mix.raise(
-        "boxart is required for OTP state diagrams. Add {:boxart, \"~> 0.3.3\"} to your deps."
-      )
-    end
+    require_state_diagram!()
 
     state_mod = Boxart.Render.StateDiagram.State
     transition_mod = Boxart.Render.StateDiagram.Transition

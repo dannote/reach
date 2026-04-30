@@ -269,9 +269,7 @@ defmodule Mix.Tasks.Reach.Inspect do
   end
 
   defp render_cfg(target, opts) do
-    unless BoxartGraph.available?() do
-      Mix.raise("boxart is required for --graph. Add {:boxart, \"~> 0.3.3\"} to your deps.")
-    end
+    BoxartGraph.require!()
 
     {{_mod, fun, arity}, func} = resolve_graph_target!(target, opts)
     file = func.source_span && func.source_span.file
