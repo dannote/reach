@@ -213,8 +213,7 @@ defmodule Mix.Tasks.Reach.Inspect do
       Mix.raise("boxart is required for --graph. Add {:boxart, \"~> 0.3.3\"} to your deps.")
     end
 
-    project = Project.load(quiet: opts[:format] == "json")
-    {{_mod, fun, arity}, func} = resolve_function!(project, target)
+    {{_mod, fun, arity}, func} = resolve_graph_target!(target, opts)
     file = func.source_span && func.source_span.file
 
     IO.puts(Format.header("#{fun}/#{arity}"))
@@ -223,6 +222,24 @@ defmodule Mix.Tasks.Reach.Inspect do
       BoxartGraph.render_cfg(func, file)
     else
       IO.puts("  (no source file available)")
+    end
+  end
+
+  defp resolve_graph_target!(target, opts) do
+    case Project.parse_file_line(target) do
+      {file, line} ->
+        project = Project.load(paths: [file], quiet: opts[:format] == "json")
+        func = Project.find_function_at_location(project, file, line)
+
+        if func do
+          {{func.meta[:module], func.meta[:name], func.meta[:arity]}, func}
+        else
+          Mix.raise("Function not found: #{target}")
+        end
+
+      nil ->
+        project = Project.load(quiet: opts[:format] == "json")
+        resolve_function!(project, target)
     end
   end
 

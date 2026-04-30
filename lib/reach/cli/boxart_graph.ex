@@ -34,6 +34,8 @@ defmodule Reach.CLI.BoxartGraph do
     end
   end
 
+  @max_terminal_cfg_nodes 80
+
   def available? do
     Code.ensure_loaded?(Boxart)
   end
@@ -109,17 +111,21 @@ defmodule Reach.CLI.BoxartGraph do
   def render_cfg(func_node, file) do
     viz = ControlFlow.build_function(func_node, file)
 
-    graph =
-      Enum.reduce(viz.nodes, Graph.new(), fn node, g ->
-        Graph.add_vertex(g, node.id, viz_node_to_attrs(node, file))
-      end)
+    if length(viz.nodes) > @max_terminal_cfg_nodes do
+      render_large_cfg_summary(viz, file)
+    else
+      graph =
+        Enum.reduce(viz.nodes, Graph.new(), fn node, g ->
+          Graph.add_vertex(g, node.id, viz_node_to_attrs(node, file))
+        end)
 
-    graph =
-      Enum.reduce(viz.edges, graph, fn edge, g ->
-        Graph.add_edge(g, edge.source, edge.target, edge_opts(edge))
-      end)
+      graph =
+        Enum.reduce(viz.edges, graph, fn edge, g ->
+          Graph.add_edge(g, edge.source, edge.target, edge_opts(edge))
+        end)
 
-    IO.puts(render_boxart(graph))
+      IO.puts(render_boxart(graph))
+    end
   end
 
   def render_caller_graph(project, target, depth) do
@@ -280,6 +286,44 @@ defmodule Reach.CLI.BoxartGraph do
   defp render_boxart(graph) do
     opts = [direction: :td, theme: :default, max_width: term_width()]
     Boxart.render(graph, opts)
+  end
+
+  defp render_large_cfg_summary(viz, file) do
+    IO.puts(
+      "CFG is too large for terminal rendering (#{length(viz.nodes)} blocks, #{length(viz.edges)} edges)."
+    )
+
+    IO.puts("Showing a compact block summary instead. Use the HTML report for the full graph.\n")
+
+    viz.nodes
+    |> Enum.sort_by(fn node -> {node.start_line || 0, node.id} end)
+    |> Enum.take(@max_terminal_cfg_nodes)
+    |> Enum.each(fn node ->
+      label = node.label || to_string(node.type)
+      location = line_range(file, node.start_line, node.end_line)
+      IO.puts("  #{location} #{label}")
+    end)
+
+    remaining = length(viz.nodes) - @max_terminal_cfg_nodes
+
+    if remaining > 0 do
+      IO.puts("  ... #{remaining} more block(s) omitted")
+    end
+  end
+
+  defp line_range(file, start_line, end_line) do
+    base = if file, do: Path.basename(file), else: "unknown"
+
+    cond do
+      is_integer(start_line) and is_integer(end_line) and start_line != end_line ->
+        "#{base}:#{start_line}-#{end_line}"
+
+      is_integer(start_line) ->
+        "#{base}:#{start_line}"
+
+      true ->
+        base
+    end
   end
 
   # ── Private ──

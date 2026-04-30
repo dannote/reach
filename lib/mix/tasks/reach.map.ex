@@ -514,12 +514,12 @@ defmodule Mix.Tasks.Reach.Map do
   end
 
   defp hotspot_metrics(project, path) do
+    caller_counts = direct_caller_counts(project.call_graph)
+
     project
     |> function_defs(path)
     |> Enum.map(fn func ->
-      callers =
-        Project.callers(project, {func.meta[:module], func.meta[:name], func.meta[:arity]}, 1)
-
+      callers = caller_count(func, caller_counts)
       branches = branch_count(func)
 
       module = inspect(func.meta[:module])
@@ -532,8 +532,8 @@ defmodule Mix.Tasks.Reach.Map do
         file: span_file(func),
         line: func.source_span && func.source_span.start_line,
         branches: branches,
-        callers: length(callers),
-        score: branches * length(callers),
+        callers: callers,
+        score: branches * callers,
         clauses: IRHelpers.clause_labels(func)
       }
     end)
@@ -571,6 +571,29 @@ defmodule Mix.Tasks.Reach.Map do
       |> Enum.uniq()
 
     %{modules: modules, cycles: cycles}
+  end
+
+  defp direct_caller_counts(call_graph) do
+    call_graph
+    |> Graph.edges()
+    |> Enum.filter(&(Project.mfa?(&1.v1) and Project.mfa?(&1.v2)))
+    |> Enum.reduce(%{}, fn edge, acc ->
+      Map.update(acc, edge.v2, MapSet.new([edge.v1]), &MapSet.put(&1, edge.v1))
+    end)
+    |> Map.new(fn {target, callers} -> {target, MapSet.size(callers)} end)
+  end
+
+  defp caller_count(func, caller_counts) do
+    func
+    |> function_vertex()
+    |> function_variants()
+    |> Enum.map(&Map.get(caller_counts, &1, 0))
+    |> Enum.sum()
+  end
+
+  defp function_variants({module, function, arity}) do
+    [{nil, function, arity}, {module, function, arity}]
+    |> Enum.uniq()
   end
 
   defp module_dependency_map(module_nodes, internal) do
