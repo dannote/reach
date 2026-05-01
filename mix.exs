@@ -89,7 +89,7 @@ defmodule Reach.MixProject do
         Frontends: [Reach.Frontend.Elixir, Reach.Frontend.Erlang]
       ],
       source_url: @source_url,
-      source_ref: "master"
+      source_ref: "v#{@version}"
     ]
   end
 
