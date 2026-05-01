@@ -13,6 +13,16 @@ defmodule Reach.ProgramFactsOracleTest do
   ]
 
   @layout_policies [:plain, :umbrella, :package_style]
+
+  @data_flow_policies [
+    :straight_line_data_flow,
+    :assignment_chain,
+    :branch_data_flow,
+    :helper_call_data_flow,
+    :pipeline_data_flow,
+    :return_data_flow
+  ]
+
   @effect_policies [:pure, :io_effect, :send_effect, :raise_effect, :read_effect, :write_effect]
 
   @architecture_policies [
@@ -30,6 +40,15 @@ defmodule Reach.ProgramFactsOracleTest do
 
       Assertions.assert_modules_discovered(program)
       Assertions.assert_call_edges_discovered(program)
+    end
+  end
+
+  test "direct API exposes generated data-flow oracle variables and sinks" do
+    for {policy, index} <- Enum.with_index(@data_flow_policies, 1) do
+      program = ProgramFacts.generate!(policy: policy, seed: 1_700 + index)
+
+      Assertions.assert_modules_discovered(program)
+      Assertions.assert_data_flow_visible(program)
     end
   end
 

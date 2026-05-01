@@ -41,6 +41,30 @@ defmodule Reach.Test.ProgramFacts.Assertions do
     end
   end
 
+  def assert_data_flow_visible(program) do
+    variables = API.variable_names(program)
+    data_labels = API.data_edge_labels(program)
+
+    for flow <- program.facts.data_flows do
+      expected_variables = Map.get(flow, :variable_names, []) |> MapSet.new()
+
+      assert MapSet.subset?(expected_variables, variables),
+             "expected generated data-flow variables to be visible"
+
+      assert MapSet.intersection(expected_variables, data_labels) != MapSet.new(),
+             "expected at least one generated variable to produce a data edge"
+
+      assert_flow_endpoint_visible(program, flow.to)
+    end
+  end
+
+  defp assert_flow_endpoint_visible(_program, {:return, _function}), do: :ok
+
+  defp assert_flow_endpoint_visible(program, {:arg, {module, function, arity}, _index}) do
+    assert API.call_present?(program, {module, function, arity}),
+           "expected generated data-flow sink call to be visible"
+  end
+
   defp architecture_result(program) do
     if expected_architecture_violation(program) do
       CLI.run_json_expect_raise(
