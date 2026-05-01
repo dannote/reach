@@ -71,6 +71,22 @@ defmodule Reach.Test.ProgramFacts.API do
     }
   end
 
+  def node_types(program) do
+    program
+    |> analyze()
+    |> all_nodes()
+    |> Enum.frequencies_by(& &1.type)
+  end
+
+  def function_defs(program) do
+    program
+    |> analyze()
+    |> all_nodes()
+    |> Enum.filter(&(&1.type == :function_def))
+    |> Enum.map(fn node -> {node.meta[:name], node.meta[:arity]} end)
+    |> MapSet.new()
+  end
+
   defp call_match?(node, {module, function, arity}) do
     node.type == :call and node.meta[:module] == module and node.meta[:function] == function and
       node.meta[:arity] == arity
