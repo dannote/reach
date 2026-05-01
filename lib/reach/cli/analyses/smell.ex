@@ -309,7 +309,7 @@ defmodule Reach.CLI.Analyses.Smell do
     :defguardp
   ]
 
-  @pattern_operators [:|, :{}]
+  @pattern_operators [:|, :{}, :@]
 
   defp formatting_call?(%{meta: %{function: :to_string, module: Kernel}}), do: true
   defp formatting_call?(%{meta: %{function: :to_string, kind: :local}}), do: true

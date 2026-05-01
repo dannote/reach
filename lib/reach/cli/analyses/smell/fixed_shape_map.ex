@@ -50,18 +50,20 @@ defmodule Reach.CLI.Analyses.Smell.FixedShapeMap do
   defp field_key(_field), do: []
 
   defp fixed_shape_finding({keys, occurrences}) do
-    if length(occurrences) >= @min_occurrences do
+    occurrence_count = length(occurrences)
+
+    if occurrence_count >= @min_occurrences do
       locations = occurrences |> Enum.map(& &1.location) |> Enum.uniq()
 
       [
         Finding.new(
           kind: :fixed_shape_map,
           message:
-            "map shape #{inspect(keys)} appears #{length(occurrences)} times; consider a struct or explicit contract if it is domain data",
+            "map shape #{inspect(keys)} appears #{occurrence_count} times; consider a struct or explicit contract if it is domain data",
           location: List.first(locations),
           evidence: Enum.take(locations, 10),
           keys: Enum.map(keys, &to_string/1),
-          occurrences: length(occurrences)
+          occurrences: occurrence_count
         )
       ]
     else
