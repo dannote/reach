@@ -96,7 +96,7 @@ defmodule Mix.Tasks.Reach.Map do
       case opts[:format] do
         "json" ->
           ensure_json_encoder!()
-          IO.puts(Jason.encode!(result, pretty: true))
+          IO.puts(Jason.encode!(json_envelope(result), pretty: true))
 
         "oneline" ->
           render_oneline_map(result)
@@ -1004,6 +1004,10 @@ defmodule Mix.Tasks.Reach.Map do
       )
 
     IO.puts(Boxart.Render.PieChart.render(chart))
+  end
+
+  defp json_envelope(%{command: command} = data) do
+    %Reach.CLI.JSONEnvelope{command: command, data: Map.delete(data, :command)}
   end
 
   defp ensure_json_encoder! do
