@@ -25,6 +25,16 @@ defmodule Reach.ProgramFactsOracleTest do
 
   @effect_policies [:pure, :io_effect, :send_effect, :raise_effect, :read_effect, :write_effect]
 
+  @branch_policies [
+    :if_else,
+    :case_clauses,
+    :cond_branches,
+    :with_chain,
+    :anonymous_fn_branch,
+    :multi_clause_function,
+    :nested_branches
+  ]
+
   @architecture_policies [
     :layered_valid,
     :forbidden_dependency,
@@ -58,6 +68,15 @@ defmodule Reach.ProgramFactsOracleTest do
 
       Assertions.assert_modules_discovered(program)
       Assertions.assert_effects_discovered(program)
+    end
+  end
+
+  test "direct API exposes generated branch and clause oracle facts" do
+    for {policy, index} <- Enum.with_index(@branch_policies, 1) do
+      program = ProgramFacts.generate!(policy: policy, seed: 1_800 + index)
+
+      Assertions.assert_modules_discovered(program)
+      Assertions.assert_branches_visible(program)
     end
   end
 
