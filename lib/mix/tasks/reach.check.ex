@@ -26,10 +26,10 @@ defmodule Mix.Tasks.Reach.Check do
 
   alias Reach.Analysis
   alias Reach.Check.Architecture
+  alias Reach.Check.Changed
   alias Reach.CLI.Format
   alias Reach.CLI.Project
   alias Reach.CLI.TaskRunner
-  alias Reach.IR
 
   @shortdoc "Structural validation and change-safety checks"
 
@@ -118,251 +118,11 @@ defmodule Mix.Tasks.Reach.Check do
   end
 
   defp run_changed(opts) do
-    base = opts[:base] || default_base_ref()
     config = if File.exists?(".reach.exs"), do: load_config(), else: []
-    project = Project.load()
-    files = changed_files(base)
-    changed_ranges = changed_ranges(base)
-    functions = changed_functions(project, changed_ranges, config)
-    tests = suggested_tests(files, functions, Keyword.get(config, :test_hints, []))
-
-    {risk, risk_reasons} = aggregate_change_risk(functions)
-
-    result = %{
-      base: base,
-      risk: risk,
-      risk_reasons: risk_reasons,
-      changed_files: files,
-      changed_functions: functions,
-      public_api_changes: Enum.filter(functions, & &1.public_api),
-      suggested_tests: tests
-    }
+    project = Project.load(quiet: opts[:format] == "json")
+    result = Changed.run(project, config, base: opts[:base])
 
     render_result(result, opts[:format], &render_changed_text/1)
-  end
-
-  defp default_base_ref do
-    cond do
-      git_ref?("main") -> "main"
-      git_ref?("master") -> "master"
-      upstream = git_upstream() -> upstream
-      true -> "HEAD"
-    end
-  end
-
-  defp git_ref?(ref) do
-    case System.cmd("git", ["rev-parse", "--verify", "--quiet", ref], stderr_to_stdout: true) do
-      {_output, 0} -> true
-      {_output, _status} -> false
-    end
-  end
-
-  defp git_upstream do
-    case System.cmd("git", ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
-           stderr_to_stdout: true
-         ) do
-      {output, 0} -> String.trim(output)
-      {_output, _status} -> nil
-    end
-  end
-
-  defp changed_files(base) do
-    case System.cmd("git", ["diff", "--name-only", base <> "...HEAD"], stderr_to_stdout: true) do
-      {output, 0} -> output |> String.split("\n", trim: true) |> Enum.reject(&(&1 == ""))
-      {output, _} -> Mix.raise("Could not read changed files against #{base}: #{output}")
-    end
-  end
-
-  defp changed_ranges(base) do
-    case System.cmd("git", ["diff", "--unified=0", base <> "...HEAD"], stderr_to_stdout: true) do
-      {output, 0} -> parse_diff_ranges(output)
-      {output, _} -> Mix.raise("Could not read changed ranges against #{base}: #{output}")
-    end
-  end
-
-  defp parse_diff_ranges(output) do
-    output
-    |> String.split("\n")
-    |> Enum.reduce({nil, %{}}, fn line, {file, acc} ->
-      cond do
-        String.starts_with?(line, "+++ b/") ->
-          {String.replace_prefix(line, "+++ b/", ""), acc}
-
-        String.starts_with?(line, "@@") and file not in [nil, "/dev/null"] ->
-          {file, add_hunk_range(acc, file, parse_hunk_range(line))}
-
-        true ->
-          {file, acc}
-      end
-    end)
-    |> elem(1)
-    |> Map.new(fn {file, ranges} -> {file, Enum.reverse(ranges)} end)
-  end
-
-  defp add_hunk_range(acc, _file, nil), do: acc
-  defp add_hunk_range(acc, file, range), do: Map.update(acc, file, [range], &[range | &1])
-
-  defp parse_hunk_range(line) do
-    case Regex.run(~r/\+(\d+)(?:,(\d+))?/, line) do
-      [_, start] -> {String.to_integer(start), String.to_integer(start)}
-      [_, _start, "0"] -> nil
-      [_, start, count] -> range_from_count(String.to_integer(start), String.to_integer(count))
-    end
-  end
-
-  defp range_from_count(start, count), do: {start, start + count - 1}
-
-  defp changed_functions(project, changed_ranges, config) do
-    changed_ranges
-    |> Enum.flat_map(fn {file, ranges} ->
-      ranges
-      |> Enum.flat_map(fn {first, last} -> first..last end)
-      |> Enum.map(&Project.find_function_at_location(project, file, &1))
-      |> Enum.reject(&is_nil/1)
-    end)
-    |> Enum.uniq_by(&{&1.meta[:module], &1.meta[:name], &1.meta[:arity]})
-    |> Enum.map(&function_summary(project, &1, config))
-    |> Enum.sort_by(&{&1.file || "", &1.line || 0, &1.id})
-  end
-
-  defp function_summary(project, func, config) do
-    id = {func.meta[:module], func.meta[:name], func.meta[:arity]}
-    direct_callers = Project.callers(project, id, 1)
-    transitive_callers = Project.callers(project, id, 4)
-    effects = Architecture.function_effects(func)
-    branches = branch_count(func)
-    {risk, reasons} = change_risk(func, direct_callers, transitive_callers, effects, branches)
-
-    %{
-      id: Format.func_id_to_string(id),
-      file: func.source_span && func.source_span.file,
-      line: func.source_span && func.source_span.start_line,
-      risk: risk,
-      risk_reasons: reasons,
-      public_api: public_api_function?(func, config),
-      effects: Enum.map(effects, &to_string/1),
-      branch_count: branches,
-      direct_callers: Enum.map(direct_callers, &Format.func_id_to_string(&1.id)),
-      direct_caller_count: length(direct_callers),
-      transitive_caller_count: length(transitive_callers)
-    }
-  end
-
-  defp aggregate_change_risk([]), do: {:low, []}
-
-  defp aggregate_change_risk(functions) do
-    reasons =
-      functions
-      |> Enum.flat_map(& &1.risk_reasons)
-      |> Enum.frequencies()
-      |> Enum.sort_by(fn {reason, count} -> {-count, reason} end)
-      |> Enum.map(fn {reason, count} -> "#{reason} (#{count})" end)
-
-    risk =
-      cond do
-        Enum.any?(functions, &(&1.risk == :high)) -> :high
-        Enum.any?(functions, &(&1.risk == :medium)) -> :medium
-        true -> :low
-      end
-
-    {risk, reasons}
-  end
-
-  defp public_api_function?(func, config) do
-    func.meta[:kind] in [:def, :defmacro] and
-      Architecture.module_matches_any?(
-        func.meta[:module],
-        Keyword.get(config, :public_api, []) |> List.wrap()
-      )
-  end
-
-  defp change_risk(func, direct_callers, transitive_callers, effects, branches) do
-    reasons =
-      []
-      |> maybe_reason(length(direct_callers) >= 5, "many direct callers")
-      |> maybe_reason(length(transitive_callers) >= 10, "wide transitive impact")
-      |> maybe_reason(branches >= 8, "branch-heavy function")
-      |> maybe_reason(multiple?(effects -- [:pure]), "mixed side effects")
-      |> maybe_reason(core_module?(func.meta[:module]), "core Reach module")
-
-    risk =
-      cond do
-        at_least_three?(reasons) -> :high
-        reasons != [] -> :medium
-        true -> :low
-      end
-
-    {risk, reasons}
-  end
-
-  defp at_least_three?([_, _, _ | _]), do: true
-  defp at_least_three?(_reasons), do: false
-
-  defp multiple?([]), do: false
-  defp multiple?([_one]), do: false
-  defp multiple?([_one, _two | _rest]), do: true
-
-  defp maybe_reason(reasons, true, reason), do: reasons ++ [reason]
-  defp maybe_reason(reasons, false, _reason), do: reasons
-
-  defp core_module?(module) do
-    module in [
-      Reach,
-      Reach.Project,
-      Reach.SystemDependence,
-      Reach.ControlFlow,
-      Reach.DataDependence
-    ]
-  end
-
-  defp branch_count(func) do
-    func
-    |> IR.all_nodes()
-    |> Enum.count(
-      &(&1.type in [:case, :receive, :try] or
-          (&1.type == :binary_op and &1.meta[:operator] in [:and, :or, :&&, :||]))
-    )
-  end
-
-  defp suggested_tests(files, functions, hints) do
-    hint_tests =
-      hints
-      |> Enum.flat_map(fn {pattern, tests} ->
-        if Enum.any?(files, &Architecture.glob_match?(&1, to_string(pattern))),
-          do: tests,
-          else: []
-      end)
-
-    proximity_tests =
-      files
-      |> Enum.flat_map(&test_paths_for_source/1)
-      |> Enum.filter(&File.exists?/1)
-
-    impact_tests =
-      functions
-      |> Enum.flat_map(&test_paths_for_source(&1.file))
-      |> Enum.filter(&File.exists?/1)
-
-    (hint_tests ++ proximity_tests ++ impact_tests)
-    |> Enum.uniq()
-    |> Enum.sort()
-  end
-
-  defp test_paths_for_source(nil), do: []
-
-  defp test_paths_for_source(file) do
-    cond do
-      String.starts_with?(file, "lib/mix/tasks/") ->
-        task = file |> Path.basename(".ex") |> String.replace(".", "_")
-        ["test/#{task}_test.exs", "test/mix_task_#{String.replace(task, "reach_", "")}_test.exs"]
-
-      String.starts_with?(file, "lib/") ->
-        base = file |> String.replace_prefix("lib/", "") |> Path.rootname()
-        ["test/#{base}_test.exs"]
-
-      true ->
-        []
-    end
   end
 
   defp render_candidates_placeholder(opts) do
@@ -584,11 +344,11 @@ defmodule Mix.Tasks.Reach.Check do
     |> Map.values()
     |> Enum.filter(&(&1.type == :function_def and &1.source_span))
     |> Enum.map(fn func ->
-      {func, branch_count(func), Project.callers(project, function_id(func), 1)}
+      {func, Changed.branch_count(func), Project.callers(project, function_id(func), 1)}
     end)
     |> Enum.filter(fn {_func, branches, callers} -> branches >= 8 and callers != [] end)
     |> Enum.reject(fn {func, _branches, _callers} ->
-      Analysis.expected_effect_boundary?(func) and branch_count(func) < 20
+      Analysis.expected_effect_boundary?(func) and Changed.branch_count(func) < 20
     end)
     |> Enum.sort_by(fn {func, branches, callers} ->
       {-branches * max(length(callers), 1), func.source_span.file, func.source_span.start_line}
