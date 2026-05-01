@@ -238,28 +238,48 @@ defmodule Mix.Tasks.Reach.Check do
       IO.puts("  reasons=#{Enum.join(result.risk_reasons, ", ")}")
     end
 
-    render_limited_section("Changed files", result.changed_files, &IO.puts("  #{&1}"))
+    omitted = []
 
-    render_limited_section("Changed functions", result.changed_functions, fn function ->
-      IO.puts(
-        "  #{Format.bright(function.id)} #{Format.faint("#{function.file}:#{function.line}")} risk=#{risk_label(function.risk)} callers=#{function.direct_caller_count}/#{function.transitive_caller_count} branches=#{function.branch_count} effects=#{Enum.join(function.effects, ",")}"
+    omitted =
+      add_omitted(
+        omitted,
+        render_limited_section("Changed files", result.changed_files, &IO.puts("  #{&1}"))
       )
-    end)
 
-    render_limited_section("Public API touched", result.public_api_changes, fn function ->
-      IO.puts(
-        "  #{Format.bright(function.id)} #{Format.faint("#{function.file}:#{function.line}")}"
+    omitted =
+      add_omitted(
+        omitted,
+        render_limited_section("Changed functions", result.changed_functions, fn function ->
+          IO.puts(
+            "  #{Format.bright(function.id)} #{Format.faint("#{function.file}:#{function.line}")} risk=#{risk_label(function.risk)} callers=#{function.direct_caller_count}/#{function.transitive_caller_count} branches=#{function.branch_count} effects=#{Enum.join(function.effects, ",")}"
+          )
+        end)
       )
-    end)
 
-    render_limited_section(
-      "Suggested tests",
-      result.suggested_tests,
-      &IO.puts("  mix test #{&1}")
-    )
+    omitted =
+      add_omitted(
+        omitted,
+        render_limited_section("Public API touched", result.public_api_changes, fn function ->
+          IO.puts(
+            "  #{Format.bright(function.id)} #{Format.faint("#{function.file}:#{function.line}")}"
+          )
+        end)
+      )
+
+    omitted =
+      add_omitted(
+        omitted,
+        render_limited_section(
+          "Suggested tests",
+          result.suggested_tests,
+          &IO.puts("  mix test #{&1}")
+        )
+      )
+
+    render_omitted_summary(omitted)
   end
 
-  defp render_limited_section(_title, [], _render_fun), do: :ok
+  defp render_limited_section(_title, [], _render_fun), do: nil
 
   defp render_limited_section(title, items, render_fun) do
     IO.puts("\n#{Format.section("#{title} (#{length(items)})")}")
@@ -270,11 +290,23 @@ defmodule Mix.Tasks.Reach.Check do
 
     omitted = length(items) - @text_limit
 
-    if omitted > 0 do
-      IO.puts(
-        "  #{Format.faint("#{omitted} more omitted. Use --format json for complete output.")}"
-      )
-    end
+    if omitted > 0, do: {title, omitted}
+  end
+
+  defp add_omitted(omitted, nil), do: omitted
+  defp add_omitted(omitted, entry), do: [entry | omitted]
+
+  defp render_omitted_summary([]), do: :ok
+
+  defp render_omitted_summary(omitted) do
+    summary =
+      omitted
+      |> Enum.reverse()
+      |> Enum.map_join(", ", fn {title, count} -> "#{title}: #{count}" end)
+
+    IO.puts(
+      "\n#{Format.faint("Output truncated (#{summary}). Use --format json for complete output.")}"
+    )
   end
 
   defp risk_label(:high), do: Format.red("high")
