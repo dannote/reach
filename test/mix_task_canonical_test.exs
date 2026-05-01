@@ -149,16 +149,10 @@ defmodule Mix.Tasks.Reach.CanonicalTest do
     assert output =~ "graph"
   end
 
-  test "reach.check emits graph-backed candidates as json" do
+  test "reach.check emits graph-backed candidates as pure json" do
     output = capture_io(fn -> Check.run(["--candidates", "--format", "json"]) end)
 
-    json =
-      output
-      |> String.split("\n")
-      |> Enum.drop_while(&(not String.starts_with?(&1, "{")))
-      |> Enum.join("\n")
-
-    assert {:ok, data} = Jason.decode(json)
+    assert {:ok, data} = Jason.decode(output)
     assert is_list(data["candidates"])
 
     assert Enum.any?(
@@ -175,13 +169,7 @@ defmodule Mix.Tasks.Reach.CanonicalTest do
 
     output = capture_io(fn -> Check.run(["--arch", "--format", "json"]) end)
 
-    json =
-      output
-      |> String.split("\n")
-      |> Enum.drop_while(&(not String.starts_with?(&1, "{")))
-      |> Enum.join("\n")
-
-    assert {:ok, data} = Jason.decode(json)
+    assert {:ok, data} = Jason.decode(output)
     assert data["status"] == "ok"
     assert data["violations"] == []
   end
