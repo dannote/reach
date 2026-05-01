@@ -163,7 +163,7 @@ mix reach.check --arch
 mix reach.check --changed
 
 # Unused pure expressions and graph/effect/data-flow smells
-# Includes loose map contracts such as map["id"] || map[:id]
+# Includes loose map contracts and repeated fixed-shape maps that may deserve structs
 mix reach.check --dead-code
 mix reach.check --smells
 

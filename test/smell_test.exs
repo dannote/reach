@@ -242,6 +242,37 @@ defmodule Reach.SmellTest do
     end
   end
 
+  describe "fixed-shape map detection" do
+    test "flags repeated atom-key map shapes" do
+      findings =
+        run_smell_task("""
+        defmodule RepeatedShapes do
+          def a, do: %{id: 1, kind: :a, target: "a"}
+          def b, do: %{id: 2, kind: :b, target: "b"}
+          def c, do: %{id: 3, kind: :c, target: "c"}
+        end
+        """)
+
+      assert [%{kind: :fixed_shape_map} = finding] =
+               Enum.filter(findings, &(&1.kind == :fixed_shape_map))
+
+      assert finding.keys == ["id", "kind", "target"]
+      assert finding.occurrences == 3
+      assert finding.message =~ "consider a struct or explicit contract"
+    end
+
+    test "does not flag isolated map literals" do
+      findings =
+        run_smell_task("""
+        defmodule OneShape do
+          def a, do: %{id: 1, kind: :a, target: "a"}
+        end
+        """)
+
+      assert Enum.filter(findings, &(&1.kind == :fixed_shape_map)) == []
+    end
+  end
+
   describe "string building (iolist) detection" do
     test "Enum.map with interpolation piped to Enum.join" do
       findings =
