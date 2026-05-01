@@ -3,7 +3,8 @@ defmodule Reach.Test.ProgramFacts.Assertions do
 
   import ExUnit.Assertions
 
-  alias Reach.Test.ProgramFacts.{API, Normalize}
+  alias Mix.Tasks.Reach.Check, as: ReachCheck
+  alias Reach.Test.ProgramFacts.{API, CLI, Normalize}
 
   def assert_modules_discovered(program) do
     expected = Normalize.modules(program.facts.modules)
@@ -25,6 +26,44 @@ defmodule Reach.Test.ProgramFacts.Assertions do
     actual = API.effects(program)
 
     assert MapSet.subset?(expected, actual), "expected generated effects to be discovered"
+  end
+
+  def assert_architecture_policy(program) do
+    data = architecture_result(program)
+    expected_type = expected_architecture_violation(program)
+
+    if expected_type do
+      assert data["status"] == "failed"
+      assert Enum.any?(data["violations"], &(&1["type"] == expected_type))
+    else
+      assert data["status"] == "ok"
+      assert data["violations"] == []
+    end
+  end
+
+  defp architecture_result(program) do
+    if expected_architecture_violation(program) do
+      CLI.run_json_expect_raise(
+        program,
+        ReachCheck,
+        ["--arch"],
+        Mix.Error,
+        ~r/Architecture policy failed/
+      )
+    else
+      CLI.run_json(program, ReachCheck, ["--arch"])
+    end
+  end
+
+  defp expected_architecture_violation(program) do
+    case program.metadata.policy do
+      :layered_valid -> nil
+      :forbidden_dependency -> "forbidden_dependency"
+      :layer_cycle -> "layer_cycle"
+      :public_api_boundary_violation -> "public_api_boundary"
+      :internal_boundary_violation -> "internal_boundary"
+      :allowed_effect_violation -> "effect_policy"
+    end
   end
 
   defp edge_discovered?({expected_source, expected_target}, actual_edges) do

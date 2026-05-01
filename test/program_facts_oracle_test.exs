@@ -15,6 +15,15 @@ defmodule Reach.ProgramFactsOracleTest do
   @layout_policies [:plain, :umbrella, :package_style]
   @effect_policies [:pure, :io_effect, :send_effect, :raise_effect, :read_effect, :write_effect]
 
+  @architecture_policies [
+    :layered_valid,
+    :forbidden_dependency,
+    :layer_cycle,
+    :public_api_boundary_violation,
+    :internal_boundary_violation,
+    :allowed_effect_violation
+  ]
+
   test "direct API discovers generated call graph oracle edges" do
     for {policy, index} <- Enum.with_index(@call_graph_policies, 1) do
       program = ProgramFacts.generate!(policy: policy, seed: 1_300 + index, depth: 4, width: 3)
@@ -30,6 +39,14 @@ defmodule Reach.ProgramFactsOracleTest do
 
       Assertions.assert_modules_discovered(program)
       Assertions.assert_effects_discovered(program)
+    end
+  end
+
+  test "architecture CLI contract reports generated architecture oracle facts" do
+    for {policy, index} <- Enum.with_index(@architecture_policies, 1) do
+      program = ProgramFacts.generate!(policy: policy, seed: 1_600 + index)
+
+      Assertions.assert_architecture_policy(program)
     end
   end
 

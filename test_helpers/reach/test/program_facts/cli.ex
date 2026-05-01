@@ -1,6 +1,7 @@
 defmodule Reach.Test.ProgramFacts.CLI do
   @moduledoc false
 
+  import ExUnit.Assertions
   import ExUnit.CaptureIO
 
   alias Reach.Test.ProgramFacts.Project
@@ -10,6 +11,18 @@ defmodule Reach.Test.ProgramFacts.CLI do
       fn -> task.run(args ++ ["--format", "json"]) end
       |> capture_task()
       |> decode_json()
+    end)
+  end
+
+  def run_json_expect_raise(program, task, args, exception, pattern)
+      when is_atom(task) and is_list(args) do
+    Project.with_project(program, fn _dir, _project ->
+      output =
+        capture_io(fn ->
+          assert_raise exception, pattern, fn -> task.run(args ++ ["--format", "json"]) end
+        end)
+
+      decode_json(output)
     end)
   end
 
