@@ -3,6 +3,7 @@ defmodule Reach.CLI.Analyses.Smell.DualKeyAccess do
 
   @behaviour Reach.CLI.Analyses.Smell.Check
 
+  alias Reach.CLI.Analyses.Smell.Finding
   alias Reach.CLI.Format
   alias Reach.IR
 
@@ -54,13 +55,13 @@ defmodule Reach.CLI.Analyses.Smell.DualKeyAccess do
   defp finding(variable, key, accesses) do
     locations = accesses |> Enum.map(& &1.location) |> Enum.uniq()
 
-    %{
+    Finding.new(
       kind: :dual_key_access,
       message:
         "#{variable} is accessed with both atom and string key #{inspect(key)}; normalize the map once or use a struct/contract",
       location: List.first(locations),
       evidence: locations
-    }
+    )
   end
 
   defp key_name(key) when is_binary(key), do: key

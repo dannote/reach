@@ -3,6 +3,7 @@ defmodule Reach.CLI.Analyses.Smell.FixedShapeMap do
 
   @behaviour Reach.CLI.Analyses.Smell.Check
 
+  alias Reach.CLI.Analyses.Smell.Finding
   alias Reach.CLI.Format
   alias Reach.IR
 
@@ -53,7 +54,7 @@ defmodule Reach.CLI.Analyses.Smell.FixedShapeMap do
       locations = occurrences |> Enum.map(& &1.location) |> Enum.uniq()
 
       [
-        %{
+        Finding.new(
           kind: :fixed_shape_map,
           message:
             "map shape #{inspect(keys)} appears #{length(occurrences)} times; consider a struct or explicit contract if it is domain data",
@@ -61,7 +62,7 @@ defmodule Reach.CLI.Analyses.Smell.FixedShapeMap do
           evidence: Enum.take(locations, 10),
           keys: Enum.map(keys, &to_string/1),
           occurrences: length(occurrences)
-        }
+        )
       ]
     else
       []
