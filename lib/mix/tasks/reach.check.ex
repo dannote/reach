@@ -272,7 +272,7 @@ defmodule Mix.Tasks.Reach.Check do
 
     if omitted > 0 do
       IO.puts(
-        "  #{Format.faint("... #{omitted} more omitted. Use --format json for complete output.")}"
+        "  #{Format.faint("#{omitted} more omitted. Use --format json for complete output.")}"
       )
     end
   end
