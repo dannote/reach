@@ -196,6 +196,72 @@ defmodule Reach.SmellTest do
     end
   end
 
+  describe "Credence-inspired collection pipeline smells" do
+    test "flags sort then reverse" do
+      findings =
+        run_smell_task("""
+        defmodule SortReverse do
+          def f(items), do: items |> Enum.sort() |> Enum.reverse()
+        end
+        """)
+
+      assert Enum.any?(
+               findings,
+               &(&1.kind == :eager_pattern and &1.message =~ "sort(enumerable, :desc)")
+             )
+    end
+
+    test "flags sort then at" do
+      findings =
+        run_smell_task("""
+        defmodule SortAt do
+          def f(items), do: items |> Enum.sort() |> Enum.at(0)
+        end
+        """)
+
+      assert Enum.any?(
+               findings,
+               &(&1.kind == :eager_pattern and &1.message =~ "full sort for one element")
+             )
+    end
+
+    test "flags drop then take" do
+      findings =
+        run_smell_task("""
+        defmodule DropTake do
+          def f(items), do: items |> Enum.drop(5) |> Enum.take(10)
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.kind == :eager_pattern and &1.message =~ "Enum.slice/3"))
+    end
+
+    test "flags take_while then length" do
+      findings =
+        run_smell_task("""
+        defmodule TakeWhileLength do
+          def f(items), do: items |> Enum.take_while(& &1.ok?) |> length()
+        end
+        """)
+
+      assert Enum.any?(
+               findings,
+               &(&1.kind == :eager_pattern and &1.message =~ "intermediate list")
+             )
+    end
+
+    test "flags map then join as map_join candidate" do
+      findings =
+        run_smell_task("""
+        defmodule MapJoin do
+          def f(items), do: items |> Enum.map(& &1.name) |> Enum.join(",")
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.kind == :eager_pattern and &1.message =~ "Enum.map_join/3"))
+    end
+  end
+
   describe "dual atom/string key access detection" do
     test "flags same map variable accessed with string and atom keys" do
       findings =
