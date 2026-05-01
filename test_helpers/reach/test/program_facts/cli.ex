@@ -17,12 +17,12 @@ defmodule Reach.Test.ProgramFacts.CLI do
   def run_json_expect_raise(program, task, args, exception, pattern)
       when is_atom(task) and is_list(args) do
     Project.with_project(program, fn _dir, _project ->
-      output =
-        capture_io(fn ->
-          assert_raise exception, pattern, fn -> task.run(args ++ ["--format", "json"]) end
-        end)
+      task_fun = fn -> task.run(args ++ ["--format", "json"]) end
+      assert_fun = fn -> assert_raise exception, pattern, task_fun end
 
-      decode_json(output)
+      assert_fun
+      |> capture_io()
+      |> decode_json()
     end)
   end
 
