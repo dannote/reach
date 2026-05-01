@@ -1,10 +1,10 @@
 defmodule Reach.CLI.Analyses.Smell do
   @moduledoc """
-  Finds cross-function performance anti-patterns using data flow analysis.
+  Finds local structural and performance smells.
 
-  Detects redundant traversals, duplicate computations, unused results,
-  and suboptimal Enum operations — including patterns that span function
-  boundaries.
+  Detects redundant traversals, duplicate computations, eager Enum/List
+  patterns, string-building patterns, and loose map contracts such as mixed
+  atom/string key access.
 
       mix reach.smell
       mix reach.smell --format json
