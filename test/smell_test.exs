@@ -225,7 +225,7 @@ defmodule Reach.SmellTest do
              )
     end
 
-    test "flags drop then take" do
+    test "flags non-negative drop then take" do
       findings =
         run_smell_task("""
         defmodule DropTake do
@@ -234,6 +234,17 @@ defmodule Reach.SmellTest do
         """)
 
       assert Enum.any?(findings, &(&1.kind == :eager_pattern and &1.message =~ "Enum.slice/3"))
+    end
+
+    test "does not flag negative drop then take" do
+      findings =
+        run_smell_task("""
+        defmodule DropTakeTail do
+          def f(items), do: items |> Enum.drop(-1) |> Enum.take(2)
+        end
+        """)
+
+      refute Enum.any?(findings, &(&1.kind == :eager_pattern and &1.message =~ "Enum.slice/3"))
     end
 
     test "flags take_while then length" do
@@ -247,6 +258,20 @@ defmodule Reach.SmellTest do
       assert Enum.any?(
                findings,
                &(&1.kind == :eager_pattern and &1.message =~ "intermediate list")
+             )
+    end
+
+    test "flags reverse append" do
+      findings =
+        run_smell_task("""
+        defmodule ReverseAppend do
+          def f(acc, tail), do: Enum.reverse(acc) ++ tail
+        end
+        """)
+
+      assert Enum.any?(
+               findings,
+               &(&1.kind == :suboptimal and &1.message =~ "Enum.reverse(list, tail)")
              )
     end
 
