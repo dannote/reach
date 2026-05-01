@@ -91,7 +91,7 @@ defmodule Mix.Tasks.Reach.Check do
       if config_errors != [] do
         config_errors
       else
-        project = Project.load()
+        project = Project.load(quiet: opts[:format] == "json")
         layer_graph = layer_graph(project, config)
 
         dependency_violations(project, config, layer_graph) ++
@@ -782,7 +782,7 @@ defmodule Mix.Tasks.Reach.Check do
   end
 
   defp render_candidates_placeholder(opts) do
-    project = Project.load()
+    project = Project.load(quiet: opts[:format] == "json")
     config = if File.exists?(".reach.exs"), do: load_config(), else: []
 
     candidates =
