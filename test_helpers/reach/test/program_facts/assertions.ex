@@ -10,34 +10,36 @@ defmodule Reach.Test.ProgramFacts.Assertions do
     expected = Normalize.modules(program.facts.modules)
     actual = API.modules(program)
 
-    assert MapSet.subset?(expected, actual), "expected generated modules to be discovered"
+    assert_subset(expected, actual, "generated modules")
   end
 
   def assert_call_edges_discovered(program) do
     expected = Normalize.call_edges(program.facts.call_edges)
     actual = API.call_edges(program)
 
-    assert Enum.all?(expected, &edge_discovered?(&1, actual)),
-           "expected generated call edges to be discovered"
+    missing = Enum.reject(expected, &edge_discovered?(&1, actual))
+
+    assert missing == [],
+           "expected generated call edges to be discovered, missing: #{inspect(missing)}"
   end
 
   def assert_effects_discovered(program) do
     expected = MapSet.new(program.facts.effects)
     actual = API.effects(program)
 
-    assert MapSet.subset?(expected, actual), "expected generated effects to be discovered"
+    assert_subset(expected, actual, "generated effects")
   end
 
   def assert_architecture_policy(program) do
     data = architecture_result(program)
-    expected_type = expected_architecture_violation(program)
 
-    if expected_type do
-      assert data["status"] == "failed"
-      assert Enum.any?(data["violations"], &(&1["type"] == expected_type))
-    else
-      assert data["status"] == "ok"
-      assert data["violations"] == []
+    case expected_architecture_violation(program) do
+      nil ->
+        assert %{"status" => "ok", "violations" => []} = data
+
+      expected_type ->
+        assert %{"status" => "failed", "violations" => violations} = data
+        assert Enum.any?(violations, &match?(%{"type" => ^expected_type}, &1))
     end
   end
 
@@ -45,27 +47,33 @@ defmodule Reach.Test.ProgramFacts.Assertions do
     variables = API.variable_names(program)
     data_labels = API.data_edge_labels(program)
 
-    for flow <- program.facts.data_flows do
-      expected_variables = Map.get(flow, :variable_names, []) |> MapSet.new()
+    Enum.each(program.facts.data_flows, fn flow ->
+      expected_variables = flow |> Map.get(:variable_names, []) |> MapSet.new()
 
-      assert MapSet.subset?(expected_variables, variables),
-             "expected generated data-flow variables to be visible"
+      assert_subset(expected_variables, variables, "generated data-flow variables")
 
-      assert MapSet.intersection(expected_variables, data_labels) != MapSet.new(),
+      assert MapSet.disjoint?(expected_variables, data_labels) == false,
              "expected at least one generated variable to produce a data edge"
 
       assert_flow_endpoint_visible(program, flow.to)
-    end
+    end)
   end
 
   def assert_branches_visible(program) do
     summary = API.branch_summary(program)
 
-    for branch <- program.facts.branches do
+    Enum.each(program.facts.branches, fn branch ->
       assert_branch_construct_visible(branch, summary)
       assert_branch_clauses_visible(branch, summary)
       assert_branch_calls_visible(branch, program)
-    end
+    end)
+  end
+
+  defp assert_subset(expected, actual, label) do
+    missing = MapSet.difference(expected, actual)
+
+    assert MapSet.size(missing) == 0,
+           "expected #{label} to be discovered, missing: #{inspect(missing)}"
   end
 
   defp assert_branch_construct_visible(%{kind: kind}, summary) when kind in [:if, :case, :cond, :with] do
@@ -74,7 +82,7 @@ defmodule Reach.Test.ProgramFacts.Assertions do
   end
 
   defp assert_branch_construct_visible(%{kind: :anonymous_fn}, summary) do
-    assert summary.fn_nodes != [], "expected generated anonymous fn branch to be visible"
+    assert [_ | _] = summary.fn_nodes
   end
 
   defp assert_branch_construct_visible(%{kind: :multi_clause_function}, summary) do
@@ -85,15 +93,18 @@ defmodule Reach.Test.ProgramFacts.Assertions do
   defp assert_branch_construct_visible(%{kind: :callback}, _summary), do: :ok
 
   defp assert_branch_clauses_visible(%{clauses: expected, kind: kind}, summary) do
-    assert clause_count(summary, kind) >= expected,
-           "expected generated #{kind} clauses to be visible"
+    actual = clause_count(summary, kind)
+
+    assert actual >= expected,
+           "expected generated #{kind} clauses to be visible, expected at least #{expected}, got #{actual}"
   end
 
   defp assert_branch_calls_visible(branch, program) do
     branch
     |> Map.get(:calls_by_clause, [])
     |> Enum.each(fn %{call: call} ->
-      assert API.call_present?(program, call), "expected generated branch call #{inspect(call)} to be visible"
+      assert API.call_present?(program, call),
+             "expected generated branch call #{inspect(call)} to be visible"
     end)
   end
 
