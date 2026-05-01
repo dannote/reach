@@ -16,9 +16,10 @@ defmodule Reach.CLI.Analyses.Smell do
 
   """
 
-  @switches [format: :string]
+  @switches [format: :string, path: :string]
   @aliases [f: :format]
 
+  alias Reach.CLI.Analyses.Smell.Finding
   alias Reach.CLI.Format
   alias Reach.CLI.Project
   alias Reach.Effects
@@ -32,20 +33,17 @@ defmodule Reach.CLI.Analyses.Smell do
   def run(args) do
     {opts, args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
     format = opts[:format] || "text"
-    path = List.first(args)
+    path = opts[:path] || List.first(args)
 
-    project = Project.load(quiet: opts[:format] == "json")
+    project_opts = [quiet: opts[:format] == "json"]
+    project_opts = if path, do: Keyword.put(project_opts, :paths, [path]), else: project_opts
+    project = Project.load(project_opts)
 
     findings = analyze(project)
 
-    findings =
-      if path,
-        do: Enum.filter(findings, &String.contains?(to_string(&1.location), path)),
-        else: findings
-
     case format do
       "json" ->
-        Format.render(%{findings: findings}, "reach.smell",
+        Format.render(%{findings: Enum.map(findings, &Finding.to_map/1)}, "reach.smell",
           format: "json",
           pretty: true
         )
@@ -127,43 +125,43 @@ defmodule Reach.CLI.Analyses.Smell do
   end
 
   defp smell_for_pattern(:reverse_reverse, node) do
-    %{
+    Finding.new(
       kind: :redundant_traversal,
       message: "Enum.reverse → Enum.reverse is a no-op",
       location: Format.location(node)
-    }
+    )
   end
 
   defp smell_for_pattern(:filter_count, node) do
-    %{
+    Finding.new(
       kind: :suboptimal,
       message: "Enum.filter → Enum.count: use Enum.count/2 instead",
       location: Format.location(node)
-    }
+    )
   end
 
   defp smell_for_pattern(:map_count, node) do
-    %{
+    Finding.new(
       kind: :suboptimal,
       message: "Enum.map → Enum.count: use Enum.count/2 with transform",
       location: Format.location(node)
-    }
+    )
   end
 
   defp smell_for_pattern(:map_map, node) do
-    %{
+    Finding.new(
       kind: :suboptimal,
       message: "Enum.map → Enum.map: consider fusing into one pass",
       location: Format.location(node)
-    }
+    )
   end
 
   defp smell_for_pattern(:filter_filter, node) do
-    %{
+    Finding.new(
       kind: :suboptimal,
       message: "Enum.filter → Enum.filter: combine predicates into one pass",
       location: Format.location(node)
-    }
+    )
   end
 
   defp data_connected?(first, second) do
@@ -348,12 +346,12 @@ defmodule Reach.CLI.Analyses.Smell do
   defp maybe_redundant_call(a, b) do
     if same_args?(a, b) and a.source_span[:start_line] != b.source_span[:start_line] do
       [
-        %{
+        Finding.new(
           kind: :redundant_computation,
           message:
             "#{call_name(a)} called twice with same args (line #{a.source_span[:start_line]} and #{b.source_span[:start_line]})",
           location: Format.location(b)
-        }
+        )
       ]
     else
       []
@@ -413,20 +411,20 @@ defmodule Reach.CLI.Analyses.Smell do
   defp eager_pattern_for_pair(_), do: []
 
   defp map_first_smell(second) do
-    %{
+    Finding.new(
       kind: :eager_pattern,
       message: "Enum.map → List.first: builds entire list for one element. Use Enum.find_value/2",
       location: Format.location(second)
-    }
+    )
   end
 
   defp sort_take_smell(second) do
-    %{
+    Finding.new(
       kind: :eager_pattern,
       message:
         "Enum.sort → Enum.take(#{take_count(second)}): sorts entire list. Consider partial sort",
       location: Format.location(second)
-    }
+    )
   end
 
   defp take_count(node) do
@@ -479,11 +477,11 @@ defmodule Reach.CLI.Analyses.Smell do
 
   defp string_building_smell(true, message, node) do
     [
-      %{
+      Finding.new(
         kind: :string_building,
         message: message,
         location: Format.location(node)
-      }
+      )
     ]
   end
 
@@ -492,12 +490,12 @@ defmodule Reach.CLI.Analyses.Smell do
     calls
     |> Enum.filter(&(enum_call?(&1, :map_join) and callback_builds_strings?(&1)))
     |> Enum.map(fn call ->
-      %{
+      Finding.new(
         kind: :string_building,
         message:
           "Enum.map_join with string interpolation: builds N intermediate strings. Use Enum.map/2 returning iolists",
         location: Format.location(call)
-      }
+      )
     end)
   end
 
@@ -517,12 +515,12 @@ defmodule Reach.CLI.Analyses.Smell do
     concat_ids_with_join
     |> Enum.reject(fn c -> c.id in nested_ids end)
     |> Enum.map(fn concat ->
-      %{
+      Finding.new(
         kind: :string_building,
         message:
           "String concatenation around Enum.join: wrap in a list instead — [\"<div>\", parts, \"</div>\"]",
         location: Format.location(concat)
-      }
+      )
     end)
   end
 
@@ -534,12 +532,12 @@ defmodule Reach.CLI.Analyses.Smell do
         callback_uses_string_concat?(reduce, all)
     end)
     |> Enum.map(fn reduce ->
-      %{
+      Finding.new(
         kind: :string_building,
         message:
           "Enum.reduce building string with <>: O(n²) copying. Use iolists or Enum.map_join",
         location: Format.location(reduce)
-      }
+      )
     end)
   end
 

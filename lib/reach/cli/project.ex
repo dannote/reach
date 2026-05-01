@@ -14,12 +14,33 @@ defmodule Reach.CLI.Project do
           Reach.Project.from_mix_project()
 
         paths ->
+          paths = expand_paths(paths)
           unless quiet?, do: Mix.shell().info("Analyzing #{length(paths)} file(s)...")
           Reach.Project.from_sources(paths)
       end
 
     Process.delete({__MODULE__, :func_index})
     project
+  end
+
+  defp expand_paths(paths) do
+    paths
+    |> List.wrap()
+    |> Enum.flat_map(fn path ->
+      cond do
+        File.dir?(path) ->
+          [Path.join(path, "**/*.ex"), Path.join(path, "**/*.erl")]
+          |> Enum.flat_map(&Path.wildcard/1)
+
+        String.contains?(path, "*") ->
+          Path.wildcard(path)
+
+        true ->
+          [path]
+      end
+    end)
+    |> Enum.uniq()
+    |> Enum.sort()
   end
 
   defp compile(true) do
