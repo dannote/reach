@@ -506,7 +506,7 @@ defmodule Mix.Tasks.Reach.Check do
   defp concrete_effects(func), do: function_effects(func) -- [:pure, :unknown, :exception]
 
   defp remote_call?(node) do
-    node.type == :call and node.meta[:kind] == :remote and node.meta[:module] != nil and
+    node.type == :call and node.meta[:kind] == :remote and is_atom(node.meta[:module]) and
       node.meta[:function] not in [:__aliases__, :{}]
   end
 

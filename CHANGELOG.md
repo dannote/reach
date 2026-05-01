@@ -69,6 +69,7 @@
 - **Candidate precision** — expected callback/effect-boundary shapes are suppressed for effect-isolation candidates, `:unknown` and `:exception` no longer inflate mixed-effect candidates, and cycles prefer minimal representative evidence.
 - **Changed deletion handling** — deletion-only hunks are no longer attributed to a synthetic current-file line.
 - **Inspect data returns** — `reach.inspect --data` now summarizes clause final expressions rather than direct clause nodes.
+- **Loose map contract detection** — `reach.check --smells` now flags same-variable atom/string key fallback patterns such as `metadata["id"] || metadata[:id]`, a common sign that a map should be normalized once or replaced with a struct/explicit contract.
 
 ### Documentation
 

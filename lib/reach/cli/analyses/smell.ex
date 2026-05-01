@@ -24,6 +24,10 @@ defmodule Reach.CLI.Analyses.Smell do
   alias Reach.Effects
   alias Reach.IR
 
+  @checks [
+    Reach.CLI.Analyses.Smell.DualKeyAccess
+  ]
+
   def run(args) do
     {opts, args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
     format = opts[:format] || "text"
@@ -60,7 +64,8 @@ defmodule Reach.CLI.Analyses.Smell do
     detect_pipeline_waste(project) ++
       detect_redundant_computation(project) ++
       detect_eager_patterns(project) ++
-      detect_string_building(project)
+      detect_string_building(project) ++
+      run_checks(project)
   end
 
   defp detect_pipeline_waste(project) do
@@ -583,6 +588,8 @@ defmodule Reach.CLI.Analyses.Smell do
     end)
   end
 
+  defp run_checks(project), do: Enum.flat_map(@checks, & &1.run(project))
+
   # --- Rendering ---
 
   defp render_text(findings) do
@@ -598,6 +605,7 @@ defmodule Reach.CLI.Analyses.Smell do
       render_group(Map.get(grouped, :redundant_computation, []), "Redundant computations")
       render_group(Map.get(grouped, :eager_pattern, []), "Eager where lazy suffices")
       render_group(Map.get(grouped, :string_building, []), "String building (use iolists)")
+      render_group(Map.get(grouped, :dual_key_access, []), "Loose map contracts")
 
       IO.puts("#{length(findings)} finding(s)\n")
     end

@@ -196,6 +196,52 @@ defmodule Reach.SmellTest do
     end
   end
 
+  describe "dual atom/string key access detection" do
+    test "flags same map variable accessed with string and atom keys" do
+      findings =
+        run_smell_task("""
+        defmodule LooseContract do
+          def failure_manifest(metadata) do
+            metadata["analyzer"] || metadata[:analyzer]
+          end
+        end
+        """)
+
+      assert [%{kind: :dual_key_access} = finding] =
+               Enum.filter(findings, &(&1.kind == :dual_key_access))
+
+      assert finding.message =~ "metadata"
+      assert finding.message =~ "analyzer"
+      assert finding.message =~ "normalize the map once or use a struct/contract"
+    end
+
+    test "flags Map.get with mixed key types" do
+      findings =
+        run_smell_task("""
+        defmodule LooseContract do
+          def fetch(metadata) do
+            Map.get(metadata, "command") || Map.get(metadata, :command)
+          end
+        end
+        """)
+
+      assert [%{kind: :dual_key_access}] = Enum.filter(findings, &(&1.kind == :dual_key_access))
+    end
+
+    test "does not flag different map variables" do
+      findings =
+        run_smell_task("""
+        defmodule SeparateContracts do
+          def fetch(params, metadata) do
+            params["id"] || metadata[:id]
+          end
+        end
+        """)
+
+      assert Enum.filter(findings, &(&1.kind == :dual_key_access)) == []
+    end
+  end
+
   describe "string building (iolist) detection" do
     test "Enum.map with interpolation piped to Enum.join" do
       findings =
