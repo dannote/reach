@@ -47,7 +47,13 @@ defmodule Reach.CLI.Format do
 
   defp render_json(data, tool, opts) do
     command = Process.get(@command_override_key, tool)
-    output = %{"command" => command, "tool" => tool} |> Map.merge(jsonify(data))
+
+    output = %Reach.CLI.JSONEnvelope{
+      command: command,
+      tool: tool,
+      data: jsonify(data)
+    }
+
     json = Jason.encode!(output, pretty: Keyword.get(opts, :pretty, true))
     IO.write(json)
     IO.write("\n")
@@ -64,7 +70,7 @@ defmodule Reach.CLI.Format do
   # ── JSON encoding ──
 
   def jsonify(%Reach.IR.Node{} = node) do
-    %{"type" => Atom.to_string(node.type), "id" => node.id}
+    %{type: Atom.to_string(node.type), id: node.id}
     |> maybe_add(:name, node.meta[:name])
     |> maybe_add(:module, node.meta[:module])
     |> maybe_add(:function, node.meta[:function])

@@ -133,7 +133,7 @@ defmodule Mix.Tasks.Reach.Inspect do
     result = why_result(project, target, opts[:why], opts[:depth] || 6)
 
     if opts[:format] == "json" do
-      IO.puts(Jason.encode!(result, pretty: true))
+      IO.puts(Jason.encode!(json_envelope(result), pretty: true))
     else
       render_why_text(result)
     end
@@ -231,7 +231,7 @@ defmodule Mix.Tasks.Reach.Inspect do
       data: data_summary(project, func, opts[:variable])
     }
 
-    IO.puts(Jason.encode!(context, pretty: true))
+    IO.puts(Jason.encode!(json_envelope(context), pretty: true))
   end
 
   defp format_location(%{file: file, line: line}) when is_binary(file) and is_integer(line),
@@ -283,12 +283,12 @@ defmodule Mix.Tasks.Reach.Inspect do
 
     IO.puts(
       Jason.encode!(
-        %{
+        json_envelope(%{
           command: "reach.inspect",
           target: Format.func_id_to_string(mfa),
           location: location(func),
           data: data_summary(project, func, opts[:variable])
-        },
+        }),
         pretty: true
       )
     )
@@ -935,7 +935,7 @@ defmodule Mix.Tasks.Reach.Inspect do
     case opts[:format] do
       "json" ->
         ensure_json_encoder!()
-        IO.puts(Jason.encode!(result, pretty: true))
+        IO.puts(Jason.encode!(json_envelope(result), pretty: true))
 
       _ ->
         render_candidates_text(result)
@@ -1077,6 +1077,10 @@ defmodule Mix.Tasks.Reach.Inspect do
   defp maybe_flag(args, _flag, false), do: args
   defp maybe_flag(args, _flag, nil), do: args
   defp maybe_flag(args, flag, true), do: args ++ [flag]
+
+  defp json_envelope(%{command: command} = data) do
+    %Reach.CLI.JSONEnvelope{command: command, data: Map.delete(data, :command)}
+  end
 
   defp ensure_json_encoder! do
     unless Code.ensure_loaded?(Jason) do

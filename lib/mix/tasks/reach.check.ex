@@ -1124,7 +1124,7 @@ defmodule Mix.Tasks.Reach.Check do
 
   defp render_result(result, "json", _text_fun) do
     ensure_json_encoder!()
-    IO.puts(Jason.encode!(Map.put_new(result, :command, "reach.check"), pretty: true))
+    IO.puts(Jason.encode!(json_envelope(result), pretty: true))
   end
 
   defp render_result(result, _format, text_fun), do: text_fun.(result)
@@ -1193,6 +1193,13 @@ defmodule Mix.Tasks.Reach.Check do
       IO.puts("\nSuggested tests:")
       Enum.each(result.suggested_tests, &IO.puts("  mix test #{&1}"))
     end
+  end
+
+  defp json_envelope(result) do
+    %Reach.CLI.JSONEnvelope{
+      command: Map.get(result, :command, "reach.check"),
+      data: Map.delete(result, :command)
+    }
   end
 
   defp ensure_json_encoder! do
