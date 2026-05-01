@@ -1,19 +1,11 @@
 defmodule Reach.CLI.Analyses.Smell.DualKeyAccess do
   @moduledoc false
 
-  @behaviour Reach.CLI.Analyses.Smell.Check
+  use Reach.CLI.Analyses.Smell.Check
 
   alias Reach.CLI.Analyses.Smell.Finding
   alias Reach.CLI.Format
   alias Reach.IR
-
-  @impl true
-  def run(project) do
-    project.nodes
-    |> Map.values()
-    |> Enum.filter(&(&1.type == :function_def))
-    |> Enum.flat_map(&findings/1)
-  end
 
   defp findings(function) do
     function

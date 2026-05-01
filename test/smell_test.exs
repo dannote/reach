@@ -25,6 +25,18 @@ defmodule Reach.SmellTest do
     end
   end
 
+  describe "check registry" do
+    test "auto-discovers behaviour modules" do
+      checks = Reach.CLI.Analyses.Smell.Registry.checks()
+
+      assert Reach.CLI.Analyses.Smell.DualKeyAccess in checks
+      assert Reach.CLI.Analyses.Smell.FixedShapeMap in checks
+      assert Reach.CLI.Analyses.Smell.EagerPattern in checks
+      assert Reach.CLI.Analyses.Smell.PipelineWaste in checks
+      assert Reach.CLI.Analyses.Smell.ReverseAppend in checks
+    end
+  end
+
   describe "Enum.map + List.first detection" do
     test "List.first inside Enum.map callback is a descendant" do
       graph =
