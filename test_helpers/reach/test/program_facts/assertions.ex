@@ -20,6 +20,13 @@ defmodule Reach.Test.ProgramFacts.Assertions do
            "expected generated call edges to be discovered"
   end
 
+  def assert_effects_discovered(program) do
+    expected = MapSet.new(program.facts.effects)
+    actual = API.effects(program)
+
+    assert MapSet.subset?(expected, actual), "expected generated effects to be discovered"
+  end
+
   defp edge_discovered?({expected_source, expected_target}, actual_edges) do
     Enum.any?(actual_edges, fn {actual_source, actual_target} ->
       function_match?(expected_source, actual_source) and

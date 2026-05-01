@@ -13,6 +13,7 @@ defmodule Reach.ProgramFactsOracleTest do
   ]
 
   @layout_policies [:plain, :umbrella, :package_style]
+  @effect_policies [:pure, :io_effect, :send_effect, :raise_effect, :read_effect, :write_effect]
 
   test "direct API discovers generated call graph oracle edges" do
     for {policy, index} <- Enum.with_index(@call_graph_policies, 1) do
@@ -20,6 +21,15 @@ defmodule Reach.ProgramFactsOracleTest do
 
       Assertions.assert_modules_discovered(program)
       Assertions.assert_call_edges_discovered(program)
+    end
+  end
+
+  test "direct API discovers generated effect oracle facts" do
+    for {policy, index} <- Enum.with_index(@effect_policies, 1) do
+      program = ProgramFacts.generate!(policy: policy, seed: 1_500 + index)
+
+      Assertions.assert_modules_discovered(program)
+      Assertions.assert_effects_discovered(program)
     end
   end
 
