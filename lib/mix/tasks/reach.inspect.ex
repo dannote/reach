@@ -36,14 +36,11 @@ defmodule Mix.Tasks.Reach.Inspect do
 
   use Mix.Task
 
-  alias Reach.Analysis
   alias Reach.CLI.BoxartGraph
   alias Reach.CLI.Format
   alias Reach.CLI.Project
   alias Reach.CLI.TaskRunner
-  alias Reach.Effects
-  alias Reach.Inspect.Why
-  alias Reach.IR
+  alias Reach.Inspect.{Candidates, Context, Data, Why}
 
   @shortdoc "Inspect one target's dependencies, impact, slices, and context"
 
@@ -151,14 +148,14 @@ defmodule Mix.Tasks.Reach.Inspect do
   defp render_context_text(target, opts) do
     project = Project.load()
     {mfa, func} = resolve_function!(project, target)
-    data = data_summary(project, func, opts[:variable])
+    data = Data.summary(project, func, opts[:variable])
     direct_callers = Project.callers(project, mfa, 1)
     transitive_callers = Project.callers(project, mfa, opts[:depth] || 4)
     callees = Project.callees(project, mfa, opts[:depth] || 3)
 
     IO.puts(Format.header("Reach context: #{Format.func_id_to_string(mfa)}"))
-    IO.puts("  location: #{format_location(location(func))}")
-    IO.puts("  effects: #{Enum.join(effects(func), ", ")}")
+    IO.puts("  location: #{format_location(Context.location(func))}")
+    IO.puts("  effects: #{Enum.join(Context.effects(func), ", ")}")
 
     IO.puts(
       "  callers: #{length(direct_callers)} direct, #{length(transitive_callers)} transitive"
@@ -213,24 +210,12 @@ defmodule Mix.Tasks.Reach.Inspect do
     ensure_json_encoder!()
     project = Project.load(quiet: opts[:format] == "json")
     {mfa, func} = resolve_function!(project, target)
-    depth = opts[:depth] || 3
 
-    context = %{
-      command: "reach.inspect",
-      target: Format.func_id_to_string(mfa),
-      location: location(func),
-      effects: effects(func),
-      deps: %{
-        callers: Project.callers(project, mfa, 1) |> Enum.map(&format_call/1),
-        callees: Project.callees(project, mfa, depth) |> Enum.map(&format_callee/1)
-      },
-      impact: %{
-        direct_callers: Project.callers(project, mfa, 1) |> Enum.map(&format_call/1),
-        transitive_callers:
-          Project.callers(project, mfa, opts[:depth] || 4) |> Enum.map(&format_call/1)
-      },
-      data: data_summary(project, func, opts[:variable])
-    }
+    context =
+      project
+      |> Context.build(mfa, func, opts)
+      |> format_context()
+      |> Map.put(:command, "reach.inspect")
 
     IO.puts(Jason.encode!(json_envelope(context), pretty: true))
   end
@@ -277,6 +262,23 @@ defmodule Mix.Tasks.Reach.Inspect do
     "#{item.kind} #{Format.faint(location)}"
   end
 
+  defp format_context(context) do
+    %{
+      target: Format.func_id_to_string(context.target),
+      location: context.location,
+      effects: context.effects,
+      deps: %{
+        callers: Enum.map(context.deps.callers, &format_call/1),
+        callees: Enum.map(context.deps.callees, &format_callee/1)
+      },
+      impact: %{
+        direct_callers: Enum.map(context.impact.direct_callers, &format_call/1),
+        transitive_callers: Enum.map(context.impact.transitive_callers, &format_call/1)
+      },
+      data: context.data
+    }
+  end
+
   defp render_data_json(target, opts) do
     ensure_json_encoder!()
     project = Project.load(quiet: opts[:format] == "json")
@@ -287,8 +289,8 @@ defmodule Mix.Tasks.Reach.Inspect do
         json_envelope(%{
           command: "reach.inspect",
           target: Format.func_id_to_string(mfa),
-          location: location(func),
-          data: data_summary(project, func, opts[:variable])
+          location: Context.location(func),
+          data: Data.summary(project, func, opts[:variable])
         }),
         pretty: true
       )
@@ -298,7 +300,7 @@ defmodule Mix.Tasks.Reach.Inspect do
   defp render_data_text(target, opts) do
     project = Project.load(quiet: opts[:format] == "json")
     {_mfa, func} = resolve_function!(project, target)
-    summary = data_summary(project, func, opts[:variable])
+    summary = Data.summary(project, func, opts[:variable])
 
     IO.puts("Definitions:")
     Enum.each(summary.definitions, &IO.puts("  #{&1.name} #{&1.file}:#{&1.line}"))
@@ -415,126 +417,6 @@ defmodule Mix.Tasks.Reach.Inspect do
     end
   end
 
-  defp data_summary(project, func, variable) do
-    nodes = IR.all_nodes(func)
-    node_ids = MapSet.new(nodes, & &1.id)
-    nodes_by_id = Map.new(nodes, &{&1.id, &1})
-
-    vars =
-      Enum.filter(nodes, fn node ->
-        node.type == :var and (variable == nil or to_string(node.meta[:name]) == variable)
-      end)
-
-    %{
-      definitions:
-        vars |> Enum.filter(&(&1.meta[:binding_role] == :definition)) |> Enum.map(&var_summary/1),
-      uses:
-        vars |> Enum.reject(&(&1.meta[:binding_role] == :definition)) |> Enum.map(&var_summary/1),
-      returns: return_summaries(func),
-      edges: data_edges(project, node_ids, nodes_by_id, variable)
-    }
-  end
-
-  defp data_edges(project, node_ids, nodes_by_id, variable) do
-    project.graph
-    |> Graph.edges()
-    |> Enum.filter(fn edge ->
-      Analysis.data_edge?(edge) and MapSet.member?(node_ids, edge.v1) and
-        MapSet.member?(node_ids, edge.v2) and
-        (variable == nil or to_string(data_edge_label(edge)) == variable)
-    end)
-    |> Enum.take(200)
-    |> Enum.map(fn edge ->
-      %{
-        from: Map.get(nodes_by_id, edge.v1) |> compact_node_summary(),
-        to: Map.get(nodes_by_id, edge.v2) |> compact_node_summary(),
-        label: inspect(edge.label)
-      }
-    end)
-  end
-
-  defp data_edge_label(%Graph.Edge{label: {:data, var}}), do: var
-  defp data_edge_label(%Graph.Edge{label: label}), do: label
-
-  defp return_summaries(func) do
-    func.children
-    |> List.wrap()
-    |> Enum.flat_map(&clause_return/1)
-  end
-
-  defp clause_return(%{type: :clause, children: children}) do
-    children
-    |> List.wrap()
-    |> List.last()
-    |> case do
-      nil -> []
-      node -> [node_summary(node)]
-    end
-  end
-
-  defp clause_return(node), do: [node_summary(node)]
-
-  defp var_summary(node) do
-    span = node.source_span || %{}
-
-    %{
-      name: to_string(node.meta[:name]),
-      role: to_string(node.meta[:binding_role] || "use"),
-      file: span[:file],
-      line: span[:start_line]
-    }
-  end
-
-  defp node_summary(node) do
-    span = node.source_span || %{}
-
-    %{
-      kind: to_string(node.type),
-      file: span[:file],
-      line: span[:start_line]
-    }
-  end
-
-  defp compact_node_summary(nil), do: nil
-
-  defp compact_node_summary(node) do
-    span = node.source_span || %{}
-
-    %{
-      id: node.id,
-      kind: to_string(node.type),
-      name: compact_node_name(node),
-      file: span[:file],
-      line: span[:start_line]
-    }
-  end
-
-  defp compact_node_name(%{type: :var, meta: meta}), do: meta[:name] && to_string(meta[:name])
-  defp compact_node_name(%{type: :call, meta: meta}), do: call_name(meta)
-  defp compact_node_name(%{meta: meta}), do: meta[:name] && to_string(meta[:name])
-
-  defp call_name(meta) do
-    if meta[:module] do
-      "#{inspect(meta[:module])}.#{meta[:function]}/#{meta[:arity]}"
-    else
-      "#{meta[:function]}/#{meta[:arity]}"
-    end
-  end
-
-  defp effects(func) do
-    func
-    |> IR.all_nodes()
-    |> Enum.map(&Effects.classify/1)
-    |> Enum.uniq()
-    |> Enum.sort()
-    |> Enum.map(&to_string/1)
-  end
-
-  defp location(func) do
-    span = func.source_span || %{}
-    %{file: span[:file], line: span[:start_line]}
-  end
-
   defp format_call(%{id: id}), do: Format.func_id_to_string(id)
 
   defp format_callee(%{id: id, depth: depth, children: children}) do
@@ -548,7 +430,12 @@ defmodule Mix.Tasks.Reach.Inspect do
   defp render_candidates_placeholder(target, opts) do
     project = Project.load(quiet: opts[:format] == "json")
     {mfa, func} = resolve_function!(project, target)
-    candidates = target_candidates(project, mfa, func)
+
+    candidates =
+      Enum.map(
+        Candidates.find(project, mfa, func),
+        &Map.put(&1, :target, Format.func_id_to_string(mfa))
+      )
 
     result = %{
       command: "reach.inspect",
@@ -565,95 +452,6 @@ defmodule Mix.Tasks.Reach.Inspect do
       _ ->
         render_candidates_text(result)
     end
-  end
-
-  defp target_candidates(project, mfa, func) do
-    non_pure_effects = function_effect_atoms(func) -- [:pure, :unknown, :exception]
-    callers = Project.callers(project, mfa, 1)
-    branch_count = branch_count(func)
-
-    []
-    |> maybe_candidate(isolate_effects_candidate(mfa, func, non_pure_effects))
-    |> maybe_candidate(extract_region_candidate(mfa, func, branch_count, callers))
-  end
-
-  defp isolate_effects_candidate(mfa, func, effects) do
-    cond do
-      length(effects) < 2 ->
-        nil
-
-      Analysis.expected_effect_boundary?(func) ->
-        nil
-
-      true ->
-        %{
-          id: "R2-001",
-          kind: "isolate_effects",
-          target: Format.func_id_to_string(mfa),
-          file: func.source_span && func.source_span.file,
-          line: func.source_span && func.source_span.start_line,
-          benefit: :medium,
-          risk: :medium,
-          confidence: :medium,
-          actionability: :review_effect_order,
-          evidence: ["mixed_effects"],
-          effects: Enum.map(effects, &to_string/1),
-          proof: [
-            "Preserve side-effect order exactly.",
-            "Extract only pure decision/preparation code first.",
-            "Run tests covering both success and error paths."
-          ],
-          suggestion:
-            "Split pure decision logic from side-effect execution while preserving effect order."
-        }
-    end
-  end
-
-  defp extract_region_candidate(_mfa, _func, branch_count, _callers) when branch_count < 4,
-    do: nil
-
-  defp extract_region_candidate(mfa, func, branch_count, callers) do
-    %{
-      id: "R1-001",
-      kind: "extract_pure_region",
-      target: Format.func_id_to_string(mfa),
-      file: func.source_span && func.source_span.file,
-      line: func.source_span && func.source_span.start_line,
-      benefit: :medium,
-      risk: if(length(callers) > 3, do: :high, else: :medium),
-      confidence: :medium,
-      actionability: :needs_region_proof,
-      evidence: ["branchy_function", "caller_impact"],
-      branches: branch_count,
-      direct_caller_count: length(callers),
-      proof: [
-        "Identify a single-entry/single-exit region before editing.",
-        "Verify extracted region has explicit inputs and one clear output.",
-        "Add or run fixture tests around behavior and source spans."
-      ],
-      suggestion:
-        "Look for a single-entry/single-exit pure branch region before extracting. Do not extract by size alone."
-    }
-  end
-
-  defp maybe_candidate(candidates, nil), do: candidates
-  defp maybe_candidate(candidates, candidate), do: candidates ++ [candidate]
-
-  defp branch_count(func) do
-    func
-    |> IR.all_nodes()
-    |> Enum.count(
-      &(&1.type in [:case, :receive, :try] or
-          (&1.type == :binary_op and &1.meta[:operator] in [:and, :or, :&&, :||]))
-    )
-  end
-
-  defp function_effect_atoms(func) do
-    func
-    |> IR.all_nodes()
-    |> Enum.map(&Effects.classify/1)
-    |> Enum.uniq()
-    |> Enum.sort()
   end
 
   defp render_candidates_text(%{target: target, candidates: []}) do
