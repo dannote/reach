@@ -615,10 +615,42 @@ defmodule Reach.CLI.Analyses.Smell do
 
   defp render_group(findings, title) do
     IO.puts(Format.section(title))
-
-    Enum.each(findings, fn f ->
-      IO.puts("  #{f.location}")
-      IO.puts("    #{Format.yellow(f.message)}")
-    end)
+    Enum.each(findings, &render_finding/1)
   end
+
+  defp render_finding(%Finding{kind: :fixed_shape_map} = finding) do
+    IO.puts("  #{finding.location}")
+
+    summary =
+      [
+        Format.yellow("#{finding.occurrences}x"),
+        Format.bright(Enum.join(finding.keys, ", ")),
+        Format.faint("consider a struct or explicit contract")
+      ]
+      |> Enum.join("  ")
+
+    IO.puts("    #{summary}")
+    render_evidence(finding.evidence, finding.location)
+  end
+
+  defp render_finding(finding) do
+    IO.puts("  #{finding.location}")
+    IO.puts("    #{Format.yellow(finding.message)}")
+  end
+
+  defp render_evidence(evidence, primary_location) when is_list(evidence) do
+    evidence
+    |> Enum.reject(&(&1 == primary_location))
+    |> Enum.take(4)
+    |> case do
+      [] ->
+        :ok
+
+      locations ->
+        IO.puts("    #{Format.faint("also:")}")
+        Enum.each(locations, &IO.puts("      #{&1}"))
+    end
+  end
+
+  defp render_evidence(_evidence, _primary_location), do: :ok
 end
