@@ -218,10 +218,10 @@ defmodule Mix.Tasks.Reach.Check do
         IO.puts("  layer cycle: #{Enum.join(violation.layers, " -> ")}")
 
       %{type: "effect_policy"} = violation ->
-        IO.puts(
-          "  #{violation.file}:#{violation.line} #{violation.module}.#{violation.function} disallowed effects: " <>
-            Enum.join(violation.disallowed_effects, ", ")
-        )
+        IO.puts([
+          "  #{violation.file}:#{violation.line} #{violation.module}.#{violation.function} disallowed effects: ",
+          Enum.join(violation.disallowed_effects, ", ")
+        ])
 
       %{type: type} = violation when type in ["public_api_boundary", "internal_boundary"] ->
         IO.puts(
@@ -282,13 +282,14 @@ defmodule Mix.Tasks.Reach.Check do
   defp render_limited_section(_title, [], _render_fun), do: nil
 
   defp render_limited_section(title, items, render_fun) do
-    IO.puts("\n#{Format.section("#{title} (#{length(items)})")}")
+    item_count = length(items)
+    IO.puts("\n#{Format.section("#{title} (#{item_count})")}")
 
     items
     |> Enum.take(@text_limit)
     |> Enum.each(render_fun)
 
-    omitted = length(items) - @text_limit
+    omitted = item_count - @text_limit
 
     if omitted > 0, do: {title, omitted}
   end
@@ -302,7 +303,9 @@ defmodule Mix.Tasks.Reach.Check do
     summary =
       omitted
       |> Enum.reverse()
-      |> Enum.map_join(", ", fn {title, count} -> "#{title}: #{count}" end)
+      |> Enum.map(fn {title, count} -> [title, ": ", to_string(count)] end)
+      |> Enum.intersperse(", ")
+      |> IO.iodata_to_binary()
 
     IO.puts(
       "\n#{Format.faint("Output truncated (#{summary}). Use --format json for complete output.")}"
