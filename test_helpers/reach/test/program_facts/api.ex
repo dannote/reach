@@ -31,6 +31,43 @@ defmodule Reach.Test.ProgramFacts.API do
     |> MapSet.new()
   end
 
+  def variable_names(program) do
+    program
+    |> analyze()
+    |> all_nodes()
+    |> Enum.filter(&(&1.type == :var))
+    |> Enum.map(& &1.meta[:name])
+    |> MapSet.new()
+  end
+
+  def data_edge_labels(program) do
+    program
+    |> analyze()
+    |> Map.fetch!(:graph)
+    |> Graph.edges()
+    |> Enum.flat_map(fn
+      %Graph.Edge{label: {:data, variable}} -> [variable]
+      _edge -> []
+    end)
+    |> MapSet.new()
+  end
+
+  def call_present?(program, {module, function, arity}) do
+    program
+    |> analyze()
+    |> all_nodes()
+    |> Enum.any?(fn node ->
+      node.type == :call and node.meta[:module] == module and node.meta[:function] == function and
+        node.meta[:arity] == arity
+    end)
+  end
+
+  defp all_nodes(project) do
+    project.modules
+    |> Map.values()
+    |> Enum.flat_map(fn sdg -> Map.values(sdg.nodes) end)
+  end
+
   defp module_effects(module, sdg) do
     sdg.nodes
     |> Map.values()
