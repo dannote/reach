@@ -392,23 +392,48 @@ defmodule Reach.CLI.Analyses.Smell do
   end
 
   defp eager_call?(n) do
-    n.type == :call and n.meta[:module] in [Enum, List] and n.source_span != nil
+    n.type == :call and n.source_span != nil and
+      (n.meta[:module] in [Enum, List] or
+         (n.meta[:module] == nil and n.meta[:function] == :length))
   end
 
   defp eager_pattern_for_pair([first, second]) do
+    if data_connected?(first, second) do
+      eager_pattern_for_connected_pair(first, second)
+    else
+      []
+    end
+  end
+
+  defp eager_pattern_for_pair(_), do: []
+
+  defp eager_pattern_for_connected_pair(first, second) do
     case {first.meta[:function], second.meta[:function]} do
       {:map, :first} ->
-        if data_connected?(first, second), do: [map_first_smell(second)], else: []
+        [map_first_smell(second)]
 
       {:sort, :take} ->
-        if data_connected?(first, second), do: [sort_take_smell(second)], else: []
+        [sort_take_smell(second)]
+
+      {:sort, :reverse} ->
+        [sort_reverse_smell(second)]
+
+      {:sort, :at} ->
+        [sort_at_smell(second)]
+
+      {:drop, :take} ->
+        [drop_take_smell(second)]
+
+      {:take_while, function} when function in [:count, :length] ->
+        [take_while_count_smell(second)]
+
+      {:map, :join} ->
+        [map_join_smell(second)]
 
       _ ->
         []
     end
   end
-
-  defp eager_pattern_for_pair(_), do: []
 
   defp map_first_smell(second) do
     Finding.new(
@@ -422,7 +447,49 @@ defmodule Reach.CLI.Analyses.Smell do
     Finding.new(
       kind: :eager_pattern,
       message:
-        "Enum.sort → Enum.take(#{take_count(second)}): sorts entire list. Consider partial sort",
+        "Enum.sort → Enum.take(#{take_count(second)}): sorts entire list. Use Enum.min/max for one element or a partial top-k pass",
+      location: Format.location(second)
+    )
+  end
+
+  defp sort_reverse_smell(second) do
+    Finding.new(
+      kind: :eager_pattern,
+      message: "Enum.sort → Enum.reverse: use Enum.sort(enumerable, :desc) instead",
+      location: Format.location(second)
+    )
+  end
+
+  defp sort_at_smell(second) do
+    Finding.new(
+      kind: :eager_pattern,
+      message:
+        "Enum.sort → Enum.at(#{take_count(second)}): full sort for one element. Use Enum.min/max or a selection pass",
+      location: Format.location(second)
+    )
+  end
+
+  defp drop_take_smell(second) do
+    Finding.new(
+      kind: :eager_pattern,
+      message: "Enum.drop → Enum.take: use Enum.slice/3 to express slicing intent",
+      location: Format.location(second)
+    )
+  end
+
+  defp take_while_count_smell(second) do
+    Finding.new(
+      kind: :eager_pattern,
+      message:
+        "Enum.take_while → count/length: allocates an intermediate list. Use Enum.all?/2 or Enum.reduce_while/3",
+      location: Format.location(second)
+    )
+  end
+
+  defp map_join_smell(second) do
+    Finding.new(
+      kind: :eager_pattern,
+      message: "Enum.map → Enum.join: use Enum.map_join/3 when the intended result is a binary",
       location: Format.location(second)
     )
   end
