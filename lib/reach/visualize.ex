@@ -8,7 +8,7 @@ defmodule Reach.Visualize do
   # ── Public API ──
 
   def to_graph_json(graph, opts \\ []) do
-    %Reach.Visualize.GraphJSON{
+    %Reach.Visualize.Graph.JSON{
       control_flow: ControlFlow.build(Reach.nodes(graph), graph),
       call_graph: call_graph_data(graph),
       data_flow: data_flow_data(graph, opts)

@@ -1,4 +1,4 @@
-defmodule Reach.Visualize.GraphJSON do
+defmodule Reach.Visualize.Graph.JSON do
   @moduledoc false
 
   @derive Jason.Encoder
