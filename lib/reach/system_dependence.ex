@@ -2,7 +2,7 @@ defmodule Reach.SystemDependence do
   @moduledoc false
 
   import Reach.IR.Helpers, only: [param_var_name: 1, var_used_in_subtree?: 2]
-  alias Reach.{CallGraph, ControlDependence, ControlFlow, DataDependence, IR, OTP}
+  alias Reach.{CallGraph, ControlDependence, ControlFlow, DataDependence, IR, OTP, Plugin}
   alias Reach.IR.Node
 
   @type function_id :: CallGraph.function_id()
@@ -53,8 +53,8 @@ defmodule Reach.SystemDependence do
     graph = Graph.add_edges(graph, Graph.edges(otp_edges))
     graph = Graph.add_edges(graph, Graph.edges(concurrency_edges))
 
-    plugins = Reach.Plugin.resolve(opts)
-    plugin_edges = Reach.Plugin.run_analyze(plugins, all_nodes, opts)
+    plugins = Plugin.resolve(opts)
+    plugin_edges = Plugin.run_analyze(plugins, all_nodes, opts)
 
     graph =
       Enum.reduce(plugin_edges, graph, fn {v1, v2, label}, g ->
@@ -62,7 +62,7 @@ defmodule Reach.SystemDependence do
       end)
 
     {embedded_nodes, embedded_edges} =
-      Reach.Plugin.run_analyze_embedded(plugins, all_nodes, opts)
+      Plugin.run_analyze_embedded(plugins, all_nodes, opts)
 
     {node_map, graph} =
       if embedded_nodes != [] do
@@ -142,7 +142,7 @@ defmodule Reach.SystemDependence do
     |> Reach.Graph.merge()
   end
 
-  @doc false
+  @doc "Adds interprocedural call edges when building a project-wide graph."
   def add_call_edges_with_externals(graph, all_nodes, func_defs, opts) do
     add_call_edges(graph, all_nodes, func_defs, %{}, opts)
   end
@@ -195,7 +195,7 @@ defmodule Reach.SystemDependence do
     |> connect_return_value(call_node, callee_def)
   end
 
-  @doc false
+  @doc "Applies a precomputed external function summary to a call node."
   def apply_summary(graph, call_node, param_flows) do
     graph = Graph.add_vertex(graph, call_node.id)
 
@@ -342,9 +342,11 @@ defmodule Reach.SystemDependence do
         node.type == :clause and node.meta[:kind] == :function_clause
       end)
       |> Enum.flat_map(fn clause ->
-        case List.last(clause.children) do
-          nil -> []
-          last -> [last]
+        clause.children
+        |> Enum.reverse()
+        |> case do
+          [] -> []
+          [last | _rest] -> [last]
         end
       end)
 

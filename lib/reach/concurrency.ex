@@ -233,7 +233,8 @@ defmodule Reach.Concurrency do
 
   defp extract_child_module(_), do: nil
 
-  defp add_child_order_edges(graph, children) when length(children) < 2, do: graph
+  defp add_child_order_edges(graph, []), do: graph
+  defp add_child_order_edges(graph, [_single]), do: graph
 
   defp add_child_order_edges(graph, children) do
     children

@@ -139,7 +139,8 @@ defmodule Reach.Dominator do
     end
   end
 
-  defp add_frontier_entries(preds, _node, _idom_map, df) when length(preds) < 2, do: df
+  defp add_frontier_entries([], _node, _idom_map, df), do: df
+  defp add_frontier_entries([_single], _node, _idom_map, df), do: df
 
   defp add_frontier_entries(preds, node, idom_map, df) do
     Enum.reduce(preds, df, fn pred, df_acc ->

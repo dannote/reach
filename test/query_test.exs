@@ -53,7 +53,7 @@ defmodule Reach.QueryTest do
             &(&1.type == :match and match?(%{children: [%{meta: %{name: :x}} | _]}, &1))
           )
 
-        y_use = List.last(y_nodes)
+        y_use = y_nodes |> Enum.reverse() |> List.first()
 
         if x_def && y_use do
           assert is_boolean(Reach.data_flows?(graph, x_def.id, y_use.id))

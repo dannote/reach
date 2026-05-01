@@ -81,7 +81,6 @@ defmodule Reach.ControlDependenceTest do
 
   describe "control dependence from hand-built control flow" do
     test "diamond: branches control-dependent on condition" do
-      # Build a manual diamond CFG:
       #  entry -> cond -> true_branch -> join -> exit
       #  entry -> cond -> false_branch -> join -> exit
       control_flow =

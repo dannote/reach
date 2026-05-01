@@ -127,14 +127,14 @@ defmodule Reach.Plugin do
     end)
   end
 
-  @doc false
+  @doc "Runs module-local analysis hooks for the configured plugins."
   def run_analyze(plugins, all_nodes, opts) do
     Enum.flat_map(plugins, fn plugin ->
       plugin.analyze(all_nodes, opts)
     end)
   end
 
-  @doc false
+  @doc "Runs embedded-node analysis hooks for plugins that provide them."
   def run_analyze_embedded(plugins, all_nodes, opts) do
     Enum.reduce(plugins, {[], []}, fn plugin, {all_nodes_acc, edges_acc} ->
       if Code.ensure_loaded?(plugin) and function_exported?(plugin, :analyze_embedded, 2) do
@@ -146,7 +146,7 @@ defmodule Reach.Plugin do
     end)
   end
 
-  @doc false
+  @doc "Runs project-level analysis hooks for plugins that provide them."
   def run_analyze_project(plugins, modules, all_nodes, opts) do
     Enum.flat_map(plugins, fn plugin ->
       if Code.ensure_loaded?(plugin) and function_exported?(plugin, :analyze_project, 3) do

@@ -270,7 +270,7 @@ defmodule Reach.ControlFlow do
     end)
   end
 
-  defp last_exit(exits), do: List.last(exits)
+  defp last_exit(exits), do: exits |> Enum.reverse() |> List.first()
 
   defp build_sequential(graph, nodes, from) when is_list(from) do
     build_sequential(graph, nodes, hd(from), tl(from))

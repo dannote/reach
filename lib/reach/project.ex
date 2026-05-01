@@ -370,9 +370,11 @@ defmodule Reach.Project do
     |> IR.all_nodes()
     |> Enum.filter(&(&1.type == :clause and &1.meta[:kind] == :function_clause))
     |> Enum.flat_map(fn clause ->
-      case List.last(clause.children) do
-        nil -> []
-        last -> [last]
+      clause.children
+      |> Enum.reverse()
+      |> case do
+        [] -> []
+        [last | _rest] -> [last]
       end
     end)
   end

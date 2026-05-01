@@ -43,7 +43,7 @@ defmodule Reach do
       Reach.pure?(node)  #=> true
   """
 
-  alias Reach.{Effects, Frontend, SystemDependence}
+  alias Reach.{Effects, Frontend, IR, SystemDependence}
   alias Reach.IR.{Counter, Node}
   import Reach.IR.Helpers, only: [module_from_path: 1]
 
@@ -655,7 +655,7 @@ defmodule Reach do
       case node do
         %{type: t, children: children}
         when t in [:block, :clause, :catch_clause, :rescue, :after] ->
-          List.last(children)
+          children |> Enum.reverse() |> List.first()
 
         other ->
           other
@@ -874,7 +874,7 @@ defmodule Reach do
     alive_refs =
       all_nodes
       |> Enum.filter(&MapSet.member?(alive_ids, &1.id))
-      |> Enum.flat_map(&Reach.IR.all_nodes/1)
+      |> Enum.flat_map(&IR.all_nodes/1)
       |> Enum.filter(fn n -> n.type == :var and n.meta[:binding_role] != :definition end)
       |> Enum.map(& &1.meta[:name])
       |> MapSet.new()
