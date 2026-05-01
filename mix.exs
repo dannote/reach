@@ -60,6 +60,7 @@ defmodule Reach.MixProject do
       {:stream_data, "~> 1.0", only: [:test, :dev]},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:ex_slop, "~> 0.4", only: [:dev, :test], runtime: false},
       {:jason, "~> 1.0", optional: true},
       {:boxart, "~> 0.3.3", optional: true},
       {:makeup, "~> 1.0", optional: true},
