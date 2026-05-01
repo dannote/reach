@@ -70,6 +70,7 @@
 - **Changed deletion handling** — deletion-only hunks are no longer attributed to a synthetic current-file line.
 - **Inspect data returns** — `reach.inspect --data` now summarizes clause final expressions rather than direct clause nodes.
 - **Loose map contract detection** — `reach.check --smells` now flags same-variable atom/string key fallback patterns such as `metadata["id"] || metadata[:id]`, a common sign that a map should be normalized once or replaced with a struct/explicit contract. Smell checks are now structured as individual checks behind a small behaviour.
+- **Repeated map shape detection** — `reach.check --smells` flags repeated atom-key map literals with the same shape as possible struct/contract candidates.
 
 ### Documentation
 
