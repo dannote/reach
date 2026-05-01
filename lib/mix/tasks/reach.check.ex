@@ -27,10 +27,12 @@ defmodule Mix.Tasks.Reach.Check do
   alias Reach.Check.Architecture
   alias Reach.Check.Candidates
   alias Reach.Check.Changed
+  alias Reach.CLI.Format
   alias Reach.CLI.Project
   alias Reach.CLI.TaskRunner
 
   @shortdoc "Structural validation and change-safety checks"
+  @text_limit 30
 
   @switches [
     format: :string,
@@ -143,39 +145,44 @@ defmodule Mix.Tasks.Reach.Check do
   defp maybe_put(args, flag, value), do: args ++ [flag, to_string(value)]
 
   defp render_candidates_text(%{candidates: []}) do
+    IO.puts(Format.header("Refactoring Candidates"))
     IO.puts("No refactoring candidates found.")
   end
 
   defp render_candidates_text(%{candidates: candidates, note: note}) do
-    IO.puts("Refactoring candidates (#{length(candidates)})")
-    IO.puts(note)
+    IO.puts(Format.header("Refactoring Candidates (#{length(candidates)})"))
+    IO.puts(Format.faint(note))
     IO.puts("")
 
     Enum.each(candidates, fn candidate ->
-      IO.puts("#{candidate.id} #{candidate.kind} #{candidate.target}")
+      IO.puts(
+        "  #{Format.bright(candidate.id)} #{Format.yellow(candidate.kind)} #{candidate.target}"
+      )
 
       IO.puts(
-        "  benefit=#{candidate.benefit} risk=#{candidate.risk} confidence=#{candidate[:confidence] || :unknown}"
+        "    benefit=#{candidate.benefit} risk=#{candidate.risk} confidence=#{candidate[:confidence] || :unknown}"
       )
 
       if candidate[:file] do
-        IO.puts("  location=#{candidate.file}:#{candidate.line}")
+        IO.puts("    #{Format.faint("#{candidate.file}:#{candidate.line}")}")
       end
 
-      IO.puts("  evidence=#{Enum.join(candidate.evidence, ",")}")
+      IO.puts("    evidence=#{Enum.join(candidate.evidence, ",")}")
 
       render_representative_calls(candidate)
 
-      IO.puts("  suggestion=#{candidate.suggestion}")
+      IO.puts("    suggestion=#{candidate.suggestion}")
       IO.puts("")
     end)
   end
 
   defp render_representative_calls(%{representative_calls: calls}) when calls != [] do
-    IO.puts("  representative calls:")
+    IO.puts("    representative calls:")
 
     Enum.each(calls, fn call ->
-      IO.puts("    #{call.file}:#{call.line} #{call.caller_module} -> #{call.call}")
+      IO.puts(
+        "      #{Format.faint("#{call.file}:#{call.line}")} #{call.caller_module} -> #{call.call}"
+      )
     end)
   end
 
@@ -189,11 +196,13 @@ defmodule Mix.Tasks.Reach.Check do
   defp render_result(result, _format, text_fun), do: text_fun.(result)
 
   defp render_arch_text(%{violations: []}) do
-    IO.puts("Architecture policy: OK")
+    IO.puts(Format.header("Architecture Policy"))
+    IO.puts("  #{Format.green("OK")}")
   end
 
   defp render_arch_text(%{violations: violations}) do
-    IO.puts("Architecture policy: #{length(violations)} violation(s)")
+    IO.puts(Format.header("Architecture Policy"))
+    IO.puts("  #{Format.red("#{length(violations)} violation(s)")}")
 
     Enum.each(violations, fn
       %{type: "config_error"} = violation ->
@@ -222,37 +231,56 @@ defmodule Mix.Tasks.Reach.Check do
   end
 
   defp render_changed_text(result) do
-    IO.puts("Changed files against #{result.base}:")
-    IO.puts("Overall risk: #{result.risk}")
+    IO.puts(Format.header("Changed Code"))
+    IO.puts("  base=#{result.base} risk=#{risk_label(result.risk)}")
 
     if result.risk_reasons != [] do
-      IO.puts("Risk reasons: #{Enum.join(result.risk_reasons, ", ")}")
+      IO.puts("  reasons=#{Enum.join(result.risk_reasons, ", ")}")
     end
 
-    Enum.each(result.changed_files, fn file ->
-      IO.puts("  #{file}")
+    render_limited_section("Changed files", result.changed_files, &IO.puts("  #{&1}"))
+
+    render_limited_section("Changed functions", result.changed_functions, fn function ->
+      IO.puts(
+        "  #{Format.bright(function.id)} #{Format.faint("#{function.file}:#{function.line}")} risk=#{risk_label(function.risk)} callers=#{function.direct_caller_count}/#{function.transitive_caller_count} branches=#{function.branch_count} effects=#{Enum.join(function.effects, ",")}"
+      )
     end)
 
-    if result.changed_functions != [] do
-      IO.puts("\nChanged functions:")
+    render_limited_section("Public API touched", result.public_api_changes, fn function ->
+      IO.puts(
+        "  #{Format.bright(function.id)} #{Format.faint("#{function.file}:#{function.line}")}"
+      )
+    end)
 
-      Enum.each(result.changed_functions, fn function ->
-        IO.puts(
-          "  #{function.id} #{function.file}:#{function.line} risk=#{function.risk} callers=#{function.direct_caller_count}/#{function.transitive_caller_count} branches=#{function.branch_count} effects=#{Enum.join(function.effects, ",")}"
-        )
-      end)
-    end
+    render_limited_section(
+      "Suggested tests",
+      result.suggested_tests,
+      &IO.puts("  mix test #{&1}")
+    )
+  end
 
-    if result.public_api_changes != [] do
-      IO.puts("\nPublic API touched:")
-      Enum.each(result.public_api_changes, &IO.puts("  #{&1.id} #{&1.file}:#{&1.line}"))
-    end
+  defp render_limited_section(_title, [], _render_fun), do: :ok
 
-    if result.suggested_tests != [] do
-      IO.puts("\nSuggested tests:")
-      Enum.each(result.suggested_tests, &IO.puts("  mix test #{&1}"))
+  defp render_limited_section(title, items, render_fun) do
+    IO.puts("\n#{Format.section("#{title} (#{length(items)})")}")
+
+    items
+    |> Enum.take(@text_limit)
+    |> Enum.each(render_fun)
+
+    omitted = length(items) - @text_limit
+
+    if omitted > 0 do
+      IO.puts(
+        "  #{Format.faint("... #{omitted} more omitted. Use --format json for complete output.")}"
+      )
     end
   end
+
+  defp risk_label(:high), do: Format.red("high")
+  defp risk_label(:medium), do: Format.yellow("medium")
+  defp risk_label(:low), do: Format.green("low")
+  defp risk_label(other), do: to_string(other)
 
   defp json_envelope(result) do
     %Reach.CLI.JSONEnvelope{
