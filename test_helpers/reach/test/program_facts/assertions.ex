@@ -69,6 +69,39 @@ defmodule Reach.Test.ProgramFacts.Assertions do
     end)
   end
 
+  def assert_syntax_visible(program) do
+    types = API.node_types(program)
+
+    case program.metadata.policy do
+      :guard_clause ->
+        assert_node_type(types, :guard)
+        assert_branches_visible(program)
+
+      :try_rescue_after ->
+        assert_node_type(types, :try)
+        assert_node_type(types, :rescue)
+        assert_node_type(types, :after)
+        assert_branches_visible(program)
+
+      :receive_message ->
+        assert_node_type(types, :receive)
+        assert_branches_visible(program)
+
+      :comprehension ->
+        assert_node_type(types, :comprehension)
+        assert_node_type(types, :generator)
+        assert_data_flow_visible(program)
+
+      :struct_update ->
+        assert_node_type(types, :struct)
+        assert_node_type(types, :map)
+        assert_data_flow_visible(program)
+
+      :default_arguments ->
+        assert_function_defs_visible(program)
+    end
+  end
+
   defp assert_subset(expected, actual, label) do
     missing = MapSet.difference(expected, actual)
 
@@ -90,7 +123,23 @@ defmodule Reach.Test.ProgramFacts.Assertions do
            "expected generated multi-clause function dispatch to be visible"
   end
 
+  defp assert_branch_construct_visible(%{kind: :guard}, summary) do
+    assert function_clause_count(summary) >= 2,
+           "expected generated guard clauses to be visible"
+  end
+
+  defp assert_branch_construct_visible(%{kind: :try}, summary) do
+    assert [_ | _] = summary.clauses
+  end
+
+  defp assert_branch_construct_visible(%{kind: :receive}, summary) do
+    assert count_clause_kind(summary, [:receive_clause, :timeout_clause]) >= 2,
+           "expected generated receive clauses to be visible"
+  end
+
   defp assert_branch_construct_visible(%{kind: :callback}, _summary), do: :ok
+
+  defp assert_branch_clauses_visible(%{kind: :try}, _summary), do: :ok
 
   defp assert_branch_clauses_visible(%{clauses: expected, kind: kind}, summary) do
     actual = clause_count(summary, kind)
@@ -120,6 +169,25 @@ defmodule Reach.Test.ProgramFacts.Assertions do
   defp clause_count(summary, :anonymous_fn), do: count_clause_kind(summary, [:fn_clause])
   defp clause_count(summary, :multi_clause_function), do: function_clause_count(summary)
   defp clause_count(summary, :callback), do: function_clause_count(summary)
+  defp clause_count(summary, :guard), do: function_clause_count(summary)
+  defp clause_count(summary, :try), do: function_clause_count(summary)
+  defp clause_count(summary, :receive), do: count_clause_kind(summary, [:receive_clause, :timeout_clause])
+
+  defp assert_node_type(types, type) do
+    assert Map.get(types, type, 0) > 0,
+           "expected generated #{type} syntax to be visible, got node types: #{inspect(types)}"
+  end
+
+  defp assert_function_defs_visible(program) do
+    actual = API.function_defs(program)
+
+    expected =
+      program.facts.functions
+      |> Enum.map(fn {_module, function, arity} -> {function, arity} end)
+      |> MapSet.new()
+
+    assert_subset(expected, actual, "generated function definitions")
+  end
 
   defp count_clause_kind(summary, kinds) do
     Enum.count(summary.clauses, &(&1.meta[:kind] in kinds))

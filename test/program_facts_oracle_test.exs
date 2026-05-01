@@ -35,6 +35,15 @@ defmodule Reach.ProgramFactsOracleTest do
     :nested_branches
   ]
 
+  @syntax_policies [
+    :guard_clause,
+    :try_rescue_after,
+    :receive_message,
+    :comprehension,
+    :struct_update,
+    :default_arguments
+  ]
+
   @architecture_policies [
     :layered_valid,
     :forbidden_dependency,
@@ -77,6 +86,15 @@ defmodule Reach.ProgramFactsOracleTest do
 
       Assertions.assert_modules_discovered(program)
       Assertions.assert_branches_visible(program)
+    end
+  end
+
+  test "direct API exposes generated syntax oracle facts" do
+    for {policy, index} <- Enum.with_index(@syntax_policies, 1) do
+      program = ProgramFacts.generate!(policy: policy, seed: 1_900 + index)
+
+      Assertions.assert_modules_discovered(program)
+      Assertions.assert_syntax_visible(program)
     end
   end
 
