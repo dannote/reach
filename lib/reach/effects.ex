@@ -449,7 +449,7 @@ defmodule Reach.Effects do
 
   @classify_cache :reach_classify_cache
 
-  @doc false
+  @doc "Ensures the effect-classification ETS cache exists."
   def ensure_cache do
     if :ets.whereis(@classify_cache) == :undefined do
       :ets.new(@classify_cache, [:set, :public, :named_table, read_concurrency: true])
@@ -882,10 +882,10 @@ defmodule Reach.Effects do
 
   # --- Pure function database ---
 
-  @doc false
+  @doc "Returns modules whose functions are pure by default unless explicitly listed otherwise."
   def pure_modules, do: @pure_modules
 
-  @doc false
+  @doc "Returns true when a module/function/arity is classified as pure."
   def pure_call?(module, function, arity) do
     classify_pure(module, function, arity) == :pure
   end

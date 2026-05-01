@@ -48,7 +48,7 @@ defmodule Reach.Check.Candidates do
 
     deps
     |> Map.keys()
-    |> Enum.flat_map(&walk_module_cycle(deps, &1, &1, [], 5))
+    |> Enum.flat_map(&walk_module_cycle(deps, &1, &1, [], 5, 0))
     |> Enum.map(&canonical_module_cycle/1)
     |> Enum.uniq()
     |> minimal_cycles()
@@ -143,16 +143,18 @@ defmodule Reach.Check.Candidates do
     }
   end
 
-  defp walk_module_cycle(_deps, _start, _current, path, max) when length(path) >= max, do: []
+  defp walk_module_cycle(_deps, _start, _current, _path, max_depth, depth)
+       when depth >= max_depth,
+       do: []
 
-  defp walk_module_cycle(deps, start, current, path, max) do
+  defp walk_module_cycle(deps, start, current, path, max_depth, depth) do
     deps
     |> Map.get(current, [])
     |> Enum.flat_map(fn next ->
       cond do
         next == start and path != [] -> [Enum.reverse([current | path])]
         next in path -> []
-        true -> walk_module_cycle(deps, start, next, [current | path], max)
+        true -> walk_module_cycle(deps, start, next, [current | path], max_depth, depth + 1)
       end
     end)
   end

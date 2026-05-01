@@ -214,8 +214,8 @@ defmodule Reach.OTP.Analysis do
         name
 
       _ ->
-        case List.last(children) do
-          %{type: :var, meta: %{name: name}} -> name
+        case Enum.reverse(children) do
+          [%{type: :var, meta: %{name: name}} | _rest] -> name
           _ -> nil
         end
     end

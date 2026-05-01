@@ -1056,7 +1056,7 @@ defmodule Reach.Frontend.Elixir do
   defp extract_alias_forms({:alias, _, [{:__aliases__, _, parts}]}) when is_list(parts) do
     if Enum.all?(parts, &is_atom/1) do
       full = Module.concat(parts)
-      short = List.last(parts) |> then(&Module.concat([&1]))
+      short = parts |> Enum.reverse() |> List.first() |> then(&Module.concat([&1]))
       [{short, full}]
     else
       []

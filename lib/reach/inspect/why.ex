@@ -155,13 +155,13 @@ defmodule Reach.Inspect.Why do
   defp bfs_path([], _graph, _targets, _max_depth, _visited), do: nil
 
   defp bfs_path([path | rest], graph, targets, max_depth, visited) do
-    current = List.last(path)
+    current = path |> Enum.reverse() |> List.first()
 
     cond do
       current in targets ->
         path
 
-      length(path) > max_depth ->
+      path_depth(path) > max_depth ->
         bfs_path(rest, graph, targets, max_depth, visited)
 
       true ->
@@ -175,6 +175,8 @@ defmodule Reach.Inspect.Why do
         bfs_path(rest ++ next_paths, graph, targets, max_depth, next_visited)
     end
   end
+
+  defp path_depth(path), do: path |> Enum.reduce(0, fn _node, count -> count + 1 end)
 
   defp why_vertex?(vertex), do: Project.mfa?(vertex) or is_atom(vertex)
 

@@ -48,7 +48,7 @@ defmodule Reach.OTP.DeadReply do
   defp value_unused?(call, parent) do
     case parent.type do
       :block ->
-        last = List.last(parent.children)
+        last = parent.children |> Enum.reverse() |> List.first()
         last == nil or last.id != call.id
 
       :function_def ->

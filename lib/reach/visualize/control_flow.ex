@@ -384,7 +384,7 @@ defmodule Reach.Visualize.ControlFlow do
        ) do
     if mergeable_vertex?(v, branch_vertices, in_degree, out_edges_by) and
          sequential_prev?(prev_v, branch_vertices, out_edges_by) and
-         connected_sequential?(List.last(prev_block), v, cfg) do
+         connected_sequential?(prev_block |> Enum.reverse() |> List.first(), v, cfg) do
       [prev_block ++ [v] | rest]
     else
       [[v], prev_block | rest]
@@ -522,7 +522,7 @@ defmodule Reach.Visualize.ControlFlow do
     label = ir_label(node)
 
     if length(block) > 1 do
-      last = Map.get(node_map, List.last(block))
+      last = Map.get(node_map, block |> Enum.reverse() |> List.first())
 
       if last && last != node do
         "#{label}..#{ir_label(last)}"
