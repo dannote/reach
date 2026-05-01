@@ -1,0 +1,295 @@
+defmodule Reach.Check.Candidates do
+  @moduledoc false
+
+  alias Reach.Analysis
+  alias Reach.Check.{Architecture, Changed}
+  alias Reach.CLI.Format
+  alias Reach.CLI.Project
+
+  @note "Candidates are advisory. Reach reports graph/effect/architecture evidence; prove behavior preservation before editing."
+
+  def run(project, config, opts \\ []) do
+    top = Keyword.get(opts, :top, 40)
+
+    candidates =
+      (mixed_effect_candidates(project) ++
+         extract_region_candidates(project) ++
+         boundary_candidates(project, config) ++
+         cycle_candidates(project))
+      |> Enum.uniq_by(& &1.id)
+      |> Enum.sort_by(&candidate_rank/1)
+      |> Enum.take(top)
+
+    %{candidates: candidates, note: @note}
+  end
+
+  defp candidate_rank(candidate) do
+    kind_rank = %{
+      "introduce_boundary" => 0,
+      "isolate_effects" => 1,
+      "extract_pure_region" => 2,
+      "break_cycle" => 3
+    }
+
+    risk_rank = %{high: 0, medium: 1, low: 2}
+    benefit_rank = %{high: 0, medium: 1, low: 2}
+
+    {
+      Map.get(kind_rank, candidate.kind, 9),
+      Map.get(risk_rank, candidate.risk, 3),
+      Map.get(benefit_rank, candidate.benefit, 3),
+      candidate.id
+    }
+  end
+
+  defp cycle_candidates(project) do
+    deps = module_dependency_map(project)
+    call_examples = module_call_examples(project)
+
+    deps
+    |> Map.keys()
+    |> Enum.flat_map(&walk_module_cycle(deps, &1, &1, [], 5))
+    |> Enum.map(&canonical_module_cycle/1)
+    |> Enum.uniq()
+    |> minimal_cycles()
+    |> Enum.take(20)
+    |> Enum.with_index(1)
+    |> Enum.map(fn {cycle, index} ->
+      %{
+        id: candidate_id("R3", index),
+        kind: "break_cycle",
+        target: Enum.join(cycle, " -> "),
+        benefit: :high,
+        risk: :medium,
+        confidence: :low,
+        actionability: :needs_project_policy,
+        evidence: ["module_dependency_cycle"],
+        proof: [
+          "Confirm the cycle violates intended architecture before changing code.",
+          "Review representative_calls to find the smallest boundary-breaking call.",
+          "Prefer moving shared helpers downward over introducing a new abstraction."
+        ],
+        suggestion:
+          "Move shared code to a lower-level module or route calls through an existing boundary.",
+        modules: cycle,
+        representative_calls: representative_cycle_calls(cycle, call_examples)
+      }
+    end)
+  end
+
+  defp module_dependency_map(project) do
+    project
+    |> module_call_edges()
+    |> Enum.reduce(%{}, fn edge, acc ->
+      Map.update(acc, edge.caller, MapSet.new([edge.callee]), &MapSet.put(&1, edge.callee))
+    end)
+    |> Map.new(fn {module, deps} -> {module, MapSet.to_list(deps)} end)
+  end
+
+  defp module_call_examples(project) do
+    project
+    |> module_call_edges()
+    |> Enum.group_by(&{inspect(&1.caller), inspect(&1.callee)})
+    |> Map.new(fn {key, edges} ->
+      {key, Enum.take(edges, 3) |> Enum.map(&representative_call/1)}
+    end)
+  end
+
+  defp module_call_edges(project) do
+    modules =
+      project.nodes
+      |> Map.values()
+      |> Enum.filter(&(&1.type == :module_def))
+      |> MapSet.new(& &1.meta[:name])
+
+    module_by_file = Architecture.module_by_file(project)
+
+    project.nodes
+    |> Map.values()
+    |> Enum.filter(&Architecture.remote_call?/1)
+    |> Enum.flat_map(fn node ->
+      caller = node.source_span && Map.get(module_by_file, node.source_span.file)
+      callee = node.meta[:module]
+
+      if caller && callee && caller != callee && MapSet.member?(modules, callee) do
+        [%{caller: caller, callee: callee, node: node}]
+      else
+        []
+      end
+    end)
+  end
+
+  defp representative_cycle_calls(cycle, call_examples) do
+    cycle
+    |> cycle_pairs()
+    |> Enum.flat_map(&Map.get(call_examples, &1, []))
+    |> Enum.take(10)
+  end
+
+  defp cycle_pairs(cycle) do
+    cycle
+    |> Enum.zip(tl(cycle) ++ [hd(cycle)])
+    |> Enum.flat_map(fn {left, right} -> [{left, right}, {right, left}] end)
+    |> Enum.uniq()
+  end
+
+  defp representative_call(%{caller: caller, callee: callee, node: node}) do
+    %{
+      caller_module: inspect(caller),
+      callee_module: inspect(callee),
+      file: node.source_span && node.source_span.file,
+      line: node.source_span && node.source_span.start_line,
+      call: "#{inspect(callee)}.#{node.meta[:function]}/#{node.meta[:arity]}"
+    }
+  end
+
+  defp walk_module_cycle(_deps, _start, _current, path, max) when length(path) >= max, do: []
+
+  defp walk_module_cycle(deps, start, current, path, max) do
+    deps
+    |> Map.get(current, [])
+    |> Enum.flat_map(fn next ->
+      cond do
+        next == start and path != [] -> [Enum.reverse([current | path])]
+        next in path -> []
+        true -> walk_module_cycle(deps, start, next, [current | path], max)
+      end
+    end)
+  end
+
+  defp canonical_module_cycle(cycle) do
+    cycle
+    |> Enum.map(&inspect/1)
+    |> Enum.sort()
+  end
+
+  defp minimal_cycles(cycles) do
+    sorted = Enum.sort_by(cycles, &length/1)
+
+    Enum.reduce(sorted, [], fn cycle, kept ->
+      cycle_set = MapSet.new(cycle)
+
+      if Enum.any?(kept, &MapSet.subset?(MapSet.new(&1), cycle_set)) do
+        kept
+      else
+        kept ++ [cycle]
+      end
+    end)
+  end
+
+  defp mixed_effect_candidates(project) do
+    project.nodes
+    |> Map.values()
+    |> Enum.filter(&(&1.type == :function_def and &1.source_span))
+    |> Enum.reject(&Analysis.expected_effect_boundary?/1)
+    |> Enum.map(fn func -> {func, Architecture.concrete_effects(func)} end)
+    |> Enum.filter(fn {_func, effects} -> length(effects) >= 2 end)
+    |> Enum.sort_by(fn {func, effects} ->
+      {-length(effects), func.source_span.file, func.source_span.start_line}
+    end)
+    |> Enum.take(20)
+    |> Enum.with_index(1)
+    |> Enum.map(fn {{func, effects}, index} ->
+      id = {func.meta[:module], func.meta[:name], func.meta[:arity]}
+
+      %{
+        id: candidate_id("R2", index),
+        kind: "isolate_effects",
+        target: Format.func_id_to_string(id),
+        file: func.source_span.file,
+        line: func.source_span.start_line,
+        benefit: :medium,
+        risk: :medium,
+        confidence: :medium,
+        actionability: :review_effect_order,
+        evidence: ["mixed_effects"],
+        effects: Enum.map(effects, &to_string/1),
+        proof: [
+          "Preserve side-effect order exactly.",
+          "Extract only pure decision/preparation code first.",
+          "Run tests covering both success and error paths."
+        ],
+        suggestion:
+          "Split pure decision logic from side-effect execution while preserving effect order."
+      }
+    end)
+  end
+
+  defp extract_region_candidates(project) do
+    project.nodes
+    |> Map.values()
+    |> Enum.filter(&(&1.type == :function_def and &1.source_span))
+    |> Enum.map(fn func ->
+      {func, Changed.branch_count(func), Project.callers(project, function_id(func), 1)}
+    end)
+    |> Enum.filter(fn {_func, branches, callers} -> branches >= 8 and callers != [] end)
+    |> Enum.reject(fn {func, _branches, _callers} ->
+      Analysis.expected_effect_boundary?(func) and Changed.branch_count(func) < 20
+    end)
+    |> Enum.sort_by(fn {func, branches, callers} ->
+      {-branches * max(length(callers), 1), func.source_span.file, func.source_span.start_line}
+    end)
+    |> Enum.take(20)
+    |> Enum.with_index(1)
+    |> Enum.map(fn {{func, branches, callers}, index} ->
+      %{
+        id: candidate_id("R1", index),
+        kind: "extract_pure_region",
+        target: Format.func_id_to_string(function_id(func)),
+        file: func.source_span.file,
+        line: func.source_span.start_line,
+        benefit: :medium,
+        risk: if(length(callers) > 3, do: :high, else: :medium),
+        confidence: :medium,
+        actionability: :needs_region_proof,
+        evidence: ["branchy_function", "caller_impact"],
+        branches: branches,
+        direct_caller_count: length(callers),
+        proof: [
+          "Identify a single-entry/single-exit region before editing.",
+          "Verify extracted region has explicit inputs and one clear output.",
+          "Add or run fixture tests around behavior and source spans."
+        ],
+        suggestion:
+          "Look for a single-entry/single-exit pure branch region before extracting. Do not extract by size alone."
+      }
+    end)
+  end
+
+  defp function_id(func), do: {func.meta[:module], func.meta[:name], func.meta[:arity]}
+
+  defp boundary_candidates(_project, []), do: []
+
+  defp boundary_candidates(project, config) do
+    layer_graph = Architecture.layer_graph(project, config)
+
+    Architecture.dependency_violations(project, config, layer_graph)
+    |> Enum.take(20)
+    |> Enum.with_index(1)
+    |> Enum.map(fn {violation, index} ->
+      %{
+        id: candidate_id("R5", index),
+        kind: "introduce_boundary",
+        target: "#{violation.caller_layer} -> #{violation.callee_layer}",
+        file: violation.file,
+        line: violation.line,
+        benefit: :high,
+        risk: :medium,
+        confidence: :high,
+        actionability: :policy_violation,
+        evidence: ["architecture_policy_violation", "forbidden_dependency"],
+        call: violation.call,
+        proof: [
+          "Verify the .reach.exs policy matches the intended architecture.",
+          "Route through an existing boundary when possible.",
+          "Avoid making internal modules public just to silence the violation."
+        ],
+        suggestion:
+          "Route this call through an allowed boundary or move the helper to an allowed lower layer."
+      }
+    end)
+  end
+
+  defp candidate_id(prefix, index),
+    do: "#{prefix}-#{String.pad_leading(to_string(index), 3, "0")}"
+end
