@@ -56,10 +56,24 @@ defmodule Reach.Test.ProgramFacts.API do
     program
     |> analyze()
     |> all_nodes()
-    |> Enum.any?(fn node ->
-      node.type == :call and node.meta[:module] == module and node.meta[:function] == function and
-        node.meta[:arity] == arity
-    end)
+    |> Enum.any?(fn node -> call_match?(node, {module, function, arity}) end)
+  end
+
+  def branch_summary(program) do
+    nodes = program |> analyze() |> all_nodes()
+
+    %{
+      case_nodes: Enum.filter(nodes, &(&1.type == :case)),
+      fn_nodes: Enum.filter(nodes, &(&1.type == :fn)),
+      clauses: Enum.filter(nodes, &(&1.type == :clause)),
+      calls: Enum.filter(nodes, &(&1.type == :call)),
+      functions: Enum.filter(nodes, &(&1.type == :function_def))
+    }
+  end
+
+  defp call_match?(node, {module, function, arity}) do
+    node.type == :call and node.meta[:module] == module and node.meta[:function] == function and
+      node.meta[:arity] == arity
   end
 
   defp all_nodes(project) do

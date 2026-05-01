@@ -58,6 +58,66 @@ defmodule Reach.Test.ProgramFacts.Assertions do
     end
   end
 
+  def assert_branches_visible(program) do
+    summary = API.branch_summary(program)
+
+    for branch <- program.facts.branches do
+      assert_branch_construct_visible(branch, summary)
+      assert_branch_clauses_visible(branch, summary)
+      assert_branch_calls_visible(branch, program)
+    end
+  end
+
+  defp assert_branch_construct_visible(%{kind: kind}, summary) when kind in [:if, :case, :cond, :with] do
+    assert Enum.any?(summary.case_nodes, &case_node_matches?(&1, kind)),
+           "expected generated #{kind} branch construct to be visible"
+  end
+
+  defp assert_branch_construct_visible(%{kind: :anonymous_fn}, summary) do
+    assert summary.fn_nodes != [], "expected generated anonymous fn branch to be visible"
+  end
+
+  defp assert_branch_construct_visible(%{kind: :multi_clause_function}, summary) do
+    assert function_clause_count(summary) >= 2,
+           "expected generated multi-clause function dispatch to be visible"
+  end
+
+  defp assert_branch_construct_visible(%{kind: :callback}, _summary), do: :ok
+
+  defp assert_branch_clauses_visible(%{clauses: expected, kind: kind}, summary) do
+    assert clause_count(summary, kind) >= expected,
+           "expected generated #{kind} clauses to be visible"
+  end
+
+  defp assert_branch_calls_visible(branch, program) do
+    branch
+    |> Map.get(:calls_by_clause, [])
+    |> Enum.each(fn %{call: call} ->
+      assert API.call_present?(program, call), "expected generated branch call #{inspect(call)} to be visible"
+    end)
+  end
+
+  defp case_node_matches?(node, :if), do: node.meta[:desugared_from] == :if
+  defp case_node_matches?(node, :cond), do: node.meta[:desugared_from] == :cond
+  defp case_node_matches?(node, :with), do: node.meta[:desugared_from] == :with
+  defp case_node_matches?(node, :case), do: node.meta[:desugared_from] == nil
+
+  defp clause_count(summary, :if), do: count_clause_kind(summary, [:true_branch, :false_branch])
+  defp clause_count(summary, :case), do: count_clause_kind(summary, [:case_clause])
+  defp clause_count(summary, :cond), do: count_clause_kind(summary, [:cond_clause])
+  defp clause_count(summary, :with), do: count_clause_kind(summary, [:with_clause, :else_clause])
+  defp clause_count(summary, :anonymous_fn), do: count_clause_kind(summary, [:fn_clause])
+  defp clause_count(summary, :multi_clause_function), do: function_clause_count(summary)
+  defp clause_count(summary, :callback), do: function_clause_count(summary)
+
+  defp count_clause_kind(summary, kinds) do
+    Enum.count(summary.clauses, &(&1.meta[:kind] in kinds))
+  end
+
+  defp function_clause_count(summary) do
+    Enum.count(summary.clauses, &(&1.meta[:kind] == :function_clause))
+  end
+
   defp assert_flow_endpoint_visible(_program, {:return, _function}), do: :ok
 
   defp assert_flow_endpoint_visible(program, {:arg, {module, function, arity}, _index}) do
