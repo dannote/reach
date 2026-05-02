@@ -141,13 +141,10 @@ defmodule Mix.Tasks.Reach do
   defp open_browser(path) do
     abs = Path.expand(path)
 
-    cmd =
-      case :os.type() do
-        {:unix, :darwin} -> "open"
-        {:unix, _} -> "xdg-open"
-        {:win32, _} -> "start"
-      end
-
-    System.cmd(cmd, [abs], stderr_to_stdout: true)
+    case :os.type() do
+      {:unix, :darwin} -> System.cmd("open", [abs], stderr_to_stdout: true)
+      {:unix, _} -> System.cmd("xdg-open", [abs], stderr_to_stdout: true)
+      {:win32, _} -> System.cmd("cmd", ["/c", "start", "", abs], stderr_to_stdout: true)
+    end
   end
 end

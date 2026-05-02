@@ -51,6 +51,14 @@ if Code.ensure_loaded?(QuickBEAM) do
     end
 
     defp strip_module_syntax(source) do
+      if Code.ensure_loaded?(OXC) do
+        patch_module_syntax(source)
+      else
+        source
+      end
+    end
+
+    defp patch_module_syntax(source) do
       case OXC.parse(source, "module.js") do
         {:ok, ast} ->
           patches = Enum.flat_map(ast.body, &module_syntax_patch/1)

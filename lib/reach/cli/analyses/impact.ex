@@ -24,19 +24,24 @@ defmodule Reach.CLI.Analyses.Impact do
   def run(args) do
     {opts, target_args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
 
-    unless target_args != [] do
-      Mix.raise(
-        "Expected a target. Usage:\n" <>
-          "  mix reach.impact Module.function/arity\n" <>
-          "  mix reach.impact lib/foo.ex:42"
-      )
-    end
+    raw_target =
+      case target_args do
+        [raw | _] ->
+          raw
+
+        [] ->
+          Mix.raise(
+            "Expected a target. Usage:\n" <>
+              "  mix reach.impact Module.function/arity\n" <>
+              "  mix reach.impact lib/foo.ex:42"
+          )
+      end
 
     project = Project.load(quiet: opts[:format] == "json")
-    target = Project.resolve_target(project, hd(target_args))
+    target = Project.resolve_target(project, raw_target)
 
     unless target do
-      Mix.raise("Function not found: #{hd(target_args)}")
+      Mix.raise("Function not found: #{raw_target}")
     end
 
     depth = opts[:depth] || 4
@@ -100,10 +105,10 @@ defmodule Reach.CLI.Analyses.Impact do
           |> Enum.filter(&match?({_, _, _}, &1))
           |> Enum.reject(&MapSet.member?(vis, &1))
 
-        {found ++ callers, Enum.reduce(callers, vis, &MapSet.put(&2, &1))}
+        {Enum.reverse(callers, found), Enum.reduce(callers, vis, &MapSet.put(&2, &1))}
       end)
 
-    acc = acc ++ Enum.map(new_callers, &%{id: &1})
+    acc = Enum.reduce(new_callers, acc, fn caller, acc -> [%{id: caller} | acc] end)
 
     if depth > 1 do
       do_find_callers(cg, new_callers, depth - 1, new_visited, acc)
@@ -165,16 +170,16 @@ defmodule Reach.CLI.Analyses.Impact do
 
   defp find_shared_data(project, target) do
     cg = project.call_graph
-    unless Graph.has_vertex?(cg, target), do: throw(:no_vertex)
 
-    callers = find_callers(project, target, 2)
-
-    callers
-    |> Enum.flat_map(&shared_data_for_caller(&1.id, cg, target))
-    |> Enum.uniq()
-    |> Enum.map(&Format.func_id_to_string/1)
-  catch
-    :no_vertex -> []
+    if Graph.has_vertex?(cg, target) do
+      project
+      |> find_callers(target, 2)
+      |> Enum.flat_map(&shared_data_for_caller(&1.id, cg, target))
+      |> Enum.uniq()
+      |> Enum.map(&Format.func_id_to_string/1)
+    else
+      []
+    end
   end
 
   defp shared_data_for_caller(caller_id, cg, target) do

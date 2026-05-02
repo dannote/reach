@@ -291,11 +291,11 @@ defmodule Reach.CLI.Project do
   end
 
   defp resolve_in_call_graph(cg, mod_str, fun_str, arity) do
-    mod = String.split(mod_str, ".") |> Enum.map(&String.to_atom/1) |> Module.concat()
-    fun = String.to_atom(fun_str)
+    fun = String.to_existing_atom(fun_str)
 
-    (Graph.has_vertex?(cg, {mod, fun, arity}) && {mod, fun, arity}) ||
-      fuzzy_match_module(cg, mod_str, fun, arity)
+    fuzzy_match_module(cg, mod_str, fun, arity)
+  rescue
+    ArgumentError -> nil
   end
 
   defp fuzzy_match_module(cg, mod_str, fun, arity) do
@@ -406,10 +406,10 @@ defmodule Reach.CLI.Project do
           |> Enum.filter(&mfa?/1)
           |> Enum.reject(&MapSet.member?(vis, &1))
 
-        {found ++ callers, Enum.reduce(callers, vis, &MapSet.put(&2, &1))}
+        {Enum.reverse(callers, found), Enum.reduce(callers, vis, &MapSet.put(&2, &1))}
       end)
 
-    acc = acc ++ Enum.map(new_callers, &%{id: &1})
+    acc = Enum.reduce(new_callers, acc, fn caller, acc -> [%{id: caller} | acc] end)
 
     if depth > 1,
       do: do_find_callers(cg, new_callers, depth - 1, new_visited, acc),

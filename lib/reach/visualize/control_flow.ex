@@ -60,7 +60,7 @@ defmodule Reach.Visualize.ControlFlow do
       |> Enum.filter(&(&1.type == :clause and &1.meta[:kind] == :function_clause))
 
     {nodes, edges} =
-      if length(function_clauses) > 1 do
+      if match?([_, _ | _], function_clauses) do
         build_multi_clause_cfg(func, function_clauses, file, start_line)
       else
         build_expression_nodes(func, file, start_line)
@@ -384,7 +384,7 @@ defmodule Reach.Visualize.ControlFlow do
        ) do
     if mergeable_vertex?(v, branch_vertices, in_degree, out_edges_by) and
          sequential_prev?(prev_v, branch_vertices, out_edges_by) and
-         connected_sequential?(prev_block |> Enum.reverse() |> List.first(), v, cfg) do
+         connected_sequential?(last_in(prev_block), v, cfg) do
       [prev_block ++ [v] | rest]
     else
       [[v], prev_block | rest]
@@ -412,8 +412,7 @@ defmodule Reach.Visualize.ControlFlow do
 
   defp merge_same_line_blocks(blocks, vertex_ranges, branch_vertices) do
     blocks
-    |> Enum.group_by(fn block ->
-      first_v = hd(block)
+    |> Enum.group_by(fn [first_v | _] ->
       {start_l, _} = Map.fetch!(vertex_ranges, first_v)
       start_l
     end)
@@ -446,12 +445,11 @@ defmodule Reach.Visualize.ControlFlow do
   defp blocks_to_viz_nodes(blocks, vertex_ranges, branch_vertices, node_map, file, cfg) do
     all_starts =
       blocks
-      |> Enum.map(fn block -> elem(Map.fetch!(vertex_ranges, hd(block)), 0) end)
+      |> Enum.map(fn [first_v | _] -> elem(Map.fetch!(vertex_ranges, first_v), 0) end)
       |> Enum.sort()
 
     blocks
-    |> Enum.map(fn block ->
-      first_v = hd(block)
+    |> Enum.map(fn [first_v | _] = block ->
       {start_l, _} = Map.fetch!(vertex_ranges, first_v)
 
       raw_end_l =
@@ -475,6 +473,9 @@ defmodule Reach.Visualize.ControlFlow do
     end)
     |> Enum.reject(&(source_blank?(&1.source_html) and &1.type not in [:entry, :exit]))
   end
+
+  defp last_in([last]), do: last
+  defp last_in([_head | tail]), do: last_in(tail)
 
   defp source_blank?(nil), do: true
 
@@ -518,17 +519,14 @@ defmodule Reach.Visualize.ControlFlow do
     clause_label(clause_node || node)
   end
 
+  defp block_label(:sequential, node, [_single], _node_map, _cfg), do: ir_label(node)
+
   defp block_label(:sequential, node, block, node_map, _cfg) do
     label = ir_label(node)
+    last = Map.get(node_map, last_in(block))
 
-    if length(block) > 1 do
-      last = Map.get(node_map, block |> Enum.reverse() |> List.first())
-
-      if last && last != node do
-        "#{label}..#{ir_label(last)}"
-      else
-        label
-      end
+    if last && last != node do
+      "#{label}..#{ir_label(last)}"
     else
       label
     end
@@ -566,13 +564,19 @@ defmodule Reach.Visualize.ControlFlow do
   defp branch_label(%{type: :case}), do: "case"
   defp branch_label(_), do: "branch"
 
+  defp clause_patterns([]), do: []
+  defp clause_patterns([pattern]), do: [pattern]
+  defp clause_patterns([pattern | rest]), do: clause_patterns(rest, [pattern])
+
+  defp clause_patterns([_body], acc), do: Enum.reverse(acc)
+  defp clause_patterns([pattern | rest], acc), do: clause_patterns(rest, [pattern | acc])
+
   defp clause_label(%{meta: %{kind: :true_branch}}), do: "true"
   defp clause_label(%{meta: %{kind: :false_branch}}), do: "false"
 
-  defp clause_label(%{meta: %{kind: :case_clause}} = node) do
-    patterns = if length(node.children) > 1, do: Enum.drop(node.children, -1), else: node.children
-
-    patterns
+  defp clause_label(%{meta: %{kind: :case_clause}, children: children}) do
+    children
+    |> clause_patterns()
     |> Enum.reject(&(&1.type == :guard))
     |> Enum.map_join(", ", &render_pattern/1)
     |> case do
