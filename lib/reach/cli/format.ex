@@ -227,6 +227,7 @@ defmodule Reach.CLI.Format do
   def tag(:info), do: cyan("ℹ")
 
   def warning(text), do: yellow(text) <> " " <> tag(:warning)
+  def omitted(text), do: faint("… " <> text)
   def count(n), do: bright(to_string(n))
   def summary(text), do: faint(text)
 

@@ -327,7 +327,7 @@ defmodule Reach.CLI.BoxartGraph do
     remaining = length(viz.nodes) - @max_terminal_cfg_nodes
 
     if remaining > 0 do
-      IO.puts("  ... #{remaining} more block(s) omitted")
+      IO.puts("  " <> Format.omitted("#{remaining} more block(s) omitted"))
     end
   end
 

@@ -57,7 +57,17 @@ defmodule Reach.CLI.Project do
   end
 
   defp source_root_from_file(dir) do
-    if Path.basename(dir) in ["lib", "src"], do: Path.dirname(dir), else: dir
+    parts = Path.split(dir)
+
+    parts
+    |> Enum.with_index()
+    |> Enum.filter(fn {part, _index} -> part in ["lib", "src"] end)
+    |> List.last()
+    |> case do
+      {_source_dir, 0} -> dir
+      {_source_dir, index} -> parts |> Enum.take(index) |> Path.join()
+      nil -> dir
+    end
   end
 
   defp common_path([]), do: File.cwd!()

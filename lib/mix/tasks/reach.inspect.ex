@@ -244,7 +244,10 @@ defmodule Mix.Tasks.Reach.Inspect do
     remaining = length(items) - length(shown)
 
     if remaining > 0 do
-      IO.puts("  ... #{remaining} more omitted. Use --limit N, --all, or --format json.")
+      IO.puts(
+        "  " <>
+          Format.omitted("#{remaining} more omitted. Use --limit N, --all, or --format json.")
+      )
     end
   end
 

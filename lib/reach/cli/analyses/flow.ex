@@ -257,7 +257,10 @@ defmodule Reach.CLI.Analyses.Flow do
   defp render_omitted_hint(remaining, _label) when remaining <= 0, do: :ok
 
   defp render_omitted_hint(remaining, label) do
-    IO.puts("  ... #{remaining} #{label} omitted. Use --limit N, --all, or --format json.")
+    IO.puts(
+      "  " <>
+        Format.omitted("#{remaining} #{label} omitted. Use --limit N, --all, or --format json.")
+    )
   end
 
   defp location_key(node) do

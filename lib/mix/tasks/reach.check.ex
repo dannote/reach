@@ -314,7 +314,8 @@ defmodule Mix.Tasks.Reach.Check do
       |> IO.iodata_to_binary()
 
     IO.puts(
-      "\n#{Format.faint("Output truncated (#{summary}). Use --format json for complete output.")}"
+      "\n" <>
+        Format.omitted("Output truncated (#{summary}). Use --format json for complete output.")
     )
   end
 
