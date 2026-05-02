@@ -155,7 +155,7 @@ defmodule Mix.Tasks.Reach.Inspect do
 
     IO.puts(Format.header("Reach context: #{Format.func_id_to_string(mfa)}"))
     IO.puts("  location: #{format_location(Context.location(func))}")
-    IO.puts("  effects: #{Enum.join(Context.effects(func), ", ")}")
+    IO.puts("  effects: #{Format.effects_join(Context.effects(func))}")
 
     IO.puts(
       "  callers: #{length(direct_callers)} direct, #{length(transitive_callers)} transitive"
@@ -221,7 +221,7 @@ defmodule Mix.Tasks.Reach.Inspect do
   end
 
   defp format_location(%{file: file, line: line}) when is_binary(file) and is_integer(line),
-    do: "#{file}:#{line}"
+    do: Format.loc(file, line)
 
   defp format_location(_location), do: "unknown"
 
@@ -253,13 +253,13 @@ defmodule Mix.Tasks.Reach.Inspect do
   end
 
   defp format_var_summary(item) do
-    location = if item.file && item.line, do: "#{item.file}:#{item.line}", else: "unknown"
-    "#{item.name} #{Format.faint(location)}"
+    location = if item.file && item.line, do: Format.loc(item.file, item.line), else: "unknown"
+    "#{item.name} #{location}"
   end
 
   defp format_return_summary(item) do
-    location = if item.file && item.line, do: "#{item.file}:#{item.line}", else: "unknown"
-    "#{item.kind} #{Format.faint(location)}"
+    location = if item.file && item.line, do: Format.loc(item.file, item.line), else: "unknown"
+    "#{item.kind} #{location}"
   end
 
   defp format_context(context) do
@@ -303,13 +303,13 @@ defmodule Mix.Tasks.Reach.Inspect do
     summary = Data.summary(project, func, opts[:variable])
 
     IO.puts("Definitions:")
-    Enum.each(summary.definitions, &IO.puts("  #{&1.name} #{&1.file}:#{&1.line}"))
+    Enum.each(summary.definitions, &IO.puts("  #{&1.name} #{Format.loc(&1.file, &1.line)}"))
 
     IO.puts("Uses:")
-    Enum.each(summary.uses, &IO.puts("  #{&1.name} #{&1.file}:#{&1.line}"))
+    Enum.each(summary.uses, &IO.puts("  #{&1.name} #{Format.loc(&1.file, &1.line)}"))
 
     IO.puts("Returns:")
-    Enum.each(summary.returns, &IO.puts("  #{&1.kind} #{&1.file}:#{&1.line}"))
+    Enum.each(summary.returns, &IO.puts("  #{&1.kind} #{Format.loc(&1.file, &1.line)}"))
   end
 
   defp render_cfg(target, opts) do
@@ -379,17 +379,17 @@ defmodule Mix.Tasks.Reach.Inspect do
 
   defp render_why_node(%{function: function, file: file, line: line}) do
     IO.puts("  #{Format.bright(function)}")
-    if file && line, do: IO.puts("    #{Format.faint("#{file}:#{line}")}")
+    if file && line, do: IO.puts("    #{Format.loc(file, line)}")
   end
 
   defp render_why_node(%{module: module, file: file, line: line}) do
     IO.puts("  #{Format.bright(module)}")
-    if file && line, do: IO.puts("    #{Format.faint("#{file}:#{line}")}")
+    if file && line, do: IO.puts("    #{Format.loc(file, line)}")
   end
 
   defp render_why_evidence(evidence) do
     IO.puts("  #{evidence.from} -> #{evidence.to}")
-    IO.puts("    #{evidence.call} #{Format.faint("#{evidence.file}:#{evidence.line}")}")
+    IO.puts("    #{evidence.call} #{Format.loc(evidence.file, evidence.line)}")
     if evidence.source, do: IO.puts("    #{evidence.source}")
   end
 
@@ -479,7 +479,7 @@ defmodule Mix.Tasks.Reach.Inspect do
         "  benefit=#{candidate.benefit} risk=#{candidate.risk} confidence=#{candidate[:confidence] || :unknown}"
       )
 
-      IO.puts("  location=#{candidate.file}:#{candidate.line}")
+      IO.puts("  location=#{Format.loc(candidate.file, candidate.line)}")
       IO.puts("  evidence=#{Enum.join(candidate.evidence, ",")}")
       IO.puts("  suggestion=#{candidate.suggestion}")
       IO.puts("")

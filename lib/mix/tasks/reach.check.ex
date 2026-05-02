@@ -174,7 +174,7 @@ defmodule Mix.Tasks.Reach.Check do
       )
 
       if candidate[:file] do
-        IO.puts("    #{Format.faint("#{candidate.file}:#{candidate.line}")}")
+        IO.puts("    #{Format.loc(candidate.file, candidate.line)}")
       end
 
       IO.puts("    evidence=#{Enum.join(candidate.evidence, ",")}")
@@ -190,9 +190,7 @@ defmodule Mix.Tasks.Reach.Check do
     IO.puts("    representative calls:")
 
     Enum.each(calls, fn call ->
-      IO.puts(
-        "      #{Format.faint("#{call.file}:#{call.line}")} #{call.caller_module} -> #{call.call}"
-      )
+      IO.puts("      #{Format.loc(call.file, call.line)} #{call.caller_module} -> #{call.call}")
     end)
   end
 
@@ -220,7 +218,7 @@ defmodule Mix.Tasks.Reach.Check do
 
       %{type: "forbidden_dependency"} = violation ->
         IO.puts(
-          "  #{violation.file}:#{violation.line} #{violation.caller_layer} -> #{violation.callee_layer} " <>
+          "  #{Format.loc(violation.file, violation.line)} #{violation.caller_layer} -> #{violation.callee_layer} " <>
             "#{violation.call}"
         )
 
@@ -229,13 +227,13 @@ defmodule Mix.Tasks.Reach.Check do
 
       %{type: "effect_policy"} = violation ->
         IO.puts([
-          "  #{violation.file}:#{violation.line} #{violation.module}.#{violation.function} disallowed effects: ",
-          Enum.join(violation.disallowed_effects, ", ")
+          "  #{Format.loc(violation.file, violation.line)} #{violation.module}.#{violation.function} disallowed effects: ",
+          Format.effects_join(violation.disallowed_effects)
         ])
 
       %{type: type} = violation when type in ["public_api_boundary", "internal_boundary"] ->
         IO.puts(
-          "  #{violation.file}:#{violation.line} #{violation.caller_module} -> #{violation.callee_module} #{violation.call} (#{violation.rule})"
+          "  #{Format.loc(violation.file, violation.line)} #{violation.caller_module} -> #{violation.callee_module} #{violation.call} (#{violation.rule})"
         )
     end)
   end
@@ -261,7 +259,7 @@ defmodule Mix.Tasks.Reach.Check do
         omitted,
         render_limited_section("Changed functions", result.changed_functions, fn function ->
           IO.puts(
-            "  #{Format.bright(function.id)} #{Format.faint("#{function.file}:#{function.line}")} risk=#{risk_label(function.risk)} callers=#{function.direct_caller_count}/#{function.transitive_caller_count} branches=#{function.branch_count} effects=#{Enum.join(function.effects, ",")}"
+            "  #{Format.bright(function.id)} #{Format.loc(function.file, function.line)} risk=#{risk_label(function.risk)} callers=#{function.direct_caller_count}/#{function.transitive_caller_count} branches=#{function.branch_count} effects=#{Format.effects_join(function.effects)}"
           )
         end)
       )
@@ -270,9 +268,7 @@ defmodule Mix.Tasks.Reach.Check do
       add_omitted(
         omitted,
         render_limited_section("Public API touched", result.public_api_changes, fn function ->
-          IO.puts(
-            "  #{Format.bright(function.id)} #{Format.faint("#{function.file}:#{function.line}")}"
-          )
+          IO.puts("  #{Format.bright(function.id)} #{Format.loc(function.file, function.line)}")
         end)
       )
 
@@ -322,10 +318,7 @@ defmodule Mix.Tasks.Reach.Check do
     )
   end
 
-  defp risk_label(:high), do: Format.red("high")
-  defp risk_label(:medium), do: Format.yellow("medium")
-  defp risk_label(:low), do: Format.green("low")
-  defp risk_label(other), do: to_string(other)
+  defp risk_label(risk), do: Format.risk(risk)
 
   defp json_envelope(result) do
     %Reach.CLI.JSONEnvelope{

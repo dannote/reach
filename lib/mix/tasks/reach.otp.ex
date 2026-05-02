@@ -95,7 +95,11 @@ defmodule Mix.Tasks.Reach.Otp do
   end
 
   defp render_behaviour(gs, graph_mode) do
-    IO.puts(Format.section("#{gs.module} #{Format.faint("(" <> gs.behaviour <> ")")}"))
+    IO.puts(
+      Format.section(
+        "#{format_module_or_path(gs.module)} #{Format.faint("(" <> gs.behaviour <> ")")}"
+      )
+    )
 
     if graph_mode do
       BoxartGraph.render_otp_state_diagram(gs.state_transforms)
@@ -109,10 +113,13 @@ defmodule Mix.Tasks.Reach.Otp do
       {name, arity} = t.callback
 
       IO.puts(
-        "    #{Format.bright("#{name}/#{arity}")}  #{action_label(t.action)}  #{t.location}"
+        "    #{Format.bright("#{name}/#{arity}")}  #{action_label(t.action)}  #{Format.location_text(t.location)}"
       )
     end)
   end
+
+  defp format_module_or_path(module) when is_binary(module), do: Format.path(module)
+  defp format_module_or_path(module), do: inspect(module)
 
   defp render_ets_coupling(ets) do
     tables = Enum.reject(ets, fn {k, _} -> k == :unknown_table end)
@@ -134,7 +141,7 @@ defmodule Mix.Tasks.Reach.Otp do
 
   defp render_ops_group(label, ops) do
     IO.puts("  #{label}")
-    Enum.each(ops, fn op -> IO.puts("    #{op.action}  #{op.location}") end)
+    Enum.each(ops, fn op -> IO.puts("    #{op.action}  #{Format.location_text(op.location)}") end)
   end
 
   defp render_missing_handlers(handlers) do
@@ -142,7 +149,9 @@ defmodule Mix.Tasks.Reach.Otp do
       IO.puts(Format.section("Potentially unmatched messages"))
 
       Enum.each(handlers, fn h ->
-        IO.puts("  #{h.location}  #{Format.warning("#{h.message} to unknown handler")}")
+        IO.puts(
+          "  #{Format.location_text(h.location)}  #{Format.warning("#{h.message} to unknown handler")}"
+        )
       end)
     end
   end
@@ -154,7 +163,10 @@ defmodule Mix.Tasks.Reach.Otp do
 
     Enum.each(dead_replies, fn dr ->
       target = if dr.target, do: " to #{inspect(dr.target)}", else: ""
-      IO.puts("  #{dr.location}  #{Format.warning("GenServer.call#{target} reply discarded")}")
+
+      IO.puts(
+        "  #{Format.location_text(dr.location)}  #{Format.warning("GenServer.call#{target} reply discarded")}"
+      )
     end)
   end
 
@@ -165,7 +177,11 @@ defmodule Mix.Tasks.Reach.Otp do
 
     Enum.each(findings, fn f ->
       resource_label = format_resource(f.resource)
-      IO.puts("  #{f.location}  #{inspect(f.caller)} → #{inspect(f.callee)}")
+
+      IO.puts(
+        "  #{Format.location_text(f.location)}  #{inspect(f.caller)} → #{inspect(f.callee)}"
+      )
+
       IO.puts("    #{Format.warning("shared #{resource_label}")}")
     end)
   end
@@ -182,7 +198,10 @@ defmodule Mix.Tasks.Reach.Otp do
   end
 
   defp render_supervisor(s) do
-    IO.puts("  #{Format.bright(inspect(s.module))}  #{s.location}")
+    IO.puts(
+      "  #{Format.bright(format_module_or_path(s.module))}  #{Format.location_text(s.location)}"
+    )
+
     Enum.each(s.children, fn child -> IO.puts("    └─ #{inspect(child)}") end)
   end
 
@@ -194,7 +213,12 @@ defmodule Mix.Tasks.Reach.Otp do
 
   defp render_state_machine(sm) do
     mode_label = sm.callback_mode |> to_string() |> String.replace("_", " ")
-    IO.puts(Format.section("#{sm.module} #{Format.faint("(gen_statem, #{mode_label})")}"))
+
+    IO.puts(
+      Format.section(
+        "#{format_module_or_path(sm.module)} #{Format.faint("(gen_statem, #{mode_label})")}"
+      )
+    )
 
     render_init_state(sm.init_state)
     render_statem_states(sm.states)

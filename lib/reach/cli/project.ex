@@ -3,6 +3,10 @@ defmodule Reach.CLI.Project do
 
   alias Reach.CLI.Format
 
+  @display_root_key {__MODULE__, :display_root}
+
+  def display_root, do: Process.get(@display_root_key)
+
   def load(opts \\ []) do
     quiet? = Keyword.get(opts, :quiet, false)
     compile(quiet?)
@@ -10,10 +14,12 @@ defmodule Reach.CLI.Project do
     project =
       case Keyword.get(opts, :paths) do
         nil ->
+          set_display_root(File.cwd!())
           unless quiet?, do: Mix.shell().info("Analyzing project...")
           Reach.Project.from_mix_project()
 
         paths ->
+          set_display_root(display_root_for_paths(paths))
           paths = expand_paths(paths)
           unless quiet?, do: Mix.shell().info("Analyzing #{length(paths)} file(s)...")
           Reach.Project.from_sources(paths)
@@ -21,6 +27,61 @@ defmodule Reach.CLI.Project do
 
     Process.delete({__MODULE__, :func_index})
     project
+  end
+
+  defp set_display_root(root), do: Process.put(@display_root_key, Path.expand(root))
+
+  defp display_root_for_paths(paths) do
+    paths
+    |> List.wrap()
+    |> Enum.map(&root_candidate/1)
+    |> common_path()
+  end
+
+  defp root_candidate(path) do
+    expanded = Path.expand(path)
+
+    cond do
+      String.contains?(path, "*") ->
+        path |> Path.dirname() |> Path.expand()
+
+      File.dir?(expanded) and Path.basename(expanded) in ["lib", "src"] ->
+        Path.dirname(expanded)
+
+      File.dir?(expanded) ->
+        expanded
+
+      true ->
+        expanded |> Path.dirname() |> source_root_from_file()
+    end
+  end
+
+  defp source_root_from_file(dir) do
+    if Path.basename(dir) in ["lib", "src"], do: Path.dirname(dir), else: dir
+  end
+
+  defp common_path([]), do: File.cwd!()
+  defp common_path([path]), do: path
+
+  defp common_path(paths) do
+    split_paths = Enum.map(paths, &Path.split/1)
+    min_length = split_paths |> Enum.map(&length/1) |> Enum.min()
+
+    common_parts =
+      0..(min_length - 1)
+      |> Enum.reduce_while([], fn index, acc ->
+        parts = Enum.map(split_paths, &Enum.at(&1, index))
+
+        if Enum.uniq(parts) |> length() == 1,
+          do: {:cont, [List.first(parts) | acc]},
+          else: {:halt, acc}
+      end)
+      |> Enum.reverse()
+
+    case common_parts do
+      [] -> File.cwd!()
+      parts -> Path.join(parts)
+    end
   end
 
   defp expand_paths(paths) do

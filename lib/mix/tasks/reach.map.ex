@@ -192,7 +192,7 @@ defmodule Mix.Tasks.Reach.Map do
       if module.biggest_function,
         do: IO.puts("    biggest: #{Format.yellow(module.biggest_function)}")
 
-      if module.file, do: IO.puts("    #{Format.faint(module.file)}")
+      if module.file, do: IO.puts("    #{Format.faint(Format.path(module.file))}")
       IO.puts("")
     end)
   end
@@ -205,7 +205,7 @@ defmodule Mix.Tasks.Reach.Map do
         "  #{Format.bright(label)} score=#{hotspot.score} branches=#{hotspot.branches} callers=#{hotspot.callers}"
       )
 
-      IO.puts("    #{Format.faint("#{hotspot.file}:#{hotspot.line}")}")
+      IO.puts("    #{Format.loc(hotspot.file, hotspot.line)}")
     end)
   end
 
@@ -223,7 +223,9 @@ defmodule Mix.Tasks.Reach.Map do
   end
 
   defp render_text_section(:effects, %{distribution: distribution, unknown_calls: unknown_calls}) do
-    Enum.each(distribution, fn row -> IO.puts("  #{row.effect}: #{row.count} (#{row.ratio})") end)
+    Enum.each(distribution, fn row ->
+      IO.puts("  #{Format.effect(row.effect)}: #{row.count} (#{row.ratio})")
+    end)
 
     if unknown_calls != [] do
       IO.puts("  unknown calls:")
@@ -232,27 +234,27 @@ defmodule Mix.Tasks.Reach.Map do
   end
 
   defp render_text_section(:effects, effects) do
-    Enum.each(effects, fn {effect, count} -> IO.puts("  #{effect}: #{count}") end)
+    Enum.each(effects, fn {effect, count} -> IO.puts("  #{Format.effect(effect)}: #{count}") end)
   end
 
   defp render_text_section(:boundaries, boundaries) do
     Enum.each(boundaries, fn boundary ->
       IO.puts(
-        "  #{Format.bright(boundary.display_function)} effects=#{Enum.join(boundary.effects, "+")}"
+        "  #{Format.bright(boundary.display_function)} effects=#{Format.effects_join(boundary.effects, "+")}"
       )
 
       Enum.each(boundary.calls, fn call ->
-        IO.puts("    #{call.effect} #{call.call}")
+        IO.puts("    #{Format.effect(call.effect)} #{call.call}")
       end)
 
-      IO.puts("    #{Format.faint("#{boundary.file}:#{boundary.line}")}")
+      IO.puts("    #{Format.loc(boundary.file, boundary.line)}")
     end)
   end
 
   defp render_text_section(:depth, rows) do
     Enum.each(rows, fn row ->
       IO.puts("  #{Format.bright(row.function)} depth=#{row.depth} branches=#{row.branch_count}")
-      IO.puts("    #{Format.faint("#{row.file}:#{row.line}")}")
+      IO.puts("    #{Format.loc(row.file, row.line)}")
     end)
   end
 
@@ -282,7 +284,7 @@ defmodule Mix.Tasks.Reach.Map do
 
     Enum.each(rows, fn row ->
       IO.puts("    #{Format.bright(row.function)} data_edges=#{row.data_edges}")
-      IO.puts("      #{Format.faint("#{row.file}:#{row.line}")}")
+      IO.puts("      #{Format.loc(row.file, row.line)}")
     end)
   end
 
