@@ -72,8 +72,8 @@ defmodule Mix.Tasks.Reach.Map do
   end
 
   defp render_map(opts, path_args) do
-    project = Project.load(quiet: opts[:format] == "json")
     path = List.first(path_args)
+    project = load_project(path, opts)
     sections = selected_keys(opts)
 
     sections =
@@ -322,6 +322,9 @@ defmodule Mix.Tasks.Reach.Map do
 
   defp section_data(project, section, opts, path),
     do: MapAnalysis.section_data(project, section, opts, path)
+
+  defp load_project(nil, opts), do: Project.load(quiet: opts[:format] == "json")
+  defp load_project(path, opts), do: Project.load(paths: [path], quiet: opts[:format] == "json")
 
   defp render_graph(project, sections, opts, path) do
     ensure_boxart!()

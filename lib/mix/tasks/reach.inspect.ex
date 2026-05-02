@@ -146,7 +146,7 @@ defmodule Mix.Tasks.Reach.Inspect do
   end
 
   defp render_context_text(target, opts) do
-    project = Project.load()
+    project = load_target_project(target, opts)
     {mfa, func} = resolve_function!(project, target)
     data = Data.summary(project, func, opts[:variable])
     direct_callers = Project.callers(project, mfa, 1)
@@ -208,7 +208,7 @@ defmodule Mix.Tasks.Reach.Inspect do
 
   defp render_context_json(target, opts) do
     ensure_json_encoder!()
-    project = Project.load(quiet: opts[:format] == "json")
+    project = load_target_project(target, opts)
     {mfa, func} = resolve_function!(project, target)
 
     context =
@@ -281,7 +281,7 @@ defmodule Mix.Tasks.Reach.Inspect do
 
   defp render_data_json(target, opts) do
     ensure_json_encoder!()
-    project = Project.load(quiet: opts[:format] == "json")
+    project = load_target_project(target, opts)
     {mfa, func} = resolve_function!(project, target)
 
     IO.puts(
@@ -298,7 +298,7 @@ defmodule Mix.Tasks.Reach.Inspect do
   end
 
   defp render_data_text(target, opts) do
-    project = Project.load(quiet: opts[:format] == "json")
+    project = load_target_project(target, opts)
     {_mfa, func} = resolve_function!(project, target)
     summary = Data.summary(project, func, opts[:variable])
 
@@ -397,6 +397,13 @@ defmodule Mix.Tasks.Reach.Inspect do
     if opts[:format] == "json", do: ensure_json_encoder!()
   end
 
+  defp load_target_project(target, opts) do
+    case Project.parse_file_line(target) do
+      {file, _line} -> Project.load(paths: [file], quiet: opts[:format] == "json")
+      nil -> Project.load(quiet: opts[:format] == "json")
+    end
+  end
+
   defp resolve_function!(project, raw) do
     case Project.parse_file_line(raw) do
       {file, line} ->
@@ -428,7 +435,7 @@ defmodule Mix.Tasks.Reach.Inspect do
   end
 
   defp render_candidates_placeholder(target, opts) do
-    project = Project.load(quiet: opts[:format] == "json")
+    project = load_target_project(target, opts)
     {mfa, func} = resolve_function!(project, target)
 
     candidates =

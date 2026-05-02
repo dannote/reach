@@ -68,7 +68,7 @@ defmodule Mix.Tasks.Reach.Check do
         TaskRunner.run("reach.smell", delegated_args(opts, positional), command: "reach.check")
 
       opts[:candidates] ->
-        render_candidates_placeholder(opts)
+        render_candidates_placeholder(opts, positional)
 
       true ->
         run_default(opts)
@@ -126,12 +126,22 @@ defmodule Mix.Tasks.Reach.Check do
     render_result(result, opts[:format], &render_changed_text/1)
   end
 
-  defp render_candidates_placeholder(opts) do
-    project = Project.load(quiet: opts[:format] == "json")
+  defp render_candidates_placeholder(opts, positional) do
+    project = load_candidates_project(opts, positional)
     config = if File.exists?(".reach.exs"), do: load_config(), else: []
     result = Candidates.run(project, config, top: opts[:top] || 40)
 
     render_result(result, opts[:format], &render_candidates_text/1)
+  end
+
+  defp load_candidates_project(opts, positional) do
+    path = opts[:path] || List.first(positional)
+
+    if path do
+      Project.load(paths: [path], quiet: opts[:format] == "json")
+    else
+      Project.load(quiet: opts[:format] == "json")
+    end
   end
 
   defp delegated_args(opts, positional) do

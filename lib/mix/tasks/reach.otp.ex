@@ -44,8 +44,7 @@ defmodule Mix.Tasks.Reach.Otp do
     if opts[:concurrency] do
       TaskRunner.run("reach.concurrency", delegated_args(args), command: "reach.otp")
     else
-      project = Project.load(quiet: opts[:format] == "json")
-      scope = List.first(target_args)
+      {project, scope} = load_project_and_scope(target_args, opts)
 
       result = analyze(project, scope)
 
@@ -60,6 +59,16 @@ defmodule Mix.Tasks.Reach.Otp do
   defp delegated_args(args) do
     Enum.reject(args, &(&1 == "--concurrency"))
   end
+
+  defp load_project_and_scope([target | _rest], opts) do
+    if File.exists?(target) do
+      {Project.load(paths: [target], quiet: opts[:format] == "json"), nil}
+    else
+      {Project.load(quiet: opts[:format] == "json"), target}
+    end
+  end
+
+  defp load_project_and_scope([], opts), do: {Project.load(quiet: opts[:format] == "json"), nil}
 
   defp analyze(project, scope), do: OTPAnalysis.run(project, scope)
 
