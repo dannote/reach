@@ -172,12 +172,9 @@ defmodule Mix.Tasks.Reach.CanonicalTest do
   test "canonical command modules keep rendering in render layer" do
     forbidden = ~r/IO\.puts|Format\.render|Jason\.encode!/
 
-    allowed = MapSet.new(["lib/reach/cli/commands/report.ex"])
-
     offenders =
       "lib/reach/cli/commands/**/*.ex"
       |> Path.wildcard()
-      |> Enum.reject(&MapSet.member?(allowed, &1))
       |> Enum.flat_map(fn file ->
         file
         |> File.read!()
@@ -221,6 +218,34 @@ defmodule Mix.Tasks.Reach.CanonicalTest do
     assert_raise Mix.Error, ~r/Architecture policy failed/, fn ->
       capture_io(fn -> Check.run(["--arch", "--format", "json"]) end)
     end
+  end
+
+  test "reach.check validates forbidden call config shape" do
+    with_reach_config(~S([forbidden_calls: :bad]))
+
+    assert_raise Mix.Error, ~r/Architecture policy failed/, fn ->
+      capture_io(fn -> Check.run(["--arch", "--format", "json"]) end)
+    end
+  end
+
+  test "reach.check reports forbidden call violations" do
+    with_reach_config(~S([forbidden_calls: [{"Reach.CLI.Commands.Check", ["File.exists?"]}]]))
+
+    assert_raise Mix.Error, ~r/Architecture policy failed/, fn ->
+      capture_io(fn -> Check.run(["--arch", "--format", "json"]) end)
+    end
+  end
+
+  test "reach.check allows forbidden call exceptions" do
+    with_reach_config(
+      ~S([forbidden_calls: [{"Reach.CLI.Commands.Check", ["File.exists?"], except: ["Reach.CLI.Commands.Check"]}]])
+    )
+
+    output = capture_io(fn -> Check.run(["--arch", "--format", "json"]) end)
+
+    assert {:ok, data} = Jason.decode(output)
+    assert data["status"] == "ok"
+    assert data["violations"] == []
   end
 
   test "reach.check reports public and internal boundary violations" do

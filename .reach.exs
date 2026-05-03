@@ -102,8 +102,7 @@
     {:plugins, :cli_support}
   ],
   forbidden_calls: [
-    {"Reach.CLI.Commands.*", ["IO.puts", "Jason.encode!", "Reach.CLI.Format.render"],
-     except: ["Reach.CLI.Commands.Report"]}
+    {"Reach.CLI.Commands.*", ["IO.puts", "Jason.encode!", "Reach.CLI.Format.render"]}
   ],
   allowed_effects: [
     {"Reach.IR.*", [:pure, :unknown, :write]},

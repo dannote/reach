@@ -39,6 +39,35 @@ forbidden_deps: [
 
 `mix reach.check --arch` reports `forbidden_dependency` violations with caller, callee, call, file, and line evidence.
 
+### `forbidden_calls`
+
+Declare calls that matching modules must not make. This is useful for enforcing presentation/IO boundaries or other call-level rules that are more precise than layer dependencies.
+
+```elixir
+forbidden_calls: [
+  {"MyApp.Domain.*", ["IO.puts", "Jason.encode!"]},
+  {"MyApp.Workers.*", ["System.cmd", "File.rm"], except: ["MyApp.Workers.Cleanup"]}
+]
+```
+
+Each entry is either:
+
+```elixir
+{caller_patterns, call_patterns}
+{caller_patterns, call_patterns, except: except_caller_patterns}
+```
+
+Patterns use the same module/call glob syntax as layers. Call patterns may include or omit arity:
+
+```elixir
+"IO.puts"
+"IO.puts/1"
+"Reach.CLI.Format.render"
+"Jason.encode!"
+```
+
+`mix reach.check --arch` reports `forbidden_call` violations with caller module, call, file, and line evidence.
+
 ### `allowed_effects`
 
 Limit side-effect classes for matching modules.
@@ -123,6 +152,7 @@ Reach validates `.reach.exs` shape and reports `config_error` entries for:
 - invalid `layers`
 - invalid `forbidden_deps`
 - invalid `allowed_effects`
+- invalid `forbidden_calls`
 - invalid `public_api`
 - invalid `internal`
 - invalid `internal_callers`
