@@ -15,6 +15,7 @@ defmodule Reach.CLI.Commands.OTP.Concurrency do
   alias Reach.CLI.Format
   alias Reach.CLI.Options
   alias Reach.CLI.Project
+  alias Reach.OTP.Concurrency
 
   @switches [format: :string]
   @aliases [f: :format]
@@ -29,7 +30,7 @@ defmodule Reach.CLI.Commands.OTP.Concurrency do
     format = opts[:format] || "text"
 
     project = Project.load(quiet: opts[:format] == "json")
-    result = analyze(project)
+    result = Concurrency.analyze(project)
 
     case format do
       "json" -> Format.render(result, command(cli_opts), format: "json", pretty: true)
@@ -39,137 +40,6 @@ defmodule Reach.CLI.Commands.OTP.Concurrency do
   end
 
   defp command(cli_opts), do: Keyword.get(cli_opts, :command, "reach.otp")
-
-  defp analyze(project) do
-    nodes = Map.values(project.nodes)
-    graph = project.graph
-    edges = Graph.edges(graph)
-
-    %{
-      tasks: find_tasks(nodes),
-      monitors: find_monitors(nodes),
-      spawns: find_spawns(nodes),
-      supervisors: find_supervisors(nodes),
-      concurrency_edges: classify_concurrency_edges(edges)
-    }
-  end
-
-  defp find_tasks(nodes) do
-    asyncs = Enum.filter(nodes, &task_call?(&1, [:async, :async_stream]))
-    awaits = Enum.filter(nodes, &task_call?(&1, [:await, :await_many, :yield, :yield_many]))
-
-    async_locs = Enum.map(asyncs, &node_loc/1)
-    await_locs = Enum.map(awaits, &node_loc/1)
-
-    unpaired_asyncs = length(asyncs) - length(awaits)
-
-    %{
-      async: async_locs,
-      await: await_locs,
-      unpaired: max(unpaired_asyncs, 0)
-    }
-  end
-
-  defp find_monitors(nodes) do
-    monitors =
-      Enum.filter(nodes, fn n ->
-        n.type == :call and n.meta[:module] == Process and n.meta[:function] == :monitor
-      end)
-
-    trap_exits =
-      Enum.filter(nodes, fn n ->
-        n.type == :call and n.meta[:module] == Process and n.meta[:function] == :flag and
-          match?([%{meta: %{value: :trap_exit}} | _], n.children)
-      end)
-
-    down_handlers =
-      Enum.filter(nodes, fn n ->
-        n.type == :function_def and n.meta[:name] == :handle_info and
-          n
-          |> Reach.IR.all_nodes()
-          |> Enum.any?(fn c -> c.type == :literal and c.meta[:value] == :DOWN end)
-      end)
-
-    %{
-      monitors: Enum.map(monitors, &node_loc/1),
-      trap_exits: Enum.map(trap_exits, &node_loc/1),
-      down_handlers: Enum.map(down_handlers, &func_loc/1)
-    }
-  end
-
-  defp find_spawns(nodes) do
-    spawn_calls =
-      Enum.filter(nodes, fn n ->
-        n.type == :call and n.meta[:function] in [:spawn, :spawn_link, :spawn_monitor]
-      end)
-
-    link_calls =
-      Enum.filter(nodes, fn n ->
-        n.type == :call and n.meta[:module] == Process and n.meta[:function] == :link
-      end)
-
-    %{
-      spawns:
-        Enum.map(spawn_calls, fn n ->
-          %{function: n.meta[:function], location: node_loc(n)}
-        end),
-      links: Enum.map(link_calls, &node_loc/1)
-    }
-  end
-
-  defp find_supervisors(nodes) do
-    init_fns =
-      Enum.filter(nodes, fn n ->
-        n.type == :function_def and n.meta[:name] == :init and n.meta[:arity] == 1 and
-          n
-          |> Reach.IR.all_nodes()
-          |> Enum.any?(fn c ->
-            c.type == :call and c.meta[:function] in [:supervise, :init, :child_spec]
-          end)
-      end)
-
-    start_links =
-      Enum.filter(nodes, fn n ->
-        n.type == :call and n.meta[:function] == :start_link and
-          n.meta[:module] in [Supervisor, DynamicSupervisor]
-      end)
-
-    Enum.map(init_fns, &func_loc/1) ++ Enum.map(start_links, &node_loc/1)
-  end
-
-  defp classify_concurrency_edges(edges) do
-    edges
-    |> Enum.map(& &1.label)
-    |> Enum.filter(fn label ->
-      label in [
-        :monitor_down,
-        :trap_exit,
-        :link_exit,
-        :task_result,
-        :startup_order,
-        :message_order,
-        :state_pass
-      ]
-    end)
-    |> Enum.frequencies()
-  end
-
-  defp task_call?(node, functions) do
-    node.type == :call and node.meta[:module] == Task and node.meta[:function] in functions
-  end
-
-  defp node_loc(node) do
-    case node.source_span do
-      %{file: f, start_line: l} -> "#{f}:#{l}"
-      _ -> "unknown"
-    end
-  end
-
-  defp func_loc(node) do
-    "#{node.meta[:name]}/#{node.meta[:arity]} at #{node_loc(node)}"
-  end
-
-  # --- Rendering ---
 
   defp render_text(result) do
     IO.puts(Format.header("Concurrency"))
