@@ -15,6 +15,108 @@ Key modules:
 - `Reach.Visualize.Helpers` — source extraction, pattern rendering, line helpers
 - `assets/js/components/ReachGraph.vue` — frontend (Vue Flow + ELK layout)
 
+## CLI Architecture Rules
+
+Reach 2.x has five canonical dotted Mix tasks:
+
+| Command | Purpose |
+|---|---|
+| `mix reach.map` | Project map: summary, modules, coupling, effects, hotspots, depth, data/xref |
+| `mix reach.inspect TARGET` | Target-local deps, impact, graph, context, why, data, candidates |
+| `mix reach.trace` | Data flow, taint paths, backward/forward slices |
+| `mix reach.check` | CI/release checks: architecture, changed-code risk, dead code, smells, candidates |
+| `mix reach.otp` | OTP/process analysis: behaviours, supervision, concurrency, coupling |
+
+Removed commands must stay hard-deprecated shims only. They must raise exact migration guidance and must never delegate:
+
+| Removed | Use instead |
+|---|---|
+| `mix reach.modules` | `mix reach.map --modules` |
+| `mix reach.coupling` | `mix reach.map --coupling` |
+| `mix reach.hotspots` | `mix reach.map --hotspots` |
+| `mix reach.depth` | `mix reach.map --depth` |
+| `mix reach.effects` | `mix reach.map --effects` |
+| `mix reach.boundaries` | `mix reach.map --boundaries` |
+| `mix reach.xref` | `mix reach.map --data` |
+| `mix reach.deps TARGET` | `mix reach.inspect TARGET --deps` |
+| `mix reach.impact TARGET` | `mix reach.inspect TARGET --impact` |
+| `mix reach.slice TARGET` | `mix reach.trace TARGET` |
+| `mix reach.flow ...` | `mix reach.trace ...` |
+| `mix reach.dead_code` | `mix reach.check --dead-code` |
+| `mix reach.smell` | `mix reach.check --smells` |
+| `mix reach.graph TARGET` | `mix reach.inspect TARGET --graph` |
+| `mix reach.concurrency` | `mix reach.otp --concurrency` |
+
+### Non-negotiable CLI constraints
+
+- Never call Reach Mix tasks internally:
+  - no `TaskRunner.run(...)`
+  - no `Mix.Tasks.Reach.*.run(...)`
+  - no `Mix.Task.run("reach...")`
+- Do not reintroduce `Reach.CLI.TaskRunner`, `Deprecation.delegated/1`, or command override tunnels.
+- Mix tasks parse args once and pass parsed options/positional args forward; do not rebuild argv strings with `maybe_put/3` / `maybe_flag/3` helpers.
+- Compile handling belongs in `Reach.CLI.Project`; do not scatter `Mix.Task.run("compile", ...)` across commands.
+- JSON output must use canonical command envelopes (`reach.map`, `reach.inspect`, `reach.trace`, `reach.check`, `reach.otp`) and remain pure JSON with no preamble.
+- Broken-pipe handling belongs at CLI entrypoints via `Reach.CLI.Pipe`.
+
+## Target Subsystem Boundaries
+
+Use this responsibility split when refactoring or adding features:
+
+| Layer | Owns | Must not own |
+|---|---|---|
+| `Mix.Tasks.Reach.*` | CLI entrypoint, option parsing, invoking canonical command layer | analysis, rendering details, internal task calls |
+| `Reach.CLI.Commands.*` | canonical command orchestration and mode selection | graph algorithms, smell rules, taint semantics |
+| `Reach.CLI.Render.*` / `Reach.CLI.Format` | text/JSON rendering, colors, truncation, human labels | domain decisions |
+| `Reach.CLI.Project`, `Reach.CLI.Options`, `Reach.CLI.Pipe` | shared CLI infrastructure | domain analysis |
+| `Reach.Check.*` | CI/release policy checks and check adapters | local smell rule implementations |
+| `Reach.Smell.*` | structural/code-shape smell engine and smell findings | CLI rendering |
+| `Reach.Trace.*` | taint/data-flow/slicing domain logic and trace patterns | CLI rendering or hardcoded CLI-only presets |
+| `Reach.Inspect.*` | target-local deps/impact/context/why/candidate analysis | CLI rendering |
+| `Reach.OTP.*` | OTP/process/domain analysis | CLI rendering |
+| `Reach.Visualize.*` | graph/HTML/web visualization | CLI command orchestration |
+
+Current transitional modules under `Reach.CLI.Analyses.*` are legacy extraction targets. Do not add new analysis there; move logic toward the domain/command/render split above.
+
+## Constants and Limits
+
+- No unexplained magic numbers like `Enum.take(20)` or `Enum.take(30)` in domain code.
+- Analysis safety caps must be named options/defaults, e.g. `max_return_dependents`, `max_dependency_nodes`.
+- Text display limits belong in CLI command/render defaults and should be user-overridable where practical.
+- Hardcoded taint examples such as `conn.params`, `Repo.query`, and `System.cmd` belong in named trace pattern presets, not hidden inside CLI modules.
+
+## Check vs Smell
+
+- `Reach.Check.*` is for release/CI safety: architecture policy, changed-code risk, refactoring candidates, and adapters that run checks.
+- `Reach.Smell.*` is the local code-shape finding engine: loose map contracts, repeated fixed-shape maps, pipeline waste, reverse append, eager patterns, string building, redundant computation.
+- `mix reach.check --smells` may call the smell engine, but smell rules themselves must live under `Reach.Smell.*`, not `Reach.CLI.*`.
+
+## Tests and Refactors
+
+Before reorganizing tests, preserve the full inventory:
+
+```bash
+mix test --trace > /tmp/reach-test-inventory-before.txt
+rg 'test "|property "|describe "' test test_helpers > /tmp/reach-test-declarations-before.txt
+```
+
+Move tests with `git mv` first, keep test names unchanged, then split/refactor. Afterward:
+
+```bash
+mix test --trace > /tmp/reach-test-inventory-after.txt
+rg 'test "|property "|describe "' test test_helpers > /tmp/reach-test-declarations-after.txt
+```
+
+No existing test name may disappear unless it is intentionally replaced by an equivalent test noted in the commit message.
+
+Add/maintain architecture regression tests for:
+- no internal Reach Mix task calls
+- removed tasks only raise migration guidance
+- no domain module calls CLI rendering/project helpers unless explicitly transitional
+- no direct compile calls outside `Reach.CLI.Project`
+- no magic `Enum.take(N)` in domain modules without named limits
+- no hardcoded trace source/sink presets in CLI modules
+
 ## Block Quality Acceptance Criteria
 
 Every change to visualization code MUST maintain these invariants, tested across real codebases (Elixir, Phoenix, Ecto, Oban, Plausible, Livebook — 16k+ functions).
@@ -52,43 +154,25 @@ Multi-clause functions with bodies use `build_multi_clause_cfg` — the CFG incl
 
 ## Testing Changes
 
-Run the block quality test: `mix test test/visualize/block_quality_test.exs`
+Run the block quality test after visualization changes:
+
+```bash
+mix test test/visualize/block_quality_test.exs
+```
 
 Smoke test across real codebases — clone first if needed:
+
 ```bash
 for repo in elixir-lang/elixir phoenixframework/phoenix elixir-ecto/ecto oban-bg/oban; do
   name=$(basename $repo)
   [ -d /tmp/$name ] || git clone --depth 1 https://github.com/$repo /tmp/$name
 done
 ```
+
 ```elixir
 dirs = ["/tmp/phoenix/lib", "/tmp/ecto/lib", "/tmp/oban/lib", "/tmp/elixir/lib"]
 # Check: zero crashes on to_json, verify block quality metrics
 ```
-
-## CLI Commands
-
-Analysis commands (all support `--format text|json|oneline`):
-
-| Command | Purpose |
-|---|---|
-| `mix reach` | Interactive HTML report with CFG/call graph/data flow views |
-| `mix reach.modules` | Module listing with complexity metrics |
-| `mix reach.coupling` | Module-level coupling (afferent/efferent/instability/circular deps) |
-| `mix reach.hotspots` | Functions ranked by complexity × callers (refactoring targets) |
-| `mix reach.depth` | Functions ranked by dominator tree depth (control nesting) |
-| `mix reach.effects` | Effect classification distribution and unknown-effect calls |
-| `mix reach.impact` | Change impact for a specific function (callers, return deps) |
-| `mix reach.deps` | Function dependencies (callers, callees, shared state) |
-| `mix reach.dead_code` | Unused pure expressions |
-| `mix reach.smell` | Pipeline waste, redundant computation, eager patterns |
-| `mix reach.flow` | Data flow / taint tracing (--from/--to or --variable) |
-| `mix reach.slice` | Program slicing (backward/forward from a line) |
-| `mix reach.graph` | Terminal CFG rendering (requires boxart) |
-| `mix reach.xref` | Cross-function data flow (parameter, return, state edges) |
-| `mix reach.concurrency` | Task/monitor/spawn patterns and supervisor topology |
-| `mix reach.boundaries` | Functions with multiple distinct side effects |
-| `mix reach.otp` | GenServer state machines, ETS/process-dict coupling, missing handlers |
 
 ## What NOT to Do
 
