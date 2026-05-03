@@ -2,7 +2,6 @@ defmodule Reach.Map.Analysis do
   @moduledoc false
 
   alias Reach.Analysis
-  alias Reach.CLI.Format
   alias Reach.ControlFlow
   alias Reach.Dominator
   alias Reach.Effects
@@ -79,7 +78,7 @@ defmodule Reach.Map.Analysis do
       %{
         module: module,
         function: function,
-        display_function: Format.func_id_to_string(mfa),
+        display_function: IRHelpers.func_id_to_string(mfa),
         file: func.source_span && func.source_span.file,
         line: func.source_span && func.source_span.start_line,
         effects: Enum.map(effects, &to_string/1),
@@ -201,7 +200,7 @@ defmodule Reach.Map.Analysis do
       %{
         module: module,
         function: function,
-        display_function: Format.func_id_to_string(mfa),
+        display_function: IRHelpers.func_id_to_string(mfa),
         file: span_file(func),
         line: func.source_span && func.source_span.start_line,
         branches: branches,
@@ -587,7 +586,7 @@ defmodule Reach.Map.Analysis do
     |> Enum.filter(&(&1.type == :call))
     |> Enum.reject(&(Effects.classify(&1) in [:pure, :unknown]))
     |> Enum.map(fn call ->
-      %{effect: to_string(Effects.classify(call)), call: Format.call_name(call)}
+      %{effect: to_string(Effects.classify(call)), call: IRHelpers.call_name(call)}
     end)
     |> Enum.uniq_by(& &1.call)
     |> Enum.sort_by(& &1.effect)
@@ -626,9 +625,10 @@ defmodule Reach.Map.Analysis do
 
   defp function_id(func), do: {func.meta[:module], func.meta[:name], func.meta[:arity]}
 
-  defp func_id(func), do: Format.func_id_to_string(function_id(func))
+  defp func_id(func), do: IRHelpers.func_id_to_string(function_id(func))
 
-  defp func_id_tuple({module, name, arity}), do: Format.func_id_to_string({module, name, arity})
+  defp func_id_tuple({module, name, arity}),
+    do: IRHelpers.func_id_to_string({module, name, arity})
 
   defp span_file(node), do: node.source_span && node.source_span.file
 
