@@ -3,9 +3,9 @@ defmodule Reach.CLI.Analyses.Flow do
   Traces data flow from sources to sinks. Detects taint paths where
   untrusted input reaches dangerous operations.
 
-      mix reach.flow --from conn.params --to Repo
-      mix reach.flow --variable user --in UserService.register/2
-      mix reach.flow --from conn.params --to System.cmd --format json
+      mix reach.trace --from conn.params --to Repo
+      mix reach.trace --variable user --in UserService.register/2
+      mix reach.trace --from conn.params --to System.cmd --format json
 
   ## Options
 
@@ -35,7 +35,7 @@ defmodule Reach.CLI.Analyses.Flow do
   alias Reach.CLI.Project
   alias Reach.IR
 
-  def run(args) do
+  def run(args, cli_opts \\ []) do
     {opts, _args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
     format = opts[:format] || "text"
 
@@ -54,11 +54,13 @@ defmodule Reach.CLI.Analyses.Flow do
       end
 
     case format do
-      "json" -> Format.render(result, "reach.flow", format: "json", pretty: true)
+      "json" -> Format.render(result, command(cli_opts), format: "json", pretty: true)
       "oneline" -> render_oneline(result)
       _ -> render_text(project, result, display_limit(opts))
     end
   end
+
+  defp command(cli_opts), do: Keyword.get(cli_opts, :command, "reach.trace")
 
   defp path_limit(opts) do
     cond do

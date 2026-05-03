@@ -1,25 +1,20 @@
 defmodule Mix.Tasks.Reach.Modules do
   @moduledoc """
-  Compatibility wrapper for `mix reach.map --modules`.
+  Removed compatibility task.
 
-  This task is kept for users upgrading from older Reach versions. New code and
-  documentation should use the canonical dotted command:
-
-      mix reach.map --modules
-
+  Use `mix reach.map --modules` instead.
   """
 
   use Mix.Task
 
-  alias Reach.CLI.{Deprecation, Pipe}
+  alias Reach.CLI.Deprecation
 
-  @shortdoc "Deprecated: List modules"
+  @dialyzer {:nowarn_function, run: 1}
+
+  @shortdoc "Removed; use mix reach.map --modules"
 
   @impl Mix.Task
-  def run(args) do
-    Pipe.safely(fn ->
-      Deprecation.warn("reach.modules", "reach.map --modules")
-      Mix.Tasks.Reach.Map.run(["--modules" | args])
-    end)
+  def run(_args) do
+    Deprecation.warn("reach.modules", "reach.map --modules")
   end
 end

@@ -2,9 +2,9 @@ defmodule Reach.CLI.Analyses.DeadCode do
   @moduledoc """
   Finds dead code — pure expressions whose values are never used.
 
-      mix reach.dead_code
-      mix reach.dead_code lib/my_app/
-      mix reach.dead_code --format json
+      mix reach.check --dead-code
+      mix reach.check --dead-code lib/my_app/
+      mix reach.check --dead-code --format json
 
   ## Options
 
@@ -18,7 +18,7 @@ defmodule Reach.CLI.Analyses.DeadCode do
   @switches [format: :string, path: :string]
   @aliases [f: :format]
 
-  def run(args) do
+  def run(args, cli_opts \\ []) do
     {opts, args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
     format = opts[:format] || "text"
 
@@ -50,7 +50,7 @@ defmodule Reach.CLI.Analyses.DeadCode do
 
     case format do
       "json" ->
-        Format.render(%{findings: findings}, "reach.dead_code", format: "json", pretty: true)
+        Format.render(%{findings: findings}, command(cli_opts), format: "json", pretty: true)
 
       "oneline" ->
         Enum.each(findings, fn f ->
@@ -63,6 +63,8 @@ defmodule Reach.CLI.Analyses.DeadCode do
         render_text(findings)
     end
   end
+
+  defp command(cli_opts), do: Keyword.get(cli_opts, :command, "reach.check")
 
   defp collect_files(nil) do
     Path.wildcard("lib/**/*.ex") ++ Path.wildcard("src/**/*.erl")

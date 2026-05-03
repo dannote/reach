@@ -1,25 +1,20 @@
 defmodule Mix.Tasks.Reach.Effects do
   @moduledoc """
-  Compatibility wrapper for `mix reach.map --effects`.
+  Removed compatibility task.
 
-  This task is kept for users upgrading from older Reach versions. New code and
-  documentation should use the canonical dotted command:
-
-      mix reach.map --effects
-
+  Use `mix reach.map --effects` instead.
   """
 
   use Mix.Task
 
-  alias Reach.CLI.{Deprecation, Pipe}
+  alias Reach.CLI.Deprecation
 
-  @shortdoc "Deprecated: Show effect distribution"
+  @dialyzer {:nowarn_function, run: 1}
+
+  @shortdoc "Removed; use mix reach.map --effects"
 
   @impl Mix.Task
-  def run(args) do
-    Pipe.safely(fn ->
-      Deprecation.warn("reach.effects", "reach.map --effects")
-      Mix.Tasks.Reach.Map.run(["--effects" | args])
-    end)
+  def run(_args) do
+    Deprecation.warn("reach.effects", "reach.map --effects")
   end
 end

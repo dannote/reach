@@ -3,8 +3,8 @@ defmodule Reach.CLI.Analyses.Concurrency do
   Concurrency patterns — Task.async/await pairing, process monitors,
   spawn_link chains, and supervisor topology.
 
-      mix reach.concurrency
-      mix reach.concurrency --format json
+      mix reach.otp --concurrency
+      mix reach.otp --concurrency --format json
 
   ## Options
 
@@ -19,7 +19,7 @@ defmodule Reach.CLI.Analyses.Concurrency do
   @switches [format: :string]
   @aliases [f: :format]
 
-  def run(args) do
+  def run(args, cli_opts \\ []) do
     {opts, _args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
     format = opts[:format] || "text"
 
@@ -27,11 +27,13 @@ defmodule Reach.CLI.Analyses.Concurrency do
     result = analyze(project)
 
     case format do
-      "json" -> Format.render(result, "reach.concurrency", format: "json", pretty: true)
+      "json" -> Format.render(result, command(cli_opts), format: "json", pretty: true)
       "oneline" -> render_oneline(result)
       _ -> render_text(result)
     end
   end
+
+  defp command(cli_opts), do: Keyword.get(cli_opts, :command, "reach.otp")
 
   defp analyze(project) do
     nodes = Map.values(project.nodes)

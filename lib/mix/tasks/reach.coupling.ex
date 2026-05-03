@@ -1,25 +1,20 @@
 defmodule Mix.Tasks.Reach.Coupling do
   @moduledoc """
-  Compatibility wrapper for `mix reach.map --coupling`.
+  Removed compatibility task.
 
-  This task is kept for users upgrading from older Reach versions. New code and
-  documentation should use the canonical dotted command:
-
-      mix reach.map --coupling
-
+  Use `mix reach.map --coupling` instead.
   """
 
   use Mix.Task
 
-  alias Reach.CLI.{Deprecation, Pipe}
+  alias Reach.CLI.Deprecation
 
-  @shortdoc "Deprecated: Show module coupling"
+  @dialyzer {:nowarn_function, run: 1}
+
+  @shortdoc "Removed; use mix reach.map --coupling"
 
   @impl Mix.Task
-  def run(args) do
-    Pipe.safely(fn ->
-      Deprecation.warn("reach.coupling", "reach.map --coupling")
-      Mix.Tasks.Reach.Map.run(["--coupling" | args])
-    end)
+  def run(_args) do
+    Deprecation.warn("reach.coupling", "reach.map --coupling")
   end
 end

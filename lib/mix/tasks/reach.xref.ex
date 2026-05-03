@@ -1,25 +1,20 @@
 defmodule Mix.Tasks.Reach.Xref do
   @moduledoc """
-  Compatibility wrapper for `mix reach.map --data`.
+  Removed compatibility task.
 
-  This task is kept for users upgrading from older Reach versions. New code and
-  documentation should use the canonical dotted command:
-
-      mix reach.map --data
-
+  Use `mix reach.map --data` instead.
   """
 
   use Mix.Task
 
-  alias Reach.CLI.{Deprecation, Pipe}
+  alias Reach.CLI.Deprecation
 
-  @shortdoc "Deprecated: Show cross-function data flow"
+  @dialyzer {:nowarn_function, run: 1}
+
+  @shortdoc "Removed; use mix reach.map --data"
 
   @impl Mix.Task
-  def run(args) do
-    Pipe.safely(fn ->
-      Deprecation.warn("reach.xref", "reach.map --data")
-      Mix.Tasks.Reach.Map.run(["--data" | args])
-    end)
+  def run(_args) do
+    Deprecation.warn("reach.xref", "reach.map --data")
   end
 end

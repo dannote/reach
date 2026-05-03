@@ -2,10 +2,10 @@ defmodule Reach.CLI.Analyses.Slice do
   @moduledoc """
   Program slicing — finds the minimum set of statements that affect a value.
 
-      mix reach.slice lib/my_app/user_controller.ex:18
-      mix reach.slice MyApp.UserService.create/1 --variable changeset
-      mix reach.slice --forward lib/my_app/user_service.ex:30 --variable user
-      mix reach.slice lib/my_app_web/controllers/user_controller.ex:18 --format json
+      mix reach.trace lib/my_app/user_controller.ex:18
+      mix reach.trace MyApp.UserService.create/1 --variable changeset
+      mix reach.trace --forward lib/my_app/user_service.ex:30 --variable user
+      mix reach.trace lib/my_app_web/controllers/user_controller.ex:18 --format json
 
   ## Options
 
@@ -22,14 +22,14 @@ defmodule Reach.CLI.Analyses.Slice do
   alias Reach.CLI.Format
   alias Reach.CLI.Project
 
-  def run(args) do
+  def run(args, cli_opts \\ []) do
     {opts, target_args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
 
     unless target_args != [] do
       Mix.raise(
         "Expected a target. Usage:\n" <>
-          "  mix reach.slice lib/foo.ex:42\n" <>
-          "  mix reach.slice Module.function/arity"
+          "  mix reach.trace lib/foo.ex:42\n" <>
+          "  mix reach.trace Module.function/arity"
       )
     end
 
@@ -47,7 +47,7 @@ defmodule Reach.CLI.Analyses.Slice do
       BoxartGraph.require!()
       BoxartGraph.render_slice_graph(project, node.id, forward?)
     else
-      render(format, node, result, forward?, target)
+      render(format, node, result, forward?, target, cli_opts)
     end
   end
 
@@ -82,28 +82,30 @@ defmodule Reach.CLI.Analyses.Slice do
     end
   end
 
-  defp render("json", node, result, forward?, target) do
+  defp render("json", node, result, forward?, target, cli_opts) do
     Format.render(
       %{
         target: %{file: target.file, line: target.line, node_id: node.id},
         direction: if(forward?, do: "forward", else: "backward"),
         statements: result
       },
-      "reach.slice",
+      command(cli_opts),
       format: "json",
       pretty: true
     )
   end
 
-  defp render("oneline", _node, result, _forward?, _target) do
+  defp render("oneline", _node, result, _forward?, _target, _cli_opts) do
     Enum.each(result, fn stmt ->
       IO.puts("#{stmt.file}:#{stmt.line}: #{stmt.description}")
     end)
   end
 
-  defp render(_format, node, result, forward?, _target) do
+  defp render(_format, node, result, forward?, _target, _cli_opts) do
     render_text(node, result, forward?)
   end
+
+  defp command(cli_opts), do: Keyword.get(cli_opts, :command, "reach.trace")
 
   defp find_node_at_location(project, file, line) do
     target_basename = Path.basename(file)

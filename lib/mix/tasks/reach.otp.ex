@@ -9,7 +9,7 @@ defmodule Mix.Tasks.Reach.Otp do
   ## Options
 
     * `--format` — output format: `text` (default), `json`, `oneline`
-    * `--concurrency` — delegate to `mix reach.concurrency`
+    * `--concurrency` — show Task/monitor/spawn and supervisor topology
     * `--state` — focus on state-machine output (accepted for canonical CLI compatibility)
     * `--messages` — focus on message-handler output (accepted for canonical CLI compatibility)
     * `--supervision` — focus on supervision output (accepted for canonical CLI compatibility)
@@ -30,11 +30,11 @@ defmodule Mix.Tasks.Reach.Otp do
   ]
   @aliases [f: :format]
 
+  alias Reach.CLI.Analyses.Concurrency
   alias Reach.CLI.BoxartGraph
   alias Reach.CLI.Format
   alias Reach.CLI.Pipe
   alias Reach.CLI.Project
-  alias Reach.CLI.TaskRunner
   alias Reach.OTP.Analysis, as: OTPAnalysis
 
   @impl Mix.Task
@@ -47,7 +47,7 @@ defmodule Mix.Tasks.Reach.Otp do
     format = opts[:format] || "text"
 
     if opts[:concurrency] do
-      TaskRunner.run("reach.concurrency", delegated_args(args), command: "reach.otp")
+      Concurrency.run(concurrency_args(args), command: "reach.otp")
     else
       {project, scope} = load_project_and_scope(target_args, opts)
       result = analyze(project, scope)
@@ -61,7 +61,7 @@ defmodule Mix.Tasks.Reach.Otp do
   defp render_result(result, "oneline", _opts), do: render_oneline(result)
   defp render_result(result, _format, opts), do: render_text(result, opts)
 
-  defp delegated_args(args) do
+  defp concurrency_args(args) do
     Enum.reject(args, &(&1 == "--concurrency"))
   end
 

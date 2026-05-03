@@ -17,7 +17,7 @@ defmodule Mix.Tasks.Reach.CanonicalTest do
                  end
   end
 
-  test "canonical delegated commands suppress compatibility warnings and keep canonical command" do
+  test "canonical commands call analyses directly and keep canonical json envelope" do
     output =
       capture_io(fn ->
         warning =
@@ -30,7 +30,7 @@ defmodule Mix.Tasks.Reach.CanonicalTest do
 
     data = decode_json(output)
     assert data["command"] == "reach.inspect"
-    assert data["tool"] == "reach.deps"
+    assert data["tool"] == "reach.inspect"
   end
 
   test "reach.map delegates to selected project summaries" do
@@ -140,13 +140,33 @@ defmodule Mix.Tasks.Reach.CanonicalTest do
     assert output =~ "Reach.Project"
   end
 
-  test "reach.trace delegates variable tracing" do
+  test "reach.trace runs variable tracing directly" do
     output =
       capture_io(fn ->
         Trace.run(["--variable", "graph", "--in", "Reach.to_dot/1", "--format", "oneline"])
       end)
 
     assert output =~ "graph"
+  end
+
+  test "canonical tasks do not call removed Reach mix tasks internally" do
+    forbidden =
+      ~r/TaskRunner\.run|Mix\.Tasks\.Reach\..*\.run|Mix\.Task\.run\("reach|Reach\.CLI\.TaskRunner|Deprecation\.delegated/
+
+    files = Path.wildcard("lib/**/*.ex")
+
+    offenders =
+      files
+      |> Enum.flat_map(fn file ->
+        file
+        |> File.read!()
+        |> String.split("\n")
+        |> Enum.with_index(1)
+        |> Enum.filter(fn {line, _line_number} -> line =~ forbidden end)
+        |> Enum.map(fn {_line, line_number} -> "#{file}:#{line_number}" end)
+      end)
+
+    assert offenders == []
   end
 
   test "reach.check emits graph-backed candidates as pure json" do

@@ -2,22 +2,19 @@ defmodule Mix.Tasks.Reach.Smell do
   @moduledoc """
   Removed compatibility task.
 
-  Use:
-
-      mix reach.check --smells
-
+  Use `mix reach.check --smells` instead.
   """
 
   use Mix.Task
 
-  alias Reach.CLI.{Deprecation, Pipe}
+  alias Reach.CLI.Deprecation
 
-  @shortdoc "Removed: use mix reach.check --smells"
+  @dialyzer {:nowarn_function, run: 1}
+
+  @shortdoc "Removed; use mix reach.check --smells"
 
   @impl Mix.Task
   def run(_args) do
-    Pipe.safely(fn ->
-      Deprecation.warn("reach.smell", "reach.check --smells")
-    end)
+    Deprecation.warn("reach.smell", "reach.check --smells")
   end
 end

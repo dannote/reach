@@ -2,9 +2,9 @@ defmodule Reach.CLI.Analyses.Impact do
   @moduledoc """
   Shows what breaks if a function's signature or return value changes.
 
-      mix reach.impact UserService.register/2
-      mix reach.impact lib/my_app/user_service.ex:10
-      mix reach.impact UserService.register/2 --format json
+      mix reach.inspect UserService.register/2 --impact
+      mix reach.inspect lib/my_app/user_service.ex:10 --impact
+      mix reach.inspect UserService.register/2 --impact --format json
 
   ## Options
 
@@ -21,7 +21,7 @@ defmodule Reach.CLI.Analyses.Impact do
   alias Reach.CLI.Project
   alias Reach.IR
 
-  def run(args) do
+  def run(args, cli_opts \\ []) do
     {opts, target_args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
 
     raw_target =
@@ -32,8 +32,8 @@ defmodule Reach.CLI.Analyses.Impact do
         [] ->
           Mix.raise(
             "Expected a target. Usage:\n" <>
-              "  mix reach.impact Module.function/arity\n" <>
-              "  mix reach.impact lib/foo.ex:42"
+              "  mix reach.inspect Module.function/arity --impact\n" <>
+              "  mix reach.inspect lib/foo.ex:42 --impact"
           )
       end
 
@@ -46,17 +46,17 @@ defmodule Reach.CLI.Analyses.Impact do
 
     depth = opts[:depth] || 4
     result = analyze(project, target, depth)
-    render_result(project, target, depth, result, opts)
+    render_result(project, target, depth, result, opts, cli_opts)
   end
 
-  defp render_result(project, target, depth, result, opts) do
+  defp render_result(project, target, depth, result, opts, cli_opts) do
     cond do
       opts[:graph] ->
         BoxartGraph.require!()
         BoxartGraph.render_caller_graph(project, target, depth)
 
       opts[:format] == "json" ->
-        Format.render(result, "reach.impact", format: "json", pretty: true)
+        Format.render(result, command(cli_opts), format: "json", pretty: true)
 
       opts[:format] == "oneline" ->
         render_oneline(result)
@@ -65,6 +65,8 @@ defmodule Reach.CLI.Analyses.Impact do
         render_text(project, result)
     end
   end
+
+  defp command(cli_opts), do: Keyword.get(cli_opts, :command, "reach.inspect")
 
   defp analyze(project, target, depth) do
     direct = find_callers(project, target, 1)

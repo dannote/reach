@@ -3,9 +3,9 @@ defmodule Reach.CLI.Analyses.Deps do
   Shows what a function depends on — direct and transitive callers, callees,
   and shared state.
 
-      mix reach.deps UserService.register/2
-      mix reach.deps lib/my_app/user_service.ex:10
-      mix reach.deps UserService.register/2 --format json
+      mix reach.inspect UserService.register/2 --deps
+      mix reach.inspect lib/my_app/user_service.ex:10 --deps
+      mix reach.inspect UserService.register/2 --deps --format json
 
   ## Options
 
@@ -21,14 +21,14 @@ defmodule Reach.CLI.Analyses.Deps do
   alias Reach.CLI.Format
   alias Reach.CLI.Project
 
-  def run(args) do
+  def run(args, cli_opts \\ []) do
     {opts, target_args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
 
     unless target_args != [] do
       Mix.raise(
         "Expected a target. Usage:\n" <>
-          "  mix reach.deps Module.function/arity\n" <>
-          "  mix reach.deps lib/foo.ex:42"
+          "  mix reach.inspect Module.function/arity --deps\n" <>
+          "  mix reach.inspect lib/foo.ex:42 --deps"
       )
     end
 
@@ -53,21 +53,23 @@ defmodule Reach.CLI.Analyses.Deps do
       shared_state_writers: shared
     }
 
-    render_output(format, result, project, target, depth, opts)
+    render_output(format, result, project, target, depth, opts, cli_opts)
   end
 
-  defp render_output(format, result, project, target, depth, opts) do
+  defp render_output(format, result, project, target, depth, opts, cli_opts) do
     if opts[:graph] do
       BoxartGraph.require!()
       BoxartGraph.render_call_graph(project, target, depth)
     else
       case format do
-        "json" -> Format.render(result, "reach.deps", format: "json", pretty: true)
+        "json" -> Format.render(result, command(cli_opts), format: "json", pretty: true)
         "oneline" -> render_oneline(result)
         _ -> render_text(result)
       end
     end
   end
+
+  defp command(cli_opts), do: Keyword.get(cli_opts, :command, "reach.inspect")
 
   defp find_shared_state(project, target) do
     nodes = project.nodes

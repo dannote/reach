@@ -2,22 +2,19 @@ defmodule Mix.Tasks.Reach.Slice do
   @moduledoc """
   Removed compatibility task.
 
-  Use:
-
-      mix reach.trace TARGET
-
+  Use `mix reach.trace TARGET` instead.
   """
 
   use Mix.Task
 
-  alias Reach.CLI.{Deprecation, Pipe}
+  alias Reach.CLI.Deprecation
 
-  @shortdoc "Removed: use mix reach.trace TARGET"
+  @dialyzer {:nowarn_function, run: 1}
+
+  @shortdoc "Removed; use mix reach.trace TARGET"
 
   @impl Mix.Task
   def run(_args) do
-    Pipe.safely(fn ->
-      Deprecation.warn("reach.slice TARGET", "reach.trace TARGET")
-    end)
+    Deprecation.warn("reach.slice TARGET", "reach.trace TARGET")
   end
 end

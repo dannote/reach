@@ -36,11 +36,11 @@ defmodule Mix.Tasks.Reach.Inspect do
 
   use Mix.Task
 
+  alias Reach.CLI.Analyses.{Deps, Impact, Slice}
   alias Reach.CLI.BoxartGraph
   alias Reach.CLI.Format
   alias Reach.CLI.Pipe
   alias Reach.CLI.Project
-  alias Reach.CLI.TaskRunner
   alias Reach.Inspect.{Candidates, Context, Data, Why}
 
   @shortdoc "Inspect one target's dependencies, impact, slices, and context"
@@ -104,29 +104,20 @@ defmodule Mix.Tasks.Reach.Inspect do
     do: render_candidates_placeholder(target, opts)
 
   defp run_action(:impact, target, _target_args, opts),
-    do:
-      TaskRunner.run("reach.impact", target_args(target, opts, graph?: opts[:graph]),
-        command: "reach.inspect"
-      )
+    do: Impact.run(target_args(target, opts, graph?: opts[:graph]), command: "reach.inspect")
 
   defp run_action(:deps, target, _target_args, opts),
-    do:
-      TaskRunner.run("reach.deps", target_args(target, opts, graph?: opts[:graph]),
-        command: "reach.inspect"
-      )
+    do: Deps.run(target_args(target, opts, graph?: opts[:graph]), command: "reach.inspect")
 
   defp run_action(:call_graph, target, _target_args, opts),
-    do:
-      TaskRunner.run("reach.deps", target_args(target, opts, graph?: true),
-        command: "reach.inspect"
-      )
+    do: Deps.run(target_args(target, opts, graph?: true), command: "reach.inspect")
 
   defp run_action(:graph, target, _target_args, opts), do: render_cfg(target, opts)
   defp run_action(:data_json, target, _target_args, opts), do: render_data_json(target, opts)
   defp run_action(:data_text, target, _target_args, opts), do: render_data_text(target, opts)
 
   defp run_action(:slice, target, _target_args, opts),
-    do: TaskRunner.run("reach.slice", slice_args(target, opts), command: "reach.inspect")
+    do: Slice.run(slice_args(target, opts), command: "reach.inspect")
 
   defp render_why(target, opts) do
     ensure_json_encoder_if_needed(opts)

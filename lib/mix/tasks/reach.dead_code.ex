@@ -2,22 +2,19 @@ defmodule Mix.Tasks.Reach.DeadCode do
   @moduledoc """
   Removed compatibility task.
 
-  Use:
-
-      mix reach.check --dead-code
-
+  Use `mix reach.check --dead-code` instead.
   """
 
   use Mix.Task
 
-  alias Reach.CLI.{Deprecation, Pipe}
+  alias Reach.CLI.Deprecation
 
-  @shortdoc "Removed: use mix reach.check --dead-code"
+  @dialyzer {:nowarn_function, run: 1}
+
+  @shortdoc "Removed; use mix reach.check --dead-code"
 
   @impl Mix.Task
   def run(_args) do
-    Pipe.safely(fn ->
-      Deprecation.warn("reach.dead_code", "reach.check --dead-code")
-    end)
+    Deprecation.warn("reach.dead_code", "reach.check --dead-code")
   end
 end

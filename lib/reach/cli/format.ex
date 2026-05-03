@@ -60,21 +60,6 @@ defmodule Reach.CLI.Format do
 
   # ── Rendering ──
 
-  @command_override_key {__MODULE__, :command_override}
-
-  def with_command(command, fun) when is_function(fun, 0) do
-    previous = Process.get(@command_override_key)
-    Process.put(@command_override_key, command)
-
-    try do
-      fun.()
-    after
-      if previous,
-        do: Process.put(@command_override_key, previous),
-        else: Process.delete(@command_override_key)
-    end
-  end
-
   def render(findings, tool, opts) do
     case opts[:format] || "text" do
       "text" -> render_text(findings, tool)
@@ -88,10 +73,8 @@ defmodule Reach.CLI.Format do
   end
 
   defp render_json(data, tool, opts) do
-    command = Process.get(@command_override_key, tool)
-
     output = %Reach.CLI.JSONEnvelope{
-      command: command,
+      command: tool,
       tool: tool,
       data: jsonify(data)
     }

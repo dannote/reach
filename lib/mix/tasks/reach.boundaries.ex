@@ -1,25 +1,20 @@
 defmodule Mix.Tasks.Reach.Boundaries do
   @moduledoc """
-  Compatibility wrapper for `mix reach.map --boundaries`.
+  Removed compatibility task.
 
-  This task is kept for users upgrading from older Reach versions. New code and
-  documentation should use the canonical dotted command:
-
-      mix reach.map --boundaries
-
+  Use `mix reach.map --boundaries` instead.
   """
 
   use Mix.Task
 
-  alias Reach.CLI.{Deprecation, Pipe}
+  alias Reach.CLI.Deprecation
 
-  @shortdoc "Deprecated: Show effect boundaries"
+  @dialyzer {:nowarn_function, run: 1}
+
+  @shortdoc "Removed; use mix reach.map --boundaries"
 
   @impl Mix.Task
-  def run(args) do
-    Pipe.safely(fn ->
-      Deprecation.warn("reach.boundaries", "reach.map --boundaries")
-      Mix.Tasks.Reach.Map.run(["--boundaries" | args])
-    end)
+  def run(_args) do
+    Deprecation.warn("reach.boundaries", "reach.map --boundaries")
   end
 end

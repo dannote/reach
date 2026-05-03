@@ -6,9 +6,9 @@ defmodule Reach.CLI.Analyses.Smell do
   patterns, string-building patterns, and loose map contracts such as mixed
   atom/string key access.
 
-      mix reach.smell
-      mix reach.smell --format json
-      mix reach.smell lib/my_app/
+      mix reach.check --smells
+      mix reach.check --smells --format json
+      mix reach.check --smells lib/my_app/
 
   ## Options
 
@@ -23,7 +23,7 @@ defmodule Reach.CLI.Analyses.Smell do
   alias Reach.CLI.Format
   alias Reach.CLI.Project
 
-  def run(args) do
+  def run(args, cli_opts \\ []) do
     {opts, args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
     format = opts[:format] || "text"
     path = opts[:path] || List.first(args)
@@ -36,7 +36,7 @@ defmodule Reach.CLI.Analyses.Smell do
 
     case format do
       "json" ->
-        Format.render(%{findings: Enum.map(findings, &Finding.to_map/1)}, "reach.smell",
+        Format.render(%{findings: Enum.map(findings, &Finding.to_map/1)}, command(cli_opts),
           format: "json",
           pretty: true
         )
@@ -50,6 +50,8 @@ defmodule Reach.CLI.Analyses.Smell do
         render_text(findings)
     end
   end
+
+  defp command(cli_opts), do: Keyword.get(cli_opts, :command, "reach.check")
 
   @doc false
   def analyze(project), do: run_checks(project)

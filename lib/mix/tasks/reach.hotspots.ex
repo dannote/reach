@@ -1,25 +1,20 @@
 defmodule Mix.Tasks.Reach.Hotspots do
   @moduledoc """
-  Compatibility wrapper for `mix reach.map --hotspots`.
+  Removed compatibility task.
 
-  This task is kept for users upgrading from older Reach versions. New code and
-  documentation should use the canonical dotted command:
-
-      mix reach.map --hotspots
-
+  Use `mix reach.map --hotspots` instead.
   """
 
   use Mix.Task
 
-  alias Reach.CLI.{Deprecation, Pipe}
+  alias Reach.CLI.Deprecation
 
-  @shortdoc "Deprecated: Show hotspots"
+  @dialyzer {:nowarn_function, run: 1}
+
+  @shortdoc "Removed; use mix reach.map --hotspots"
 
   @impl Mix.Task
-  def run(args) do
-    Pipe.safely(fn ->
-      Deprecation.warn("reach.hotspots", "reach.map --hotspots")
-      Mix.Tasks.Reach.Map.run(["--hotspots" | args])
-    end)
+  def run(_args) do
+    Deprecation.warn("reach.hotspots", "reach.map --hotspots")
   end
 end

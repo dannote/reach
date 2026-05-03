@@ -27,10 +27,10 @@ defmodule Mix.Tasks.Reach.Check do
   alias Reach.Check.Architecture
   alias Reach.Check.Candidates
   alias Reach.Check.Changed
+  alias Reach.CLI.Analyses.{DeadCode, Smell}
   alias Reach.CLI.Format
   alias Reach.CLI.Pipe
   alias Reach.CLI.Project
-  alias Reach.CLI.TaskRunner
 
   @shortdoc "Structural validation and change-safety checks"
   @text_limit 30
@@ -62,12 +62,10 @@ defmodule Mix.Tasks.Reach.Check do
           run_changed(opts)
 
         opts[:dead_code] ->
-          TaskRunner.run("reach.dead_code", delegated_args(opts, positional),
-            command: "reach.check"
-          )
+          run_analysis(DeadCode, analysis_args(opts, positional))
 
         opts[:smells] ->
-          TaskRunner.run("reach.smell", delegated_args(opts, positional), command: "reach.check")
+          run_analysis(Smell, analysis_args(opts, positional))
 
         opts[:candidates] ->
           render_candidates_placeholder(opts, positional)
@@ -147,7 +145,11 @@ defmodule Mix.Tasks.Reach.Check do
     end
   end
 
-  defp delegated_args(opts, positional) do
+  defp run_analysis(module, args) do
+    module.run(args, command: "reach.check")
+  end
+
+  defp analysis_args(opts, positional) do
     []
     |> maybe_put("--format", opts[:format])
     |> maybe_put("--path", opts[:path])
