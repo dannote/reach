@@ -3,6 +3,8 @@ defmodule Reach.Check.DeadCode do
   Finds dead code — pure expressions whose values are never used.
   """
 
+  alias Reach.Check.DeadCode.Finding
+
   def collect_files(nil) do
     Path.wildcard("lib/**/*.ex") ++ Path.wildcard("src/**/*.erl")
   end
@@ -40,12 +42,12 @@ defmodule Reach.Check.DeadCode do
   end
 
   defp finding_from_node(node, file) do
-    %{
+    Finding.new(
       file: file,
       line: node.source_span.start_line,
       kind: node.type,
       description: describe(node)
-    }
+    )
   end
 
   defp describe(node) do

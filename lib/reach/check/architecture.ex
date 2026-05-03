@@ -356,10 +356,7 @@ defmodule Reach.Check.Architecture do
         Graph.add_edge(graph, layer, dep)
       end)
     end)
-    |> Graph.strong_components()
-    |> Enum.filter(&match?([_, _ | _], &1))
-    |> Enum.map(&canonical_cycle/1)
-    |> Enum.sort_by(&{length(&1), &1})
+    |> Reach.GraphAlgorithms.cycle_components(&canonical_cycle/1)
   end
 
   defp canonical_cycle(cycle) do

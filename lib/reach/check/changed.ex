@@ -2,6 +2,8 @@ defmodule Reach.Check.Changed do
   @moduledoc false
 
   alias Reach.Check.Architecture
+  alias Reach.Check.Changed.Function, as: ChangedFunction
+  alias Reach.Check.Changed.Result
   alias Reach.Config
   alias Reach.IR
   alias Reach.IR.Helpers, as: IRHelpers
@@ -16,7 +18,7 @@ defmodule Reach.Check.Changed do
     tests = suggested_tests(files, functions, normalized_config.tests.hints)
     {risk, risk_reasons} = aggregate_change_risk(functions)
 
-    %{
+    Result.new(
       base: base,
       risk: risk,
       risk_reasons: risk_reasons,
@@ -24,7 +26,7 @@ defmodule Reach.Check.Changed do
       changed_functions: functions,
       public_api_changes: Enum.filter(functions, & &1.public_api),
       suggested_tests: tests
-    }
+    )
   end
 
   def default_base_ref do
@@ -175,7 +177,7 @@ defmodule Reach.Check.Changed do
     {risk, reasons} =
       change_risk(func, direct_callers, transitive_callers, effects, branches, thresholds)
 
-    %{
+    ChangedFunction.new(
       id: IRHelpers.func_id_to_string(id),
       file: func.source_span && func.source_span.file,
       line: func.source_span && func.source_span.start_line,
@@ -187,7 +189,7 @@ defmodule Reach.Check.Changed do
       direct_callers: Enum.map(direct_callers, &IRHelpers.func_id_to_string(&1.id)),
       direct_caller_count: length(direct_callers),
       transitive_caller_count: length(transitive_callers)
-    }
+    )
   end
 
   defp public_api_function?(func, config) do

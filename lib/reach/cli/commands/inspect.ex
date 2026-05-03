@@ -201,7 +201,7 @@ defmodule Reach.CLI.Commands.Inspect do
     {mfa, func} = resolve_function!(project, target)
     target_string = IRHelpers.func_id_to_string(mfa)
 
-    candidate_config = inspect_config().candidates
+    candidate_config = Config.read() |> Config.normalize() |> Map.fetch!(:candidates)
 
     candidates =
       Enum.map(
@@ -217,14 +217,5 @@ defmodule Reach.CLI.Commands.Inspect do
     }
 
     InspectRender.render_candidates(result, opts[:format] || "text")
-  end
-
-  defp inspect_config do
-    if File.exists?(".reach.exs") do
-      {config, _binding} = Code.eval_file(".reach.exs")
-      Config.normalize(config)
-    else
-      Config.normalize([])
-    end
   end
 end

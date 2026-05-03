@@ -58,7 +58,9 @@ defmodule Reach.Check.ArchitecturePolicyTest do
   end
 
   test "reach.check reports forbidden call violations" do
-    with_reach_config(~S([forbidden_calls: [{"Reach.CLI.Commands.Check", ["File.exists?"]}]]))
+    with_reach_config(
+      ~S([forbidden_calls: [{"Reach.CLI.Commands.Check", ["Reach.Config.read"]}]])
+    )
 
     assert_raise Mix.Error, ~r/Architecture policy failed/, fn ->
       capture_io(fn -> Check.run(["--arch", "--format", "json"]) end)
@@ -66,7 +68,9 @@ defmodule Reach.Check.ArchitecturePolicyTest do
   end
 
   test "reach.check reports grouped forbidden call violations" do
-    with_reach_config(~S([calls: [forbidden: [{"Reach.CLI.Commands.Check", ["File.exists?"]}]]]))
+    with_reach_config(
+      ~S([calls: [forbidden: [{"Reach.CLI.Commands.Check", ["Reach.Config.read"]}]]])
+    )
 
     assert_raise Mix.Error, ~r/Architecture policy failed/, fn ->
       capture_io(fn -> Check.run(["--arch", "--format", "json"]) end)

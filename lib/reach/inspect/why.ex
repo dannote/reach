@@ -1,6 +1,7 @@
 defmodule Reach.Inspect.Why do
   @moduledoc false
 
+  alias Reach.Inspect.Why.{Path, Result}
   alias Reach.IR
   alias Reach.IR.Helpers, as: IRHelpers
   alias Reach.Project.Query
@@ -19,23 +20,25 @@ defmodule Reach.Inspect.Why do
       true ->
         source
         |> why_paths(project, target, max_depth)
+        |> Map.from_struct()
         |> Map.merge(%{
           command: "reach.inspect",
           target: display_why_target(source),
           why: display_why_target(target)
         })
+        |> Result.new()
     end
   end
 
   defp why_not_found(source_raw, target_raw, reason) do
-    %{
+    Result.new(
       command: "reach.inspect",
       target: source_raw,
       why: target_raw,
-      relation: "none",
+      relation: :none,
       paths: [],
       reason: reason
-    }
+    )
   end
 
   defp why_paths(source, project, target, max_depth) do
@@ -59,7 +62,7 @@ defmodule Reach.Inspect.Why do
     targets = target_variants(project.call_graph, target)
 
     case shortest_call_path(project.call_graph, sources, MapSet.new(targets), max_depth) do
-      nil -> no_path_result("call_path")
+      nil -> no_path_result(:call_path)
       path -> call_path_result(project, path)
     end
   end
@@ -73,7 +76,7 @@ defmodule Reach.Inspect.Why do
            MapSet.new(targets),
            max_depth
          ) do
-      nil -> no_path_result("call_path")
+      nil -> no_path_result(:call_path)
       path -> call_path_result(project, path)
     end
   end
@@ -83,7 +86,7 @@ defmodule Reach.Inspect.Why do
     targets = MapSet.new(target_variants(project.call_graph, target))
 
     case shortest_call_path(project.call_graph, sources, targets, max_depth) do
-      nil -> no_path_result("call_path")
+      nil -> no_path_result(:call_path)
       path -> call_path_result(project, path)
     end
   end
@@ -92,37 +95,37 @@ defmodule Reach.Inspect.Why do
     module_graph = module_dependency_graph(project)
 
     case shortest_module_path(module_graph, source_module, target_module, max_depth) do
-      nil -> no_path_result("module_dependency_path")
+      nil -> no_path_result(:module_dependency_path)
       path -> module_path_result(project, path)
     end
   end
 
-  defp no_path_result(relation), do: %{relation: relation, paths: []}
+  defp no_path_result(relation), do: Result.new(relation: relation, paths: [])
 
   defp call_path_result(project, path) do
-    %{
-      relation: "call_path",
+    Result.new(
+      relation: :call_path,
       paths: [
-        %{
-          kind: "call",
+        Path.new(
+          kind: :call,
           nodes: Enum.map(path, &function_path_node(project, &1)),
           evidence: call_path_evidence(project, path)
-        }
+        )
       ]
-    }
+    )
   end
 
   defp module_path_result(project, path) do
-    %{
-      relation: "module_dependency_path",
+    Result.new(
+      relation: :module_dependency_path,
       paths: [
-        %{
-          kind: "module_dependency",
+        Path.new(
+          kind: :module_dependency,
           nodes: Enum.map(path, &module_path_node(project, &1)),
           evidence: module_path_evidence(project, path)
-        }
+        )
       ]
-    }
+    )
   end
 
   defp source_variants(call_graph, {module, _fun, _arity} = mfa) when module != nil do

@@ -21,6 +21,24 @@ defmodule Reach.CLI.RenderBoundaryTest do
     assert offenders == []
   end
 
+  test "check and inspect domain findings use atom types and kinds" do
+    forbidden = ~r/(type|kind):\s*"/
+
+    offenders =
+      ["lib/reach/check/**/*.ex", "lib/reach/inspect/**/*.ex"]
+      |> Enum.flat_map(&Path.wildcard/1)
+      |> Enum.flat_map(fn file ->
+        file
+        |> File.read!()
+        |> String.split("\n")
+        |> Enum.with_index(1)
+        |> Enum.filter(fn {line, _line_number} -> line =~ forbidden end)
+        |> Enum.map(fn {_line, line_number} -> "#{file}:#{line_number}" end)
+      end)
+
+    assert offenders == []
+  end
+
   test "canonical command modules keep rendering in render layer" do
     forbidden = ~r/IO\.puts|Format\.render|Jason\.encode!/
 

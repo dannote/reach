@@ -29,6 +29,7 @@ defmodule Reach.CLI.Commands.Check do
   alias Reach.CLI.Commands.Check.Smells
   alias Reach.CLI.Project
   alias Reach.CLI.Render.Check, as: CheckRender
+  alias Reach.Config
 
   def run(opts, positional \\ []) do
     cond do
@@ -53,7 +54,7 @@ defmodule Reach.CLI.Commands.Check do
   end
 
   defp run_default(opts) do
-    if File.exists?(".reach.exs") do
+    if Config.read() != [] do
       run_arch(opts)
     else
       CheckRender.render_no_default()
@@ -61,7 +62,7 @@ defmodule Reach.CLI.Commands.Check do
   end
 
   defp run_arch(opts) do
-    config = load_config()
+    config = Config.read!()
 
     result =
       case Architecture.config_violations(config) do
@@ -80,22 +81,8 @@ defmodule Reach.CLI.Commands.Check do
     end
   end
 
-  defp load_config do
-    unless File.exists?(".reach.exs") do
-      Mix.raise("No .reach.exs architecture policy found")
-    end
-
-    {config, _binding} = Code.eval_file(".reach.exs")
-
-    unless is_list(config) do
-      Mix.raise(".reach.exs must evaluate to a keyword list")
-    end
-
-    config
-  end
-
   defp run_changed(opts) do
-    config = if File.exists?(".reach.exs"), do: load_config(), else: []
+    config = Config.read()
     project = Project.load(quiet: opts[:format] == "json")
     result = Changed.run(project, config, base: opts[:base])
 
@@ -104,7 +91,7 @@ defmodule Reach.CLI.Commands.Check do
 
   defp run_candidates(opts, positional) do
     project = load_candidates_project(opts, positional)
-    config = if File.exists?(".reach.exs"), do: load_config(), else: []
+    config = Config.read()
     result = Candidates.run(project, config, top: opts[:top] || 40)
 
     CheckRender.render_result(result, opts[:format], &CheckRender.render_candidates_text/1)

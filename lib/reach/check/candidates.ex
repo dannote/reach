@@ -145,11 +145,7 @@ defmodule Reach.Check.Candidates do
         end)
       end)
 
-    graph
-    |> Graph.strong_components()
-    |> Enum.filter(&match?([_, _ | _], &1))
-    |> Enum.map(&canonical_module_cycle/1)
-    |> Enum.sort_by(&{length(&1), &1})
+    Reach.GraphAlgorithms.cycle_components(graph, &canonical_module_cycle/1)
   end
 
   defp representative_call(%{caller: caller, callee: callee, node: node}) do

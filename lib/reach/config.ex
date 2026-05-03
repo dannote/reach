@@ -127,6 +127,24 @@ defmodule Reach.Config do
     :forbidden_files
   ]
 
+  def read(path \\ ".reach.exs") do
+    if File.exists?(path), do: Code.eval_file(path) |> elem(0), else: []
+  end
+
+  def read!(path \\ ".reach.exs") do
+    unless File.exists?(path) do
+      Mix.raise("No #{path} architecture policy found")
+    end
+
+    config = Code.eval_file(path) |> elem(0)
+
+    unless is_list(config) do
+      Mix.raise("#{path} must evaluate to a keyword list")
+    end
+
+    config
+  end
+
   def from_terms(%__MODULE__{} = config), do: {:ok, normalize(config)}
 
   def from_terms(config) when is_list(config) do

@@ -4,6 +4,7 @@ defmodule Reach.Inspect.Data do
   """
 
   alias Reach.Analysis
+  alias Reach.Inspect.Data.{EdgeSummary, NodeSummary, Result, VariableSummary}
   alias Reach.IR
 
   @default_edge_limit 200
@@ -18,14 +19,14 @@ defmodule Reach.Inspect.Data do
         node.type == :var and (variable == nil or to_string(node.meta[:name]) == variable)
       end)
 
-    %{
+    Result.new(
       definitions:
         vars |> Enum.filter(&(&1.meta[:binding_role] == :definition)) |> Enum.map(&var_summary/1),
       uses:
         vars |> Enum.reject(&(&1.meta[:binding_role] == :definition)) |> Enum.map(&var_summary/1),
       returns: return_summaries(func),
       edges: data_edges(project, node_ids, nodes_by_id, variable)
-    }
+    )
   end
 
   defp data_edges(project, node_ids, nodes_by_id, variable) do
@@ -38,11 +39,11 @@ defmodule Reach.Inspect.Data do
     end)
     |> Enum.take(@default_edge_limit)
     |> Enum.map(fn edge ->
-      %{
+      EdgeSummary.new(
         from: Map.get(nodes_by_id, edge.v1) |> compact_node_summary(),
         to: Map.get(nodes_by_id, edge.v2) |> compact_node_summary(),
         label: inspect(edge.label)
-      }
+      )
     end)
   end
 
@@ -70,22 +71,22 @@ defmodule Reach.Inspect.Data do
   defp var_summary(node) do
     span = node.source_span || %{}
 
-    %{
+    VariableSummary.new(
       name: to_string(node.meta[:name]),
       role: to_string(node.meta[:binding_role] || "use"),
       file: span[:file],
       line: span[:start_line]
-    }
+    )
   end
 
   defp node_summary(node) do
     span = node.source_span || %{}
 
-    %{
-      kind: to_string(node.type),
+    NodeSummary.new(
+      kind: node.type,
       file: span[:file],
       line: span[:start_line]
-    }
+    )
   end
 
   defp compact_node_summary(nil), do: nil
@@ -93,13 +94,13 @@ defmodule Reach.Inspect.Data do
   defp compact_node_summary(node) do
     span = node.source_span || %{}
 
-    %{
+    NodeSummary.new(
       id: node.id,
-      kind: to_string(node.type),
+      kind: node.type,
       name: compact_node_name(node),
       file: span[:file],
       line: span[:start_line]
-    }
+    )
   end
 
   defp compact_node_name(%{type: :var, meta: meta}), do: meta[:name] && to_string(meta[:name])
