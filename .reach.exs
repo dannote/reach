@@ -104,6 +104,17 @@
       {:plugins, :cli_support}
     ]
   ],
+  source: [
+    forbidden_modules: [
+      "Reach.CLI.Analyses.*",
+      "Reach.CLI.TaskRunner",
+      "Reach.CLI.TaskRunner.*"
+    ],
+    forbidden_files: [
+      "lib/reach/cli/analyses/**",
+      "lib/reach/cli/task_runner.ex"
+    ]
+  ],
   calls: [
     forbidden: [
       {"Reach.CLI.Commands.*", ["IO.puts", "Jason.encode!", "Reach.CLI.Format.render"]}

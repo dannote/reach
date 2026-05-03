@@ -15,6 +15,10 @@ Reach reads `.reach.exs` for architecture and change-safety policy.
       {:data, :web}
     ]
   ],
+  source: [
+    forbidden_modules: ["MyApp.Legacy.*"],
+    forbidden_files: ["lib/my_app/legacy/**"]
+  ],
   calls: [
     forbidden: [
       {"MyApp.Domain.*", ["IO.puts", "Jason.encode!"]},
@@ -41,7 +45,7 @@ Reach reads `.reach.exs` for architecture and change-safety policy.
 ]
 ```
 
-The `deps`, `calls`, `effects`, `boundaries`, and `tests` sections use a uniform grouped shape: the section names the concern, and nested `forbidden`, `allowed`, or `hints` entries name the policy direction.
+The `deps`, `source`, `calls`, `effects`, `boundaries`, and `tests` sections use a uniform grouped shape: the section names the concern, and nested `forbidden`, `forbidden_modules`, `allowed`, or `hints` entries name the policy direction.
 
 Run:
 

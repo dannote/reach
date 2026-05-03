@@ -63,6 +63,14 @@ defmodule Reach.CLI.Render.Check do
       %{type: "config_error"} = violation ->
         IO.puts("  config #{violation.key}: #{violation.message}")
 
+      %{type: "forbidden_module"} = violation ->
+        IO.puts(
+          "  #{Format.loc(violation.file, violation.line)} #{violation.module} (#{violation.rule})"
+        )
+
+      %{type: "forbidden_file"} = violation ->
+        IO.puts("  #{Format.path(violation.file)} (#{violation.rule})")
+
       %{type: "forbidden_dependency"} = violation ->
         IO.puts(
           "  #{Format.loc(violation.file, violation.line)} #{violation.caller_layer} -> #{violation.callee_layer} " <>

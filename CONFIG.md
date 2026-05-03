@@ -41,6 +41,36 @@ deps: [
 
 `mix reach.check --arch` reports `forbidden_dependency` violations with caller, callee, call, file, and line evidence.
 
+### `source[:forbidden_modules]`
+
+Declare module names or namespaces that must not appear in the analyzed source tree. This is useful for making removed architecture impossible to reintroduce.
+
+```elixir
+source: [
+  forbidden_modules: [
+    "MyApp.Legacy.*",
+    "MyApp.OldTaskRunner"
+  ]
+]
+```
+
+`mix reach.check --arch` reports `forbidden_module` violations with module, file, and line evidence.
+
+### `source[:forbidden_files]`
+
+Declare source paths that must not appear in the analyzed source tree.
+
+```elixir
+source: [
+  forbidden_files: [
+    "lib/my_app/legacy/**",
+    "lib/my_app/old_task_runner.ex"
+  ]
+]
+```
+
+Path globs use the same `*` / `**` matching rules as module patterns. `mix reach.check --arch` reports `forbidden_file` violations.
+
 ### `calls[:forbidden]`
 
 Declare calls that matching modules must not make. This is useful for enforcing presentation/IO boundaries or other call-level rules that are more precise than layer dependencies.
@@ -171,6 +201,8 @@ Reach accepts the previous flat keys as compatibility aliases, but new configs s
 | `boundaries[:internal]` | `internal` |
 | `boundaries[:internal_callers]` | `internal_callers` |
 | `tests[:hints]` | `test_hints` |
+| `source[:forbidden_modules]` | `forbidden_modules` |
+| `source[:forbidden_files]` | `forbidden_files` |
 
 ## Validation
 
@@ -179,6 +211,8 @@ Reach validates `.reach.exs` shape and reports `config_error` entries for:
 - unknown top-level or grouped keys
 - invalid `layers`
 - invalid `deps[:forbidden]`
+- invalid `source[:forbidden_modules]`
+- invalid `source[:forbidden_files]`
 - invalid `calls[:forbidden]`
 - invalid `effects[:allowed]`
 - invalid `boundaries[:public]`

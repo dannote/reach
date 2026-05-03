@@ -22,7 +22,8 @@ defmodule Reach.Check.Architecture do
   def violations(project, config) do
     graph = layer_graph(project, config)
 
-    dependency_violations(project, config, graph) ++
+    source_policy_violations(project, config) ++
+      dependency_violations(project, config, graph) ++
       public_boundary_violations(project, config) ++
       forbidden_call_violations(project, config) ++
       layer_cycle_violations(graph) ++
@@ -113,6 +114,53 @@ defmodule Reach.Check.Architecture do
   end
 
   def concrete_effects(func), do: function_effects(func) -- [:pure, :unknown, :exception]
+
+  defp source_policy_violations(project, config) do
+    config = Config.normalize(config)
+
+    forbidden_module_violations(project, List.wrap(config.source.forbidden_modules)) ++
+      forbidden_file_violations(project, List.wrap(config.source.forbidden_files))
+  end
+
+  defp forbidden_module_violations(_project, []), do: []
+
+  defp forbidden_module_violations(project, patterns) do
+    project.nodes
+    |> Map.values()
+    |> Enum.filter(&forbidden_module?(&1, patterns))
+    |> Enum.map(fn node ->
+      %{
+        type: "forbidden_module",
+        module: inspect(node.meta[:name]),
+        file: node.source_span.file,
+        line: node.source_span.start_line,
+        rule: "configured forbidden module"
+      }
+    end)
+  end
+
+  defp forbidden_module?(node, patterns) do
+    node.type == :module_def and not is_nil(node.source_span) and
+      module_matches_any?(node.meta[:name], patterns)
+  end
+
+  defp forbidden_file_violations(_project, []), do: []
+
+  defp forbidden_file_violations(project, patterns) do
+    project.nodes
+    |> Map.values()
+    |> Enum.filter(& &1.source_span)
+    |> Enum.map(& &1.source_span.file)
+    |> Enum.uniq()
+    |> Enum.filter(fn file -> Enum.any?(patterns, &glob_match?(file, to_string(&1))) end)
+    |> Enum.map(fn file ->
+      %{
+        type: "forbidden_file",
+        file: file,
+        rule: "configured forbidden file"
+      }
+    end)
+  end
 
   defp adjacency(edges) do
     Enum.reduce(edges, %{}, fn edge, acc ->

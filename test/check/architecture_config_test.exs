@@ -16,7 +16,11 @@ defmodule Reach.Check.Architecture.ConfigTest do
                  internal: ["MyApp.Accounts.Internal.*"],
                  internal_callers: [{"MyApp.Accounts.Internal.*", ["MyApp.Accounts"]}]
                ],
-               tests: [hints: [{"lib/my_app/**", ["test/my_app"]}]]
+               tests: [hints: [{"lib/my_app/**", ["test/my_app"]}]],
+               source: [
+                 forbidden_modules: ["MyApp.Legacy.*"],
+                 forbidden_files: ["lib/my_app/legacy/**"]
+               ]
              )
 
     assert config.layers == [domain: "MyApp.*"]
@@ -31,6 +35,8 @@ defmodule Reach.Check.Architecture.ConfigTest do
            ]
 
     assert config.tests.hints == [{"lib/my_app/**", ["test/my_app"]}]
+    assert config.source.forbidden_modules == ["MyApp.Legacy.*"]
+    assert config.source.forbidden_files == ["lib/my_app/legacy/**"]
   end
 
   test "accepts flat compatibility aliases" do
@@ -43,7 +49,9 @@ defmodule Reach.Check.Architecture.ConfigTest do
                public_api: ["MyApp.Accounts"],
                internal: ["MyApp.Accounts.Internal.*"],
                internal_callers: [{"MyApp.Accounts.Internal.*", ["MyApp.Accounts"]}],
-               test_hints: [{"lib/my_app/**", ["test/my_app"]}]
+               test_hints: [{"lib/my_app/**", ["test/my_app"]}],
+               forbidden_modules: ["MyApp.Legacy.*"],
+               forbidden_files: ["lib/my_app/legacy/**"]
              )
 
     assert config.deps.forbidden == [{:domain, :web}]
@@ -57,6 +65,8 @@ defmodule Reach.Check.Architecture.ConfigTest do
            ]
 
     assert config.tests.hints == [{"lib/my_app/**", ["test/my_app"]}]
+    assert config.source.forbidden_modules == ["MyApp.Legacy.*"]
+    assert config.source.forbidden_files == ["lib/my_app/legacy/**"]
   end
 
   test "reports nested config error paths" do

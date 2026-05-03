@@ -110,6 +110,7 @@ rg 'test "|property "|describe "' test test_helpers > /tmp/reach-test-declaratio
 No existing test name may disappear unless it is intentionally replaced by an equivalent test noted in the commit message.
 
 Add/maintain architecture regression tests for:
+- no forbidden source modules/files such as `Reach.CLI.Analyses.*` and `Reach.CLI.TaskRunner`
 - no internal Reach Mix task calls
 - removed tasks only raise migration guidance
 - no domain module calls CLI rendering/project helpers unless explicitly transitional

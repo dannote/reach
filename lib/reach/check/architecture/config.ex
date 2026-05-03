@@ -26,6 +26,11 @@ defmodule Reach.Check.Architecture.Config do
     defstruct hints: []
   end
 
+  defmodule Source do
+    @moduledoc false
+    defstruct forbidden_modules: [], forbidden_files: []
+  end
+
   defmodule Error do
     @moduledoc false
     defstruct [:path, :message]
@@ -47,7 +52,8 @@ defmodule Reach.Check.Architecture.Config do
             calls: nil,
             effects: nil,
             boundaries: nil,
-            tests: nil
+            tests: nil,
+            source: nil
 
   @top_level_keys [
     :layers,
@@ -56,16 +62,19 @@ defmodule Reach.Check.Architecture.Config do
     :effects,
     :boundaries,
     :tests,
+    :source,
     :forbidden_deps,
     :allowed_effects,
     :forbidden_calls,
     :public_api,
     :internal,
     :internal_callers,
-    :test_hints
+    :test_hints,
+    :forbidden_modules,
+    :forbidden_files
   ]
 
-  def from_terms(%__MODULE__{} = config), do: {:ok, config}
+  def from_terms(%__MODULE__{} = config), do: {:ok, normalize(config)}
 
   def from_terms(config) when is_list(config) do
     errors = errors(config)
@@ -81,7 +90,17 @@ defmodule Reach.Check.Architecture.Config do
     {:error, [%Error{path: [], message: "expected .reach.exs to evaluate to a keyword list"}]}
   end
 
-  def normalize(%__MODULE__{} = config), do: config
+  def normalize(%__MODULE__{} = config) do
+    %__MODULE__{
+      config
+      | deps: config.deps || %Deps{},
+        calls: config.calls || %Calls{},
+        effects: config.effects || %Effects{},
+        boundaries: config.boundaries || %Boundaries{},
+        tests: config.tests || %Tests{},
+        source: config.source || %Source{}
+    }
+  end
 
   def normalize(config) when is_list(config) do
     %__MODULE__{
@@ -94,7 +113,11 @@ defmodule Reach.Check.Architecture.Config do
         internal: nested(config, [:boundaries, :internal], :internal, []),
         internal_callers: nested(config, [:boundaries, :internal_callers], :internal_callers, [])
       },
-      tests: %Tests{hints: nested(config, [:tests, :hints], :test_hints, [])}
+      tests: %Tests{hints: nested(config, [:tests, :hints], :test_hints, [])},
+      source: %Source{
+        forbidden_modules: nested(config, [:source, :forbidden_modules], :forbidden_modules, []),
+        forbidden_files: nested(config, [:source, :forbidden_files], :forbidden_files, [])
+      }
     }
   end
 
@@ -167,6 +190,19 @@ defmodule Reach.Check.Architecture.Config do
       &valid_test_hints?/1,
       "expected list of {path_glob, test_paths}"
     )
+    |> check(config, [:source], &valid_group?/1, "expected keyword list")
+    |> check(
+      config,
+      [:source, :forbidden_modules],
+      &valid_pattern_list?/1,
+      "expected string or list of module patterns"
+    )
+    |> check(
+      config,
+      [:source, :forbidden_files],
+      &valid_pattern_list?/1,
+      "expected string or list of path globs"
+    )
     |> check(
       config,
       [:forbidden_deps],
@@ -209,11 +245,24 @@ defmodule Reach.Check.Architecture.Config do
       &valid_test_hints?/1,
       "expected list of {path_glob, test_paths}"
     )
+    |> check(
+      config,
+      [:forbidden_modules],
+      &valid_pattern_list?/1,
+      "expected string or list of module patterns"
+    )
+    |> check(
+      config,
+      [:forbidden_files],
+      &valid_pattern_list?/1,
+      "expected string or list of path globs"
+    )
     |> unknown_nested_key_errors(config, [:deps], [:forbidden])
     |> unknown_nested_key_errors(config, [:calls], [:forbidden])
     |> unknown_nested_key_errors(config, [:effects], [:allowed])
     |> unknown_nested_key_errors(config, [:boundaries], [:public, :internal, :internal_callers])
     |> unknown_nested_key_errors(config, [:tests], [:hints])
+    |> unknown_nested_key_errors(config, [:source], [:forbidden_modules, :forbidden_files])
   end
 
   defp check(errors, config, path, validator, message) do

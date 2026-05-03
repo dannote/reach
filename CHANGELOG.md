@@ -38,13 +38,15 @@
 - **`.reach.exs` architecture policy** with:
   - `layers`
   - `deps[:forbidden]`
+  - `source[:forbidden_modules]`
+  - `source[:forbidden_files]`
   - `calls[:forbidden]`
   - `effects[:allowed]`
   - `boundaries[:public]`
   - `boundaries[:internal]`
   - `boundaries[:internal_callers]`
   - `tests[:hints]`
-- **Architecture violations** for forbidden dependencies, layer cycles, effect policy, public API boundaries, internal boundaries, and config errors.
+- **Architecture violations** for forbidden dependencies, forbidden modules/files, layer cycles, effect policy, public API boundaries, internal boundaries, and config errors.
 - **Changed-risk reports** with changed files, changed functions, aggregate risk, risk reasons, caller impact counts, public API touches, and suggested tests.
 - **Graph-backed advisory refactoring candidates**:
   - `introduce_boundary`

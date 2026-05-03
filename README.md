@@ -107,6 +107,10 @@ Reach reads `.reach.exs` for architecture and change-safety policy:
       {:data, :web}
     ]
   ],
+  source: [
+    forbidden_modules: ["MyApp.Legacy.*"],
+    forbidden_files: ["lib/my_app/legacy/**"]
+  ],
   calls: [
     forbidden: [
       {"MyApp.Domain.*", ["IO.puts", "Jason.encode!"]}

@@ -36,6 +36,10 @@
       {:plugins, :cli_support}
     ]
   ],
+  source: [
+    forbidden_modules: [],
+    forbidden_files: []
+  ],
   calls: [
     forbidden: []
   ],
