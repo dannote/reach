@@ -1,8 +1,8 @@
 defmodule Reach.Inspect.Why do
   @moduledoc false
 
-  alias Reach.CLI.Format
   alias Reach.IR
+  alias Reach.IR.Helpers, as: IRHelpers
   alias Reach.Project.Query
 
   def result(project, source_raw, target_raw, max_depth) do
@@ -216,7 +216,7 @@ defmodule Reach.Inspect.Why do
     end)
   end
 
-  defp display_why_target(%{kind: :function, id: id}), do: Format.func_id_to_string(id)
+  defp display_why_target(%{kind: :function, id: id}), do: IRHelpers.func_id_to_string(id)
   defp display_why_target(%{kind: :module, module: module}), do: inspect(module)
 
   defp function_vertices_for_module(call_graph, module) do
@@ -274,7 +274,7 @@ defmodule Reach.Inspect.Why do
     func = Query.find_function(project, display_mfa) || Query.find_function(project, mfa)
 
     %{
-      function: Format.func_id_to_string(display_mfa),
+      function: IRHelpers.func_id_to_string(display_mfa),
       file: func && span_file(func),
       line: func && func.source_span && func.source_span.start_line
     }
@@ -309,8 +309,8 @@ defmodule Reach.Inspect.Why do
          call when not is_nil(call) <- Enum.find(IR.all_nodes(func), &call_matches_mfa?(&1, to)) do
       [
         evidence_from_call(call,
-          from: Format.func_id_to_string(canonical_mfa(project, from)),
-          to: Format.func_id_to_string(canonical_mfa(project, to))
+          from: IRHelpers.func_id_to_string(canonical_mfa(project, from)),
+          to: IRHelpers.func_id_to_string(canonical_mfa(project, to))
         )
       ]
     else
@@ -341,7 +341,7 @@ defmodule Reach.Inspect.Why do
     %{
       from: edge[:from],
       to: edge[:to],
-      call: Format.call_name(call),
+      call: IRHelpers.call_name(call),
       file: call.source_span && call.source_span.file,
       line: call.source_span && call.source_span.start_line,
       source: source_line(call)

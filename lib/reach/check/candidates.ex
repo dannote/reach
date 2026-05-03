@@ -3,7 +3,7 @@ defmodule Reach.Check.Candidates do
 
   alias Reach.Analysis
   alias Reach.Check.{Architecture, Changed}
-  alias Reach.CLI.Format
+  alias Reach.IR.Helpers, as: IRHelpers
   alias Reach.Project.Query
 
   @note "Candidates are advisory. Reach reports graph/effect/architecture evidence; prove behavior preservation before editing."
@@ -203,7 +203,7 @@ defmodule Reach.Check.Candidates do
       %{
         id: candidate_id("R2", index),
         kind: "isolate_effects",
-        target: Format.func_id_to_string(id),
+        target: IRHelpers.func_id_to_string(id),
         file: func.source_span.file,
         line: func.source_span.start_line,
         benefit: :medium,
@@ -243,7 +243,7 @@ defmodule Reach.Check.Candidates do
       %{
         id: candidate_id("R1", index),
         kind: "extract_pure_region",
-        target: Format.func_id_to_string(function_id(func)),
+        target: IRHelpers.func_id_to_string(function_id(func)),
         file: func.source_span.file,
         line: func.source_span.start_line,
         benefit: :medium,

@@ -2,8 +2,8 @@ defmodule Reach.Check.Changed do
   @moduledoc false
 
   alias Reach.Check.Architecture
-  alias Reach.CLI.Format
   alias Reach.IR
+  alias Reach.IR.Helpers, as: IRHelpers
   alias Reach.Project.Query
 
   def run(project, config, opts \\ []) do
@@ -171,7 +171,7 @@ defmodule Reach.Check.Changed do
     {risk, reasons} = change_risk(func, direct_callers, transitive_callers, effects, branches)
 
     %{
-      id: Format.func_id_to_string(id),
+      id: IRHelpers.func_id_to_string(id),
       file: func.source_span && func.source_span.file,
       line: func.source_span && func.source_span.start_line,
       risk: risk,
@@ -179,7 +179,7 @@ defmodule Reach.Check.Changed do
       public_api: public_api_function?(func, config),
       effects: Enum.map(effects, &to_string/1),
       branch_count: branches,
-      direct_callers: Enum.map(direct_callers, &Format.func_id_to_string(&1.id)),
+      direct_callers: Enum.map(direct_callers, &IRHelpers.func_id_to_string(&1.id)),
       direct_caller_count: length(direct_callers),
       transitive_caller_count: length(transitive_callers)
     }
