@@ -15,8 +15,33 @@ defmodule Reach.Check.ArchitecturePolicyTest do
     assert data["violations"] == []
   end
 
+  test "reach.check accepts grouped architecture policy" do
+    with_reach_config(~S([
+      layers: [cli: "Mix.Tasks.*", core: "Reach.*"],
+      deps: [forbidden: []],
+      calls: [forbidden: []],
+      effects: [allowed: []],
+      boundaries: [public: [], internal: [], internal_callers: []],
+      tests: [hints: []]
+    ]))
+
+    output = capture_io(fn -> Check.run(["--arch", "--format", "json"]) end)
+
+    assert {:ok, data} = Jason.decode(output)
+    assert data["status"] == "ok"
+    assert data["violations"] == []
+  end
+
   test "reach.check reports architecture config errors" do
     with_reach_config("[unknown: true, layers: :bad]")
+
+    assert_raise Mix.Error, ~r/Architecture policy failed/, fn ->
+      capture_io(fn -> Check.run(["--arch", "--format", "json"]) end)
+    end
+  end
+
+  test "reach.check reports grouped architecture config errors" do
+    with_reach_config("[deps: [forbidden: :bad, unknown: []]]")
 
     assert_raise Mix.Error, ~r/Architecture policy failed/, fn ->
       capture_io(fn -> Check.run(["--arch", "--format", "json"]) end)
@@ -33,6 +58,14 @@ defmodule Reach.Check.ArchitecturePolicyTest do
 
   test "reach.check reports forbidden call violations" do
     with_reach_config(~S([forbidden_calls: [{"Reach.CLI.Commands.Check", ["File.exists?"]}]]))
+
+    assert_raise Mix.Error, ~r/Architecture policy failed/, fn ->
+      capture_io(fn -> Check.run(["--arch", "--format", "json"]) end)
+    end
+  end
+
+  test "reach.check reports grouped forbidden call violations" do
+    with_reach_config(~S([calls: [forbidden: [{"Reach.CLI.Commands.Check", ["File.exists?"]}]]]))
 
     assert_raise Mix.Error, ~r/Architecture policy failed/, fn ->
       capture_io(fn -> Check.run(["--arch", "--format", "json"]) end)

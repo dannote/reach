@@ -2,6 +2,7 @@ defmodule Reach.Check.Changed do
   @moduledoc false
 
   alias Reach.Check.Architecture
+  alias Reach.Check.Architecture.Config
   alias Reach.IR
   alias Reach.IR.Helpers, as: IRHelpers
   alias Reach.Project.Query
@@ -11,7 +12,8 @@ defmodule Reach.Check.Changed do
     files = changed_files(base)
     changed_ranges = changed_ranges(base)
     functions = changed_functions(project, changed_ranges, config)
-    tests = suggested_tests(files, functions, Keyword.get(config, :test_hints, []))
+    normalized_config = Config.normalize(config)
+    tests = suggested_tests(files, functions, normalized_config.tests.hints)
     {risk, risk_reasons} = aggregate_change_risk(functions)
 
     %{
@@ -57,7 +59,7 @@ defmodule Reach.Check.Changed do
       |> Enum.reject(&is_nil/1)
     end)
     |> Enum.uniq_by(&{&1.meta[:module], &1.meta[:name], &1.meta[:arity]})
-    |> Enum.map(&function_summary(project, &1, config))
+    |> Enum.map(&function_summary(project, &1, Config.normalize(config)))
     |> Enum.sort_by(&{&1.file || "", &1.line || 0, &1.id})
   end
 
@@ -189,7 +191,7 @@ defmodule Reach.Check.Changed do
     func.meta[:kind] in [:def, :defmacro] and
       Architecture.module_matches_any?(
         func.meta[:module],
-        Keyword.get(config, :public_api, []) |> List.wrap()
+        List.wrap(Config.normalize(config).boundaries.public)
       )
   end
 

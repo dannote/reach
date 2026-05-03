@@ -1,28 +1,15 @@
 defmodule Reach.Check.Architecture do
   @moduledoc false
 
+  alias Reach.Check.Architecture.Config
   alias Reach.Effects
   alias Reach.IR
 
-  @known_config_keys [
-    :layers,
-    :forbidden_deps,
-    :allowed_effects,
-    :forbidden_calls,
-    :public_api,
-    :internal,
-    :internal_callers,
-    :test_hints
-  ]
-
   def run(project, config) do
-    config_errors = config_violations(config)
-
     violations =
-      if config_errors != [] do
-        config_errors
-      else
-        violations(project, config)
+      case Config.from_terms(config) do
+        {:ok, normalized} -> violations(project, normalized)
+        {:error, errors} -> Enum.map(errors, &Config.Error.to_violation/1)
       end
 
     %{
@@ -43,11 +30,14 @@ defmodule Reach.Check.Architecture do
   end
 
   def config_violations(config) do
-    unknown_key_violations(config) ++ config_shape_violations(config)
+    config
+    |> Config.errors()
+    |> Enum.map(&Config.Error.to_violation/1)
   end
 
   def layer_graph(project, config) do
-    layers = Keyword.get(config, :layers, [])
+    config = Config.normalize(config)
+    layers = config.layers
     module_by_file = module_by_file(project)
 
     edges =
@@ -73,7 +63,8 @@ defmodule Reach.Check.Architecture do
   end
 
   def dependency_violations(_project, config, layer_graph) do
-    forbidden = Keyword.get(config, :forbidden_deps, [])
+    config = Config.normalize(config)
+    forbidden = config.deps.forbidden
 
     layer_graph.edges
     |> Enum.filter(&({&1.from, &1.to} in forbidden))
@@ -123,148 +114,6 @@ defmodule Reach.Check.Architecture do
 
   def concrete_effects(func), do: function_effects(func) -- [:pure, :unknown, :exception]
 
-  defp unknown_key_violations(config) do
-    config
-    |> Keyword.keys()
-    |> Enum.reject(&(&1 in @known_config_keys))
-    |> Enum.map(fn key ->
-      %{
-        type: "config_error",
-        key: to_string(key),
-        message: "Unknown .reach.exs key #{inspect(key)}"
-      }
-    end)
-  end
-
-  defp config_shape_violations(config) do
-    []
-    |> config_check(config, :layers, &valid_layers?/1, "expected keyword list of layer: patterns")
-    |> config_check(
-      config,
-      :forbidden_deps,
-      &valid_forbidden_deps?/1,
-      "expected list of {from_layer, to_layer}"
-    )
-    |> config_check(
-      config,
-      :allowed_effects,
-      &valid_allowed_effects?/1,
-      "expected list of {module_pattern, effects}"
-    )
-    |> config_check(
-      config,
-      :forbidden_calls,
-      &valid_forbidden_calls?/1,
-      "expected list of {caller_patterns, call_patterns} or {caller_patterns, call_patterns, opts}"
-    )
-    |> config_check(
-      config,
-      :public_api,
-      &valid_pattern_list?/1,
-      "expected string or list of module patterns"
-    )
-    |> config_check(
-      config,
-      :internal,
-      &valid_pattern_list?/1,
-      "expected string or list of module patterns"
-    )
-    |> config_check(
-      config,
-      :internal_callers,
-      &valid_internal_callers?/1,
-      "expected list of {internal_pattern, caller_patterns}"
-    )
-    |> config_check(
-      config,
-      :test_hints,
-      &valid_test_hints?/1,
-      "expected list of {path_glob, test_paths}"
-    )
-  end
-
-  defp config_check(violations, config, key, validator, message) do
-    if Keyword.has_key?(config, key) and not validator.(Keyword.get(config, key)) do
-      [%{type: "config_error", key: to_string(key), message: message} | violations]
-    else
-      violations
-    end
-  end
-
-  defp valid_layers?(value) when is_list(value) do
-    Enum.all?(value, fn
-      {layer, patterns} when is_atom(layer) -> valid_pattern_list?(patterns)
-      _ -> false
-    end)
-  end
-
-  defp valid_layers?(_value), do: false
-
-  defp valid_forbidden_deps?(value) when is_list(value) do
-    Enum.all?(value, fn
-      {from, to} when is_atom(from) and is_atom(to) -> true
-      _ -> false
-    end)
-  end
-
-  defp valid_forbidden_deps?(_value), do: false
-
-  defp valid_allowed_effects?(value) when is_list(value) do
-    Enum.all?(value, fn
-      {pattern, effects} when is_binary(pattern) and is_list(effects) ->
-        Enum.all?(effects, &is_atom/1)
-
-      _ ->
-        false
-    end)
-  end
-
-  defp valid_allowed_effects?(_value), do: false
-
-  defp valid_forbidden_calls?(value) when is_list(value) do
-    Enum.all?(value, fn
-      {caller_patterns, call_patterns} ->
-        valid_pattern_list?(caller_patterns) and valid_pattern_list?(call_patterns)
-
-      {caller_patterns, call_patterns, opts} when is_list(opts) ->
-        valid_pattern_list?(caller_patterns) and valid_pattern_list?(call_patterns) and
-          valid_pattern_list?(Keyword.get(opts, :except, []))
-
-      _ ->
-        false
-    end)
-  end
-
-  defp valid_forbidden_calls?(_value), do: false
-
-  defp valid_pattern_list?(value) when is_binary(value), do: true
-  defp valid_pattern_list?(value) when is_list(value), do: Enum.all?(value, &is_binary/1)
-  defp valid_pattern_list?(_value), do: false
-
-  defp valid_internal_callers?(value) when is_list(value) do
-    Enum.all?(value, fn
-      {internal_pattern, caller_patterns} when is_binary(internal_pattern) ->
-        valid_pattern_list?(caller_patterns)
-
-      _ ->
-        false
-    end)
-  end
-
-  defp valid_internal_callers?(_value), do: false
-
-  defp valid_test_hints?(value) when is_list(value) do
-    Enum.all?(value, fn
-      {pattern, tests} when is_binary(pattern) and is_list(tests) ->
-        Enum.all?(tests, &is_binary/1)
-
-      _ ->
-        false
-    end)
-  end
-
-  defp valid_test_hints?(_value), do: false
-
   defp adjacency(edges) do
     Enum.reduce(edges, %{}, fn edge, acc ->
       Map.update(acc, edge.from, MapSet.new([edge.to]), &MapSet.put(&1, edge.to))
@@ -272,9 +121,10 @@ defmodule Reach.Check.Architecture do
   end
 
   defp public_boundary_violations(project, config) do
-    public_api = Keyword.get(config, :public_api, []) |> List.wrap()
-    internal = Keyword.get(config, :internal, []) |> List.wrap()
-    internal_callers = Keyword.get(config, :internal_callers, [])
+    config = Config.normalize(config)
+    public_api = List.wrap(config.boundaries.public)
+    internal = List.wrap(config.boundaries.internal)
+    internal_callers = config.boundaries.internal_callers
     module_by_file = module_by_file(project)
 
     project.nodes
@@ -321,7 +171,8 @@ defmodule Reach.Check.Architecture do
   end
 
   defp forbidden_call_violations(project, config) do
-    rules = Keyword.get(config, :forbidden_calls, [])
+    config = Config.normalize(config)
+    rules = config.calls.forbidden
     module_by_file = module_by_file(project)
 
     project.nodes
@@ -475,7 +326,8 @@ defmodule Reach.Check.Architecture do
   end
 
   defp effect_policy_violations(project, config) do
-    policies = Keyword.get(config, :allowed_effects, [])
+    config = Config.normalize(config)
+    policies = config.effects.allowed
     module_by_file = module_by_file(project)
 
     project.nodes

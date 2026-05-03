@@ -9,27 +9,39 @@ Reach reads `.reach.exs` for architecture and change-safety policy.
     domain: "MyApp.*",
     data: ["MyApp.Repo", "MyApp.Schemas.*"]
   ],
-  forbidden_deps: [
-    {:domain, :web},
-    {:data, :web}
+  deps: [
+    forbidden: [
+      {:domain, :web},
+      {:data, :web}
+    ]
   ],
-  forbidden_calls: [
-    {"MyApp.Domain.*", ["IO.puts", "Jason.encode!"]},
-    {"MyApp.Workers.*", ["System.cmd"], except: ["MyApp.Workers.Cleanup"]}
+  calls: [
+    forbidden: [
+      {"MyApp.Domain.*", ["IO.puts", "Jason.encode!"]},
+      {"MyApp.Workers.*", ["System.cmd"], except: ["MyApp.Workers.Cleanup"]}
+    ]
   ],
-  allowed_effects: [
-    {"MyApp.Pure.*", [:pure, :unknown]}
+  effects: [
+    allowed: [
+      {"MyApp.Pure.*", [:pure, :unknown]}
+    ]
   ],
-  public_api: ["MyApp.Accounts"],
-  internal: ["MyApp.Accounts.Internal.*"],
-  internal_callers: [
-    {"MyApp.Accounts.Internal.*", ["MyApp.Accounts", "MyApp.Accounts.*"]}
+  boundaries: [
+    public: ["MyApp.Accounts"],
+    internal: ["MyApp.Accounts.Internal.*"],
+    internal_callers: [
+      {"MyApp.Accounts.Internal.*", ["MyApp.Accounts", "MyApp.Accounts.*"]}
+    ]
   ],
-  test_hints: [
-    {"lib/my_app/accounts/**", ["test/my_app/accounts_test.exs"]}
+  tests: [
+    hints: [
+      {"lib/my_app/accounts/**", ["test/my_app/accounts_test.exs"]}
+    ]
   ]
 ]
 ```
+
+The `deps`, `calls`, `effects`, `boundaries`, and `tests` sections use a uniform grouped shape: the section names the concern, and nested `forbidden`, `allowed`, or `hints` entries name the policy direction.
 
 Run:
 
@@ -38,4 +50,4 @@ mix reach.check --arch
 mix reach.check --changed --base main
 ```
 
-See `CONFIG.md` for the complete key reference.
+See `CONFIG.md` for the complete key reference and compatibility aliases for older flat keys.

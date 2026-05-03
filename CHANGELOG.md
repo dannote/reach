@@ -37,12 +37,13 @@
 - **`mix reach.check`** — structural checks for architecture policy, changed-code risk, dead code, smells, and advisory candidates.
 - **`.reach.exs` architecture policy** with:
   - `layers`
-  - `forbidden_deps`
-  - `allowed_effects`
-  - `public_api`
-  - `internal`
-  - `internal_callers`
-  - `test_hints`
+  - `deps[:forbidden]`
+  - `calls[:forbidden]`
+  - `effects[:allowed]`
+  - `boundaries[:public]`
+  - `boundaries[:internal]`
+  - `boundaries[:internal_callers]`
+  - `tests[:hints]`
 - **Architecture violations** for forbidden dependencies, layer cycles, effect policy, public API boundaries, internal boundaries, and config errors.
 - **Changed-risk reports** with changed files, changed functions, aggregate risk, risk reasons, caller impact counts, public API touches, and suggested tests.
 - **Graph-backed advisory refactoring candidates**:

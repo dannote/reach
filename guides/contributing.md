@@ -11,7 +11,7 @@ Reach.CLI.Render.*      -> text, JSON, and file output
 Reach.* domain modules  -> analysis/check/trace/OTP/map/smell logic
 ```
 
-Command modules must not render directly. `.reach.exs` enforces this with `forbidden_calls`, and tests scan command modules for direct `IO.puts`, `Jason.encode!`, and `Reach.CLI.Format.render` calls.
+Command modules must not render directly. `.reach.exs` enforces this with `calls[:forbidden]`, and tests scan command modules for direct `IO.puts`, `Jason.encode!`, and `Reach.CLI.Format.render` calls.
 
 ## Release checklist
 

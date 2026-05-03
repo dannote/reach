@@ -101,15 +101,21 @@ Reach reads `.reach.exs` for architecture and change-safety policy:
     domain: "MyApp.*",
     data: ["MyApp.Repo", "MyApp.Schemas.*"]
   ],
-  forbidden_deps: [
-    {:domain, :web},
-    {:data, :web}
+  deps: [
+    forbidden: [
+      {:domain, :web},
+      {:data, :web}
+    ]
   ],
-  forbidden_calls: [
-    {"MyApp.Domain.*", ["IO.puts", "Jason.encode!"]}
+  calls: [
+    forbidden: [
+      {"MyApp.Domain.*", ["IO.puts", "Jason.encode!"]}
+    ]
   ],
-  test_hints: [
-    {"lib/my_app/accounts/**", ["test/my_app/accounts_test.exs"]}
+  tests: [
+    hints: [
+      {"lib/my_app/accounts/**", ["test/my_app/accounts_test.exs"]}
+    ]
   ]
 ]
 ```
