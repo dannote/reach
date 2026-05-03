@@ -34,11 +34,11 @@ defmodule Reach.CLI.Commands.Inspect do
 
   """
 
-  alias Reach.CLI.Analyses.{Deps, Impact, Slice}
   alias Reach.CLI.BoxartGraph
+  alias Reach.CLI.Commands.Trace.Slice
   alias Reach.CLI.Format
   alias Reach.CLI.Project
-  alias Reach.Inspect.{Candidates, Context, Data, Why}
+  alias Reach.Inspect.{Candidates, Context, Data, Deps, Impact, Why}
 
   def run(opts, target_args \\ []) do
     target =

@@ -1,4 +1,4 @@
-defmodule Reach.CLI.Analyses.Deps do
+defmodule Reach.Inspect.Deps do
   @moduledoc """
   Shows what a function depends on — direct and transitive callers, callees,
   and shared state.

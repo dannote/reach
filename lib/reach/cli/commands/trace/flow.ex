@@ -1,4 +1,4 @@
-defmodule Reach.CLI.Analyses.Flow do
+defmodule Reach.CLI.Commands.Trace.Flow do
   @moduledoc """
   Traces data flow from sources to sinks. Detects taint paths where
   untrusted input reaches dangerous operations.

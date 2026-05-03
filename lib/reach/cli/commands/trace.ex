@@ -23,7 +23,7 @@ defmodule Reach.CLI.Commands.Trace do
 
   """
 
-  alias Reach.CLI.Analyses.{Flow, Slice}
+  alias Reach.CLI.Commands.Trace.{Flow, Slice}
 
   def run(opts, positional \\ []) do
     case trace_action(opts, positional) do

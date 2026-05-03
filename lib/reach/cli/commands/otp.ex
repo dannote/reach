@@ -16,8 +16,8 @@ defmodule Reach.CLI.Commands.OTP do
 
   """
 
-  alias Reach.CLI.Analyses.Concurrency
   alias Reach.CLI.BoxartGraph
+  alias Reach.CLI.Commands.OTP.Concurrency
   alias Reach.CLI.Format
   alias Reach.CLI.Project
   alias Reach.OTP.Analysis, as: OTPAnalysis

@@ -1,4 +1,4 @@
-defmodule Reach.CLI.Analyses.Slice do
+defmodule Reach.CLI.Commands.Trace.Slice do
   @moduledoc """
   Program slicing — finds the minimum set of statements that affect a value.
 

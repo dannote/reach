@@ -1,4 +1,4 @@
-defmodule Reach.CLI.Analyses.Impact do
+defmodule Reach.Inspect.Impact do
   @moduledoc """
   Shows what breaks if a function's signature or return value changes.
 

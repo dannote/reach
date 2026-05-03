@@ -1,4 +1,4 @@
-defmodule Reach.CLI.Analyses.Concurrency do
+defmodule Reach.CLI.Commands.OTP.Concurrency do
   @moduledoc """
   Concurrency patterns — Task.async/await pairing, process monitors,
   spawn_link chains, and supervisor topology.
