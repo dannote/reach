@@ -159,11 +159,23 @@
       representative_calls_per_edge: 3
     ]
   ],
+  clone_analysis: [
+    provider: :ex_dna,
+    min_mass: 30,
+    min_similarity: 1.0,
+    max_clones: 50
+  ],
   smells: [
     fixed_shape_map: [
       min_keys: 3,
       min_occurrences: 3,
       evidence_limit: 10
+    ],
+    behaviour_candidate: [
+      min_modules: 3,
+      min_callbacks: 3,
+      module_display_limit: 8,
+      callback_display_limit: 8
     ]
   ],
   tests: [

@@ -67,11 +67,23 @@ The file must evaluate to a keyword list. Start from [`examples/reach.exs`](../e
       representative_calls_per_edge: 3
     ]
   ],
+  clone_analysis: [
+    provider: :ex_dna,
+    min_mass: 30,
+    min_similarity: 1.0,
+    max_clones: 50
+  ],
   smells: [
     fixed_shape_map: [
       min_keys: 3,
       min_occurrences: 3,
       evidence_limit: 10
+    ],
+    behaviour_candidate: [
+      min_modules: 3,
+      min_callbacks: 3,
+      module_display_limit: 8,
+      callback_display_limit: 8
     ]
   ],
   tests: [
@@ -290,16 +302,31 @@ Thresholds decide when Reach reports mixed-effect and branch-heavy extraction ca
 Tune repeated fixed-shape map smell detection.
 
 ```elixir
+clone_analysis: [
+  provider: :ex_dna,
+  min_mass: 30,
+  min_similarity: 1.0,
+  max_clones: 50
+]
+
 smells: [
   fixed_shape_map: [
     min_keys: 3,
     min_occurrences: 3,
     evidence_limit: 10
+  ],
+  behaviour_candidate: [
+    min_modules: 3,
+    min_callbacks: 3,
+    module_display_limit: 8,
+    callback_display_limit: 8
   ]
 ]
 ```
 
-Use this when a codebase intentionally uses small map contracts, or when you want stronger pressure toward structs/contracts.
+Use this when a codebase intentionally uses small map contracts, when you want stronger pressure toward structs/contracts, or when behaviour-candidate hints are too noisy for small module families.
+
+`clone_analysis` controls optional clone evidence used by semantic smells and candidates. Reach runs ExDNA when the package is available; package consumers can disable it with `provider: false` or tune clone mass/similarity when needed.
 
 ### `tests[:hints]`
 
@@ -350,6 +377,8 @@ Reach validates `.reach.exs` shape and reports `config_error` entries for:
 - invalid `candidates[:thresholds]`
 - invalid `candidates[:limits]`
 - invalid `smells[:fixed_shape_map]`
+- invalid `smells[:behaviour_candidate]`
+- invalid `clone_analysis`
 - invalid `tests[:hints]`
 
 ## Practical guidance

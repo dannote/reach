@@ -6,8 +6,8 @@ defmodule Reach.Check.Smells do
   alias Reach.Config
 
   def run(project, config \\ []) do
-    smell_config = Config.normalize(config).smells
-    Enum.flat_map(Reach.Smell.Registry.checks(), &run_check(&1, project, smell_config))
+    config = Config.normalize(config)
+    Enum.flat_map(Reach.Smell.Registry.checks(), &run_check(&1, project, config))
   end
 
   def analyze(project), do: run(project)

@@ -382,7 +382,28 @@ defmodule Reach.SmellTest do
       assert finding.message =~ "consider extracting a behaviour"
     end
 
-    test "does not flag pairs of similar modules" do
+    test "uses configured thresholds" do
+      findings =
+        run_smell_task(
+          """
+          defmodule Providers.HTTP do
+            def fetch(id), do: {:ok, id}
+            def normalize(value), do: value
+          end
+
+          defmodule Providers.File do
+            def fetch(id), do: {:ok, id}
+            def normalize(value), do: value
+          end
+          """,
+          smells: [behaviour_candidate: [min_modules: 2, min_callbacks: 2]]
+        )
+
+      assert [%{kind: :behaviour_candidate}] =
+               Enum.filter(findings, &(&1.kind == :behaviour_candidate))
+    end
+
+    test "does not flag pairs of similar modules by default" do
       findings =
         run_smell_task("""
         defmodule Providers.HTTP do

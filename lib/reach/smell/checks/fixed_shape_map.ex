@@ -23,6 +23,7 @@ defmodule Reach.Smell.Checks.FixedShapeMap do
     |> Enum.flat_map(&fixed_shape_finding(&1, config))
   end
 
+  defp fixed_shape_config(%{smells: smells}), do: fixed_shape_config(smells)
   defp fixed_shape_config(%{fixed_shape_map: config}), do: fixed_shape_config(config)
 
   defp fixed_shape_config(config) do

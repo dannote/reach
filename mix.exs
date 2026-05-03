@@ -70,7 +70,7 @@ defmodule Reach.MixProject do
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
       {:quickbeam, "~> 0.10", optional: true},
       {:ex_ast, "~> 0.1", only: [:dev, :test]},
-      {:ex_dna, "~> 1.1", only: [:dev, :test], runtime: false}
+      {:ex_dna, "~> 1.1", optional: true, runtime: false}
     ]
   end
 
