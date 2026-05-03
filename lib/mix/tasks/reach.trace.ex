@@ -52,10 +52,11 @@ defmodule Mix.Tasks.Reach.Trace do
 
       case trace_action(opts, positional) do
         :flow ->
-          Flow.run(flow_args(opts), command: "reach.trace")
+          Flow.run_opts(opts, command: "reach.trace")
 
         {:slice, target, direction} ->
-          Slice.run(slice_args(target, opts, direction), command: "reach.trace")
+          opts = Keyword.put(opts, :forward, Keyword.fetch!(direction, :forward?))
+          Slice.run_target(target, opts, command: "reach.trace")
 
         :error ->
           Mix.raise("Provide --from/--to, --variable, --backward TARGET, or --forward TARGET")
@@ -81,30 +82,4 @@ defmodule Mix.Tasks.Reach.Trace do
     opts[:from] || opts[:to] || (opts[:variable] && opts[:in]) ||
       (opts[:variable] && positional == [])
   end
-
-  defp flow_args(opts) do
-    []
-    |> maybe_put("--format", opts[:format])
-    |> maybe_put("--from", opts[:from])
-    |> maybe_put("--to", opts[:to])
-    |> maybe_put("--variable", opts[:variable])
-    |> maybe_put("--in", opts[:in])
-    |> maybe_put("--limit", opts[:limit])
-    |> maybe_flag("--all", opts[:all])
-  end
-
-  defp slice_args(target, opts, extra) do
-    [target]
-    |> maybe_put("--format", opts[:format])
-    |> maybe_put("--variable", opts[:variable])
-    |> maybe_flag("--forward", Keyword.fetch!(extra, :forward?))
-    |> maybe_flag("--graph", opts[:graph])
-  end
-
-  defp maybe_put(args, _flag, nil), do: args
-  defp maybe_put(args, flag, value), do: args ++ [flag, to_string(value)]
-
-  defp maybe_flag(args, _flag, false), do: args
-  defp maybe_flag(args, _flag, nil), do: args
-  defp maybe_flag(args, flag, true), do: args ++ [flag]
 end

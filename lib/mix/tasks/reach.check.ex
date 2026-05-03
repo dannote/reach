@@ -62,10 +62,10 @@ defmodule Mix.Tasks.Reach.Check do
           run_changed(opts)
 
         opts[:dead_code] ->
-          run_analysis(DeadCode, analysis_args(opts, positional))
+          DeadCode.run_opts(opts, positional, command: "reach.check")
 
         opts[:smells] ->
-          run_analysis(Smell, analysis_args(opts, positional))
+          Smell.run_opts(opts, positional, command: "reach.check")
 
         opts[:candidates] ->
           render_candidates_placeholder(opts, positional)
@@ -144,20 +144,6 @@ defmodule Mix.Tasks.Reach.Check do
       Project.load(quiet: opts[:format] == "json")
     end
   end
-
-  defp run_analysis(module, args) do
-    module.run(args, command: "reach.check")
-  end
-
-  defp analysis_args(opts, positional) do
-    []
-    |> maybe_put("--format", opts[:format])
-    |> maybe_put("--path", opts[:path])
-    |> Kernel.++(positional)
-  end
-
-  defp maybe_put(args, _flag, nil), do: args
-  defp maybe_put(args, flag, value), do: args ++ [flag, to_string(value)]
 
   defp render_candidates_text(%{candidates: []}) do
     IO.puts(Format.header("Refactoring Candidates"))

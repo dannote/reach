@@ -19,24 +19,29 @@ defmodule Reach.CLI.Analyses.Deps do
 
   alias Reach.CLI.BoxartGraph
   alias Reach.CLI.Format
+  alias Reach.CLI.Options
   alias Reach.CLI.Project
 
   def run(args, cli_opts \\ []) do
-    {opts, target_args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
+    {opts, target_args} = Options.parse(args, @switches, @aliases)
 
-    unless target_args != [] do
-      Mix.raise(
-        "Expected a target. Usage:\n" <>
-          "  mix reach.inspect Module.function/arity --deps\n" <>
-          "  mix reach.inspect lib/foo.ex:42 --deps"
-      )
-    end
+    raw_target =
+      List.first(target_args) ||
+        Mix.raise(
+          "Expected a target. Usage:\n" <>
+            "  mix reach.inspect Module.function/arity --deps\n" <>
+            "  mix reach.inspect lib/foo.ex:42 --deps"
+        )
 
+    run_target(raw_target, opts, cli_opts)
+  end
+
+  def run_target(raw_target, opts, cli_opts \\ []) do
     project = Project.load(quiet: opts[:format] == "json")
-    target = Project.resolve_target(project, hd(target_args))
+    target = Project.resolve_target(project, raw_target)
 
     unless target do
-      Mix.raise("Function not found: #{hd(target_args)}")
+      Mix.raise("Function not found: #{raw_target}")
     end
 
     format = opts[:format] || "text"

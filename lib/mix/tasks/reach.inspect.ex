@@ -104,20 +104,20 @@ defmodule Mix.Tasks.Reach.Inspect do
     do: render_candidates_placeholder(target, opts)
 
   defp run_action(:impact, target, _target_args, opts),
-    do: Impact.run(target_args(target, opts, graph?: opts[:graph]), command: "reach.inspect")
+    do: Impact.run_target(target, opts, command: "reach.inspect")
 
   defp run_action(:deps, target, _target_args, opts),
-    do: Deps.run(target_args(target, opts, graph?: opts[:graph]), command: "reach.inspect")
+    do: Deps.run_target(target, opts, command: "reach.inspect")
 
   defp run_action(:call_graph, target, _target_args, opts),
-    do: Deps.run(target_args(target, opts, graph?: true), command: "reach.inspect")
+    do: Deps.run_target(target, Keyword.put(opts, :graph, true), command: "reach.inspect")
 
   defp run_action(:graph, target, _target_args, opts), do: render_cfg(target, opts)
   defp run_action(:data_json, target, _target_args, opts), do: render_data_json(target, opts)
   defp run_action(:data_text, target, _target_args, opts), do: render_data_text(target, opts)
 
   defp run_action(:slice, target, _target_args, opts),
-    do: Slice.run(slice_args(target, opts), command: "reach.inspect")
+    do: Slice.run_target(target, opts, command: "reach.inspect")
 
   defp render_why(target, opts) do
     ensure_json_encoder_if_needed(opts)
@@ -486,28 +486,6 @@ defmodule Mix.Tasks.Reach.Inspect do
       IO.puts("")
     end)
   end
-
-  defp target_args(target, opts, extra) do
-    [target]
-    |> maybe_put("--format", opts[:format])
-    |> maybe_put("--depth", opts[:depth])
-    |> maybe_flag("--graph", Keyword.get(extra, :graph?, false))
-  end
-
-  defp slice_args(target, opts) do
-    [target]
-    |> maybe_put("--format", opts[:format])
-    |> maybe_put("--variable", opts[:variable])
-    |> maybe_flag("--forward", opts[:forward])
-    |> maybe_flag("--graph", opts[:graph])
-  end
-
-  defp maybe_put(args, _flag, nil), do: args
-  defp maybe_put(args, flag, value), do: args ++ [flag, to_string(value)]
-
-  defp maybe_flag(args, _flag, false), do: args
-  defp maybe_flag(args, _flag, nil), do: args
-  defp maybe_flag(args, flag, true), do: args ++ [flag]
 
   defp json_envelope(%{command: command} = data) do
     %Reach.CLI.JSONEnvelope{command: command, data: Map.delete(data, :command)}

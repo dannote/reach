@@ -32,11 +32,17 @@ defmodule Reach.CLI.Analyses.Flow do
   @aliases [f: :format]
 
   alias Reach.CLI.Format
+  alias Reach.CLI.Options
   alias Reach.CLI.Project
   alias Reach.IR
 
   def run(args, cli_opts \\ []) do
-    {opts, _args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
+    Options.run(args, @switches, @aliases, fn opts, _positional ->
+      run_opts(opts, cli_opts)
+    end)
+  end
+
+  def run_opts(opts, cli_opts \\ []) do
     format = opts[:format] || "text"
 
     project = Project.load(quiet: opts[:format] == "json")

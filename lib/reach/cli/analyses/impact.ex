@@ -18,25 +18,25 @@ defmodule Reach.CLI.Analyses.Impact do
 
   alias Reach.CLI.BoxartGraph
   alias Reach.CLI.Format
+  alias Reach.CLI.Options
   alias Reach.CLI.Project
   alias Reach.IR
 
   def run(args, cli_opts \\ []) do
-    {opts, target_args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
+    {opts, target_args} = Options.parse(args, @switches, @aliases)
 
     raw_target =
-      case target_args do
-        [raw | _] ->
-          raw
+      List.first(target_args) ||
+        Mix.raise(
+          "Expected a target. Usage:\n" <>
+            "  mix reach.inspect Module.function/arity --impact\n" <>
+            "  mix reach.inspect lib/foo.ex:42 --impact"
+        )
 
-        [] ->
-          Mix.raise(
-            "Expected a target. Usage:\n" <>
-              "  mix reach.inspect Module.function/arity --impact\n" <>
-              "  mix reach.inspect lib/foo.ex:42 --impact"
-          )
-      end
+    run_target(raw_target, opts, cli_opts)
+  end
 
+  def run_target(raw_target, opts, cli_opts \\ []) do
     project = Project.load(quiet: opts[:format] == "json")
     target = Project.resolve_target(project, raw_target)
 

@@ -20,25 +20,30 @@ defmodule Reach.CLI.Analyses.Slice do
 
   alias Reach.CLI.BoxartGraph
   alias Reach.CLI.Format
+  alias Reach.CLI.Options
   alias Reach.CLI.Project
 
   def run(args, cli_opts \\ []) do
-    {opts, target_args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
+    {opts, target_args} = Options.parse(args, @switches, @aliases)
 
-    unless target_args != [] do
-      Mix.raise(
-        "Expected a target. Usage:\n" <>
-          "  mix reach.trace lib/foo.ex:42\n" <>
-          "  mix reach.trace Module.function/arity"
-      )
-    end
+    raw_target =
+      List.first(target_args) ||
+        Mix.raise(
+          "Expected a target. Usage:\n" <>
+            "  mix reach.trace lib/foo.ex:42\n" <>
+            "  mix reach.trace Module.function/arity"
+        )
 
+    run_target(raw_target, opts, cli_opts)
+  end
+
+  def run_target(raw_target, opts, cli_opts \\ []) do
     project = Project.load(quiet: opts[:format] == "json")
     format = opts[:format] || "text"
     forward? = Keyword.get(opts, :forward, false)
     var_name = opts[:variable]
 
-    {node, target} = resolve_slice_target(project, hd(target_args))
+    {node, target} = resolve_slice_target(project, raw_target)
 
     slice_ids = compute_slice(project.graph, node.id, forward?)
     result = filter_and_format(project, slice_ids, var_name)

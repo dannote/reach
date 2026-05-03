@@ -21,12 +21,17 @@ defmodule Reach.CLI.Analyses.Smell do
 
   alias Reach.CLI.Analyses.Smell.Finding
   alias Reach.CLI.Format
+  alias Reach.CLI.Options
   alias Reach.CLI.Project
 
   def run(args, cli_opts \\ []) do
-    {opts, args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
+    {opts, positional} = Options.parse(args, @switches, @aliases)
+    run_opts(opts, positional, cli_opts)
+  end
+
+  def run_opts(opts, positional \\ [], cli_opts \\ []) do
     format = opts[:format] || "text"
-    path = opts[:path] || List.first(args)
+    path = opts[:path] || List.first(positional)
 
     project_opts = [quiet: opts[:format] == "json"]
     project_opts = if path, do: Keyword.put(project_opts, :paths, [path]), else: project_opts

@@ -47,7 +47,7 @@ defmodule Mix.Tasks.Reach.Otp do
     format = opts[:format] || "text"
 
     if opts[:concurrency] do
-      Concurrency.run(concurrency_args(args), command: "reach.otp")
+      Concurrency.run_opts(opts, command: "reach.otp")
     else
       {project, scope} = load_project_and_scope(target_args, opts)
       result = analyze(project, scope)
@@ -60,10 +60,6 @@ defmodule Mix.Tasks.Reach.Otp do
 
   defp render_result(result, "oneline", _opts), do: render_oneline(result)
   defp render_result(result, _format, opts), do: render_text(result, opts)
-
-  defp concurrency_args(args) do
-    Enum.reject(args, &(&1 == "--concurrency"))
-  end
 
   defp load_project_and_scope([target | _rest], opts) do
     if File.exists?(target) do

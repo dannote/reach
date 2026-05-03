@@ -13,14 +13,19 @@ defmodule Reach.CLI.Analyses.Concurrency do
   """
 
   alias Reach.CLI.Format
+  alias Reach.CLI.Options
   alias Reach.CLI.Project
-  alias Reach.IR
 
   @switches [format: :string]
   @aliases [f: :format]
 
   def run(args, cli_opts \\ []) do
-    {opts, _args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
+    Options.run(args, @switches, @aliases, fn opts, _positional ->
+      run_opts(opts, cli_opts)
+    end)
+  end
+
+  def run_opts(opts, cli_opts \\ []) do
     format = opts[:format] || "text"
 
     project = Project.load(quiet: opts[:format] == "json")
@@ -81,7 +86,7 @@ defmodule Reach.CLI.Analyses.Concurrency do
       Enum.filter(nodes, fn n ->
         n.type == :function_def and n.meta[:name] == :handle_info and
           n
-          |> IR.all_nodes()
+          |> Reach.IR.all_nodes()
           |> Enum.any?(fn c -> c.type == :literal and c.meta[:value] == :DOWN end)
       end)
 
@@ -117,7 +122,7 @@ defmodule Reach.CLI.Analyses.Concurrency do
       Enum.filter(nodes, fn n ->
         n.type == :function_def and n.meta[:name] == :init and n.meta[:arity] == 1 and
           n
-          |> IR.all_nodes()
+          |> Reach.IR.all_nodes()
           |> Enum.any?(fn c ->
             c.type == :call and c.meta[:function] in [:supervise, :init, :child_spec]
           end)

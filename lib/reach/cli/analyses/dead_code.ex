@@ -14,17 +14,22 @@ defmodule Reach.CLI.Analyses.DeadCode do
   """
 
   alias Reach.CLI.Format
+  alias Reach.CLI.Options
 
   @switches [format: :string, path: :string]
   @aliases [f: :format]
 
   def run(args, cli_opts \\ []) do
-    {opts, args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
+    {opts, positional} = Options.parse(args, @switches, @aliases)
+    run_opts(opts, positional, cli_opts)
+  end
+
+  def run_opts(opts, positional \\ [], cli_opts \\ []) do
     format = opts[:format] || "text"
 
     Mix.Task.run("compile", ["--no-warnings-as-errors"])
 
-    files = collect_files(opts[:path] || List.first(args))
+    files = collect_files(opts[:path] || List.first(positional))
     unless format == "json", do: Mix.shell().info("Analyzing #{length(files)} file(s)...")
 
     findings =
