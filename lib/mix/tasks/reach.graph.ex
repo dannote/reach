@@ -19,6 +19,8 @@ defmodule Mix.Tasks.Reach.Graph do
 
   use Mix.Task
 
+  alias Reach.CLI.Pipe
+
   alias Reach.CLI.{BoxartGraph, Deprecation, Format, Project}
 
   @shortdoc "Deprecated: Render control flow graph in terminal (requires boxart)"
@@ -29,26 +31,28 @@ defmodule Mix.Tasks.Reach.Graph do
 
   @impl Mix.Task
   def run(args) do
-    Deprecation.warn("reach.graph TARGET", "reach.inspect TARGET --graph")
+    Pipe.safely(fn ->
+      Deprecation.warn("reach.graph TARGET", "reach.inspect TARGET --graph")
 
-    BoxartGraph.require!("mix reach.graph")
+      BoxartGraph.require!("mix reach.graph")
 
-    {opts, target_args, _} = OptionParser.parse(args, switches: @switches)
+      {opts, target_args, _} = OptionParser.parse(args, switches: @switches)
 
-    unless target_args != [] do
-      Mix.raise("Usage: mix reach.graph Module.function/arity")
-    end
+      unless target_args != [] do
+        Mix.raise("Usage: mix reach.graph Module.function/arity")
+      end
 
-    project = Project.load()
-    raw = hd(target_args)
-    target = Project.resolve_target(project, raw)
-    unless target, do: Mix.raise("Function not found: #{raw}")
+      project = Project.load()
+      raw = hd(target_args)
+      target = Project.resolve_target(project, raw)
+      unless target, do: Mix.raise("Function not found: #{raw}")
 
-    if opts[:call_graph] do
-      BoxartGraph.render_call_graph(project, target, 2)
-    else
-      render_cfg(project, target)
-    end
+      if opts[:call_graph] do
+        BoxartGraph.render_call_graph(project, target, 2)
+      else
+        render_cfg(project, target)
+      end
+    end)
   end
 
   defp render_cfg(project, {mod, fun, arity}) do

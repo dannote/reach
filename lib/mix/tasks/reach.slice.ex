@@ -10,12 +10,14 @@ defmodule Mix.Tasks.Reach.Slice do
 
   use Mix.Task
 
-  alias Reach.CLI.Deprecation
+  alias Reach.CLI.{Deprecation, Pipe}
 
   @shortdoc "Removed: use mix reach.trace TARGET"
 
   @impl Mix.Task
   def run(_args) do
-    Deprecation.warn("reach.slice TARGET", "reach.trace TARGET")
+    Pipe.safely(fn ->
+      Deprecation.warn("reach.slice TARGET", "reach.trace TARGET")
+    end)
   end
 end

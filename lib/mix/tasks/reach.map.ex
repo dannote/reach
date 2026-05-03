@@ -39,6 +39,7 @@ defmodule Mix.Tasks.Reach.Map do
 
   alias Reach.CLI.BoxartGraph
   alias Reach.CLI.Format
+  alias Reach.CLI.Pipe
   alias Reach.CLI.Project
   alias Reach.Map.Analysis, as: MapAnalysis
 
@@ -67,8 +68,10 @@ defmodule Mix.Tasks.Reach.Map do
 
   @impl Mix.Task
   def run(args) do
-    {opts, positional, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
-    render_map(opts, positional)
+    Pipe.safely(fn ->
+      {opts, positional, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
+      render_map(opts, positional)
+    end)
   end
 
   defp render_map(opts, path_args) do

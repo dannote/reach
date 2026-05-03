@@ -11,13 +11,15 @@ defmodule Mix.Tasks.Reach.Coupling do
 
   use Mix.Task
 
-  alias Reach.CLI.Deprecation
+  alias Reach.CLI.{Deprecation, Pipe}
 
   @shortdoc "Deprecated: Show module coupling"
 
   @impl Mix.Task
   def run(args) do
-    Deprecation.warn("reach.coupling", "reach.map --coupling")
-    Mix.Tasks.Reach.Map.run(["--coupling" | args])
+    Pipe.safely(fn ->
+      Deprecation.warn("reach.coupling", "reach.map --coupling")
+      Mix.Tasks.Reach.Map.run(["--coupling" | args])
+    end)
   end
 end

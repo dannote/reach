@@ -38,6 +38,7 @@ defmodule Mix.Tasks.Reach.Inspect do
 
   alias Reach.CLI.BoxartGraph
   alias Reach.CLI.Format
+  alias Reach.CLI.Pipe
   alias Reach.CLI.Project
   alias Reach.CLI.TaskRunner
   alias Reach.Inspect.{Candidates, Context, Data, Why}
@@ -66,12 +67,14 @@ defmodule Mix.Tasks.Reach.Inspect do
 
   @impl Mix.Task
   def run(args) do
-    {opts, target_args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
+    Pipe.safely(fn ->
+      {opts, target_args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
 
-    target =
-      List.first(target_args) || Mix.raise("Expected a target. Usage: mix reach.inspect TARGET")
+      target =
+        List.first(target_args) || Mix.raise("Expected a target. Usage: mix reach.inspect TARGET")
 
-    run_action(inspect_action(opts), target, target_args, opts)
+      run_action(inspect_action(opts), target, target_args, opts)
+    end)
   end
 
   defp inspect_action(opts) do

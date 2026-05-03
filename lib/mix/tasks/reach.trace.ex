@@ -25,6 +25,8 @@ defmodule Mix.Tasks.Reach.Trace do
 
   use Mix.Task
 
+  alias Reach.CLI.Pipe
+
   alias Reach.CLI.TaskRunner
 
   @shortdoc "Trace data flow, taint paths, and slices"
@@ -46,18 +48,22 @@ defmodule Mix.Tasks.Reach.Trace do
 
   @impl Mix.Task
   def run(args) do
-    {opts, positional, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
+    Pipe.safely(fn ->
+      {opts, positional, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
 
-    case trace_action(opts, positional) do
-      :flow ->
-        TaskRunner.run("reach.flow", flow_args(opts), command: "reach.trace")
+      case trace_action(opts, positional) do
+        :flow ->
+          TaskRunner.run("reach.flow", flow_args(opts), command: "reach.trace")
 
-      {:slice, target, direction} ->
-        TaskRunner.run("reach.slice", slice_args(target, opts, direction), command: "reach.trace")
+        {:slice, target, direction} ->
+          TaskRunner.run("reach.slice", slice_args(target, opts, direction),
+            command: "reach.trace"
+          )
 
-      :error ->
-        Mix.raise("Provide --from/--to, --variable, --backward TARGET, or --forward TARGET")
-    end
+        :error ->
+          Mix.raise("Provide --from/--to, --variable, --backward TARGET, or --forward TARGET")
+      end
+    end)
   end
 
   defp trace_action(opts, positional) do

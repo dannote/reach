@@ -18,6 +18,8 @@ defmodule Mix.Tasks.Reach do
 
   use Mix.Task
 
+  alias Reach.CLI.Pipe
+
   @shortdoc "Generate an interactive dependency graph"
 
   @switches [
@@ -52,22 +54,24 @@ defmodule Mix.Tasks.Reach do
 
   @impl Mix.Task
   def run(args) do
-    {opts, files, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
+    Pipe.safely(fn ->
+      {opts, files, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
 
-    Mix.Task.run("compile", ["--no-warnings-as-errors"])
+      Mix.Task.run("compile", ["--no-warnings-as-errors"])
 
-    format = opts[:format] || "html"
-    output_dir = opts[:output] || "reach_report"
+      format = opts[:format] || "html"
+      output_dir = opts[:output] || "reach_report"
 
-    graph = build_graph(files)
-    graph_data = Reach.Visualize.to_graph_json(graph, build_viz_opts(opts))
+      graph = build_graph(files)
+      graph_data = Reach.Visualize.to_graph_json(graph, build_viz_opts(opts))
 
-    case format do
-      "html" -> render_html(graph_data, output_dir, opts)
-      "dot" -> render_dot(graph, output_dir)
-      "json" -> render_json(graph_data, output_dir)
-      other -> Mix.raise("Unknown format: #{other}. Use html, dot, or json.")
-    end
+      case format do
+        "html" -> render_html(graph_data, output_dir, opts)
+        "dot" -> render_dot(graph, output_dir)
+        "json" -> render_json(graph_data, output_dir)
+        other -> Mix.raise("Unknown format: #{other}. Use html, dot, or json.")
+      end
+    end)
   end
 
   defp build_graph([]) do

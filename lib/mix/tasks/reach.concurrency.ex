@@ -10,12 +10,14 @@ defmodule Mix.Tasks.Reach.Concurrency do
 
   use Mix.Task
 
-  alias Reach.CLI.Deprecation
+  alias Reach.CLI.{Deprecation, Pipe}
 
   @shortdoc "Removed: use mix reach.otp --concurrency"
 
   @impl Mix.Task
   def run(_args) do
-    Deprecation.warn("reach.concurrency", "reach.otp --concurrency")
+    Pipe.safely(fn ->
+      Deprecation.warn("reach.concurrency", "reach.otp --concurrency")
+    end)
   end
 end

@@ -28,6 +28,7 @@ defmodule Mix.Tasks.Reach.Check do
   alias Reach.Check.Candidates
   alias Reach.Check.Changed
   alias Reach.CLI.Format
+  alias Reach.CLI.Pipe
   alias Reach.CLI.Project
   alias Reach.CLI.TaskRunner
 
@@ -50,29 +51,31 @@ defmodule Mix.Tasks.Reach.Check do
 
   @impl Mix.Task
   def run(args) do
-    {opts, positional, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
+    Pipe.safely(fn ->
+      {opts, positional, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
 
-    cond do
-      opts[:arch] ->
-        run_arch(opts)
+      cond do
+        opts[:arch] ->
+          run_arch(opts)
 
-      opts[:changed] ->
-        run_changed(opts)
+        opts[:changed] ->
+          run_changed(opts)
 
-      opts[:dead_code] ->
-        TaskRunner.run("reach.dead_code", delegated_args(opts, positional),
-          command: "reach.check"
-        )
+        opts[:dead_code] ->
+          TaskRunner.run("reach.dead_code", delegated_args(opts, positional),
+            command: "reach.check"
+          )
 
-      opts[:smells] ->
-        TaskRunner.run("reach.smell", delegated_args(opts, positional), command: "reach.check")
+        opts[:smells] ->
+          TaskRunner.run("reach.smell", delegated_args(opts, positional), command: "reach.check")
 
-      opts[:candidates] ->
-        render_candidates_placeholder(opts, positional)
+        opts[:candidates] ->
+          render_candidates_placeholder(opts, positional)
 
-      true ->
-        run_default(opts)
-    end
+        true ->
+          run_default(opts)
+      end
+    end)
   end
 
   defp run_default(opts) do

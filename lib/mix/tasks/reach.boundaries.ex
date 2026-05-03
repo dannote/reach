@@ -11,13 +11,15 @@ defmodule Mix.Tasks.Reach.Boundaries do
 
   use Mix.Task
 
-  alias Reach.CLI.Deprecation
+  alias Reach.CLI.{Deprecation, Pipe}
 
   @shortdoc "Deprecated: Show effect boundaries"
 
   @impl Mix.Task
   def run(args) do
-    Deprecation.warn("reach.boundaries", "reach.map --boundaries")
-    Mix.Tasks.Reach.Map.run(["--boundaries" | args])
+    Pipe.safely(fn ->
+      Deprecation.warn("reach.boundaries", "reach.map --boundaries")
+      Mix.Tasks.Reach.Map.run(["--boundaries" | args])
+    end)
   end
 end

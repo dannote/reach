@@ -11,13 +11,15 @@ defmodule Mix.Tasks.Reach.Xref do
 
   use Mix.Task
 
-  alias Reach.CLI.Deprecation
+  alias Reach.CLI.{Deprecation, Pipe}
 
   @shortdoc "Deprecated: Show cross-function data flow"
 
   @impl Mix.Task
   def run(args) do
-    Deprecation.warn("reach.xref", "reach.map --data")
-    Mix.Tasks.Reach.Map.run(["--data" | args])
+    Pipe.safely(fn ->
+      Deprecation.warn("reach.xref", "reach.map --data")
+      Mix.Tasks.Reach.Map.run(["--data" | args])
+    end)
   end
 end

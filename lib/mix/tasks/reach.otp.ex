@@ -32,12 +32,17 @@ defmodule Mix.Tasks.Reach.Otp do
 
   alias Reach.CLI.BoxartGraph
   alias Reach.CLI.Format
+  alias Reach.CLI.Pipe
   alias Reach.CLI.Project
   alias Reach.CLI.TaskRunner
   alias Reach.OTP.Analysis, as: OTPAnalysis
 
   @impl Mix.Task
   def run(args) do
+    Pipe.safely(fn -> run_safe(args) end)
+  end
+
+  defp run_safe(args) do
     {opts, target_args, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
     format = opts[:format] || "text"
 
@@ -45,16 +50,16 @@ defmodule Mix.Tasks.Reach.Otp do
       TaskRunner.run("reach.concurrency", delegated_args(args), command: "reach.otp")
     else
       {project, scope} = load_project_and_scope(target_args, opts)
-
       result = analyze(project, scope)
-
-      case format do
-        "json" -> Format.render(result, "reach.otp", format: "json", pretty: true)
-        "oneline" -> render_oneline(result)
-        _ -> render_text(result, opts)
-      end
+      render_result(result, format, opts)
     end
   end
+
+  defp render_result(result, "json", _opts),
+    do: Format.render(result, "reach.otp", format: "json", pretty: true)
+
+  defp render_result(result, "oneline", _opts), do: render_oneline(result)
+  defp render_result(result, _format, opts), do: render_text(result, opts)
 
   defp delegated_args(args) do
     Enum.reject(args, &(&1 == "--concurrency"))

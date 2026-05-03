@@ -10,12 +10,14 @@ defmodule Mix.Tasks.Reach.Flow do
 
   use Mix.Task
 
-  alias Reach.CLI.Deprecation
+  alias Reach.CLI.{Deprecation, Pipe}
 
   @shortdoc "Removed: use mix reach.trace"
 
   @impl Mix.Task
   def run(_args) do
-    Deprecation.warn("reach.flow", "reach.trace")
+    Pipe.safely(fn ->
+      Deprecation.warn("reach.flow", "reach.trace")
+    end)
   end
 end

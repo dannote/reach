@@ -10,12 +10,14 @@ defmodule Mix.Tasks.Reach.Smell do
 
   use Mix.Task
 
-  alias Reach.CLI.Deprecation
+  alias Reach.CLI.{Deprecation, Pipe}
 
   @shortdoc "Removed: use mix reach.check --smells"
 
   @impl Mix.Task
   def run(_args) do
-    Deprecation.warn("reach.smell", "reach.check --smells")
+    Pipe.safely(fn ->
+      Deprecation.warn("reach.smell", "reach.check --smells")
+    end)
   end
 end

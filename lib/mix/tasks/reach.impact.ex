@@ -10,12 +10,14 @@ defmodule Mix.Tasks.Reach.Impact do
 
   use Mix.Task
 
-  alias Reach.CLI.Deprecation
+  alias Reach.CLI.{Deprecation, Pipe}
 
   @shortdoc "Removed: use mix reach.inspect TARGET --impact"
 
   @impl Mix.Task
   def run(_args) do
-    Deprecation.warn("reach.impact TARGET", "reach.inspect TARGET --impact")
+    Pipe.safely(fn ->
+      Deprecation.warn("reach.impact TARGET", "reach.inspect TARGET --impact")
+    end)
   end
 end
