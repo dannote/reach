@@ -8,6 +8,8 @@ defmodule Reach.Check.Candidates do
 
   @note "Candidates are advisory. Reach reports graph/effect/architecture evidence; prove behavior preservation before editing."
   @cycle_candidate_limit 20
+  @cycle_search_depth 5
+  @cycle_neighbor_limit 12
   @representative_call_limit 10
   @representative_calls_per_edge 3
   @mixed_effect_candidate_limit 20
@@ -53,8 +55,8 @@ defmodule Reach.Check.Candidates do
     call_examples = module_call_examples(project)
 
     deps
-    |> Map.keys()
-    |> Enum.flat_map(&walk_module_cycle(deps, &1, &1, [], 5, 0))
+    |> cycle_search_starts()
+    |> Enum.flat_map(&walk_module_cycle(deps, &1, &1, [], @cycle_search_depth, 0))
     |> Enum.map(&canonical_module_cycle/1)
     |> Enum.uniq()
     |> minimal_cycles()
@@ -139,6 +141,13 @@ defmodule Reach.Check.Candidates do
     |> Enum.uniq()
   end
 
+  defp cycle_search_starts(deps) do
+    deps
+    |> Map.keys()
+    |> Enum.sort_by(&inspect/1)
+    |> Enum.take(@cycle_candidate_limit * 4)
+  end
+
   defp representative_call(%{caller: caller, callee: callee, node: node}) do
     callee_name = inspect(callee)
 
@@ -158,6 +167,7 @@ defmodule Reach.Check.Candidates do
   defp walk_module_cycle(deps, start, current, path, max_depth, depth) do
     deps
     |> Map.get(current, [])
+    |> Enum.take(@cycle_neighbor_limit)
     |> Enum.flat_map(fn next ->
       cond do
         next == start and path != [] -> [Enum.reverse([current | path])]
