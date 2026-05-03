@@ -1,77 +1,15 @@
 defmodule Reach.Inspect.Impact do
   @moduledoc """
-  Shows what breaks if a function's signature or return value changes.
-
-      mix reach.inspect UserService.register/2 --impact
-      mix reach.inspect lib/my_app/user_service.ex:10 --impact
-      mix reach.inspect UserService.register/2 --impact --format json
-
-  ## Options
-
-    * `--format` — output format: `text` (default), `json`, `oneline`
-    * `--depth` — transitive caller depth (default: 4)
-
+  Builds impact summaries for a target function.
   """
 
-  @switches [format: :string, depth: :integer, graph: :boolean]
-  @aliases [f: :format]
-
-  alias Reach.CLI.BoxartGraph
-  alias Reach.CLI.Format
-  alias Reach.CLI.Options
-  alias Reach.CLI.Project
   alias Reach.IR
+  alias Reach.IR.Helpers, as: IRHelpers
 
   @default_return_dependent_limit 20
   @default_dependency_node_limit 20
 
-  def run(args, cli_opts \\ []) do
-    {opts, target_args} = Options.parse(args, @switches, @aliases)
-
-    raw_target =
-      List.first(target_args) ||
-        Mix.raise(
-          "Expected a target. Usage:\n" <>
-            "  mix reach.inspect Module.function/arity --impact\n" <>
-            "  mix reach.inspect lib/foo.ex:42 --impact"
-        )
-
-    run_target(raw_target, opts, cli_opts)
-  end
-
-  def run_target(raw_target, opts, cli_opts \\ []) do
-    project = Project.load(quiet: opts[:format] == "json")
-    target = Project.resolve_target(project, raw_target)
-
-    unless target do
-      Mix.raise("Function not found: #{raw_target}")
-    end
-
-    depth = opts[:depth] || 4
-    result = analyze(project, target, depth)
-    render_result(project, target, depth, result, opts, cli_opts)
-  end
-
-  defp render_result(project, target, depth, result, opts, cli_opts) do
-    cond do
-      opts[:graph] ->
-        BoxartGraph.require!()
-        BoxartGraph.render_caller_graph(project, target, depth)
-
-      opts[:format] == "json" ->
-        Format.render(result, command(cli_opts), format: "json", pretty: true)
-
-      opts[:format] == "oneline" ->
-        render_oneline(result)
-
-      true ->
-        render_text(project, result)
-    end
-  end
-
-  defp command(cli_opts), do: Keyword.get(cli_opts, :command, "reach.inspect")
-
-  defp analyze(project, target, depth) do
+  def analyze(project, target, depth) do
     direct = find_callers(project, target, 1)
     transitive = find_callers(project, target, depth)
     indirect = Enum.reject(transitive, &(&1.id in Enum.map(direct, fn d -> d.id end)))
@@ -99,14 +37,14 @@ defmodule Reach.Inspect.Impact do
   end
 
   defp do_find_callers(_cg, [], _depth, _visited, acc), do: Enum.reverse(acc)
-
   defp do_find_callers(_cg, _frontier, 0, _visited, acc), do: Enum.reverse(acc)
 
   defp do_find_callers(cg, frontier, depth, visited, acc) do
     {new_callers, new_visited} =
       Enum.reduce(frontier, {[], visited}, fn f, {found, vis} ->
         callers =
-          Graph.in_neighbors(cg, f)
+          cg
+          |> Graph.in_neighbors(f)
           |> Enum.filter(&match?({_, _, _}, &1))
           |> Enum.reject(&MapSet.member?(vis, &1))
 
@@ -128,8 +66,9 @@ defmodule Reach.Inspect.Impact do
     target_key = tuple_with_nil(target)
     callers = find_callers(project, target, 1)
 
-    Enum.flat_map(callers, fn %{id: caller_id} ->
-      caller_node = Project.find_function(project, caller_id)
+    callers
+    |> Enum.flat_map(fn %{id: caller_id} ->
+      caller_node = find_function(project, caller_id)
       if caller_node, do: return_deps_for_caller(caller_node, target_key, graph, nodes), else: []
     end)
     |> Enum.uniq_by(& &1.location)
@@ -163,7 +102,7 @@ defmodule Reach.Inspect.Impact do
         %{
           in_function: caller_id,
           node_type: dep_node.type,
-          location: Format.location(dep_node)
+          location: IRHelpers.location(dep_node)
         }
       end)
     else
@@ -181,88 +120,25 @@ defmodule Reach.Inspect.Impact do
       |> find_callers(target, 2)
       |> Enum.flat_map(&shared_data_for_caller(&1.id, cg, target))
       |> Enum.uniq()
-      |> Enum.map(&Format.func_id_to_string/1)
+      |> Enum.map(&IRHelpers.func_id_to_string/1)
     else
       []
     end
   end
 
   defp shared_data_for_caller(caller_id, cg, target) do
-    Graph.out_neighbors(cg, caller_id)
+    cg
+    |> Graph.out_neighbors(caller_id)
     |> Enum.filter(&(&1 == target))
     |> Enum.map(fn _ -> caller_id end)
   end
 
-  defp render_text(project, result) do
-    target_str = Format.func_id_to_string(result.target)
-    IO.puts("If you change #{target_str}:")
-
-    render_caller_section(
-      project,
-      result.direct_callers,
-      "Direct callers (break on signature change)"
-    )
-
-    render_caller_section(
-      project,
-      result.transitive_callers,
-      "Transitive callers (break on behavior change)"
-    )
-
-    render_return_deps_section(result.return_dependents)
-    render_risk_summary(result)
-  end
-
-  defp render_caller_section(project, callers, title) do
-    IO.puts(Format.section(title))
-
-    case callers do
-      [] -> IO.puts("  " <> Format.empty())
-      list -> Enum.each(list, &print_func_with_location(project, &1.id))
-    end
-  end
-
-  defp render_return_deps_section(return_dependents) do
-    IO.puts(Format.section("Return value dependents (break on output shape change)"))
-
-    case return_dependents do
-      [] ->
-        IO.puts("  " <> Format.empty())
-
-      deps ->
-        Enum.each(deps, fn dep ->
-          IO.puts("  #{Format.func_id_to_string(dep.in_function)} → #{dep.location}")
-        end)
-    end
-  end
-
-  defp render_risk_summary(result) do
-    total = length(result.direct_callers) + length(result.transitive_callers)
-
-    risk =
-      cond do
-        total > 8 -> "HIGH"
-        total > 3 -> "MEDIUM"
-        true -> "LOW"
-      end
-
-    IO.puts("\n#{total} affected function(s), risk: #{risk}\n")
-  end
-
-  defp print_func_with_location(project, func_id) do
-    location = Project.func_location(project, func_id)
-    IO.puts("  #{Format.func_id_to_string(func_id)}  #{location}")
-  end
-
-  defp render_oneline(result) do
-    target_str = Format.func_id_to_string(result.target)
-
-    Enum.each(result.direct_callers, fn %{id: id} ->
-      IO.puts("#{target_str}:direct_caller:#{Format.func_id_to_string(id)}")
-    end)
-
-    Enum.each(result.transitive_callers, fn %{id: id} ->
-      IO.puts("#{target_str}:transitive_caller:#{Format.func_id_to_string(id)}")
+  defp find_function(project, target) do
+    project.nodes
+    |> Map.values()
+    |> Enum.find(fn node ->
+      node.type == :function_def and
+        {node.meta[:module], node.meta[:name], node.meta[:arity]} == target
     end)
   end
 end

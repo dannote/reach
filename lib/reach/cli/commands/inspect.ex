@@ -36,10 +36,11 @@ defmodule Reach.CLI.Commands.Inspect do
 
   alias Reach.CLI.BoxartGraph
   alias Reach.CLI.Commands.Inspect.Deps
+  alias Reach.CLI.Commands.Inspect.Impact
   alias Reach.CLI.Commands.Trace.Slice
   alias Reach.CLI.Format
   alias Reach.CLI.Project
-  alias Reach.Inspect.{Candidates, Context, Data, Impact, Why}
+  alias Reach.Inspect.{Candidates, Context, Data, Why}
 
   def run(opts, target_args \\ []) do
     target =
@@ -75,7 +76,7 @@ defmodule Reach.CLI.Commands.Inspect do
     do: render_candidates_placeholder(target, opts)
 
   defp run_action(:impact, target, _target_args, opts),
-    do: Impact.run_target(target, opts, command: "reach.inspect")
+    do: Impact.run_target(target, opts, "reach.inspect")
 
   defp run_action(:deps, target, _target_args, opts),
     do: Deps.run_target(target, opts, "reach.inspect")

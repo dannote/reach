@@ -185,15 +185,7 @@ defmodule Reach.CLI.Format do
     if String.starts_with?(relative, ".."), do: path, else: relative
   end
 
-  def func_id_to_string({mod, fun, arity}) when is_atom(mod) and mod != nil do
-    "#{inspect(mod)}.#{fun}/#{arity}"
-  end
-
-  def func_id_to_string({nil, fun, arity}) do
-    "#{fun}/#{arity}"
-  end
-
-  def func_id_to_string(other), do: inspect(other)
+  def func_id_to_string(func_id), do: IRHelpers.func_id_to_string(func_id)
 
   def header(title) do
     width = max(String.length(title) + 4, 40)
