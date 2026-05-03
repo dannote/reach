@@ -115,7 +115,7 @@ defmodule Mix.Tasks.Reach.Map do
         "  call_graph=#{summary.call_graph_vertices} vertices/#{summary.call_graph_edges} edges"
       )
 
-      IO.puts("  pdg=#{summary.graph_nodes} nodes/#{summary.graph_edges} edges")
+      IO.puts("  dependence_graph=#{summary.graph_nodes} nodes/#{summary.graph_edges} edges")
 
       Enum.each(ordered_sections(sections), fn {key, data} ->
         IO.puts(Format.section(section_title(key)))
@@ -202,6 +202,8 @@ defmodule Mix.Tasks.Reach.Map do
   defp render_text_section(:hotspots, []), do: IO.puts("  " <> Format.empty())
 
   defp render_text_section(:hotspots, hotspots) do
+    IO.puts("  #{Format.faint("score combines branch count with caller impact")}")
+
     Enum.each(hotspots, fn hotspot ->
       label = Map.get(hotspot, :display_function, hotspot.function)
 
@@ -217,9 +219,13 @@ defmodule Mix.Tasks.Reach.Map do
     do: IO.puts("  " <> Format.empty())
 
   defp render_text_section(:coupling, %{modules: modules, cycles: cycles}) do
+    IO.puts(
+      "  #{Format.faint("incoming=afferent dependencies, outgoing=efferent dependencies, instability=outgoing/(incoming+outgoing)")}"
+    )
+
     Enum.each(modules, fn module ->
       IO.puts(
-        "  #{Format.bright(module.name)} Ca=#{module.afferent} Ce=#{module.efferent} I=#{module.instability}"
+        "  #{Format.bright(module.name)} incoming=#{Format.count(module.afferent)} outgoing=#{Format.count(module.efferent)} instability=#{instability_label(module.instability)}"
       )
     end)
 
@@ -234,7 +240,7 @@ defmodule Mix.Tasks.Reach.Map do
 
   defp render_text_section(:effects, %{distribution: distribution, unknown_calls: unknown_calls}) do
     Enum.each(distribution, fn row ->
-      IO.puts("  #{Format.effect(row.effect)}: #{row.count} (#{row.ratio})")
+      IO.puts("  #{Format.effect(row.effect)}: #{row.count} (#{percent(row.ratio)})")
     end)
 
     if unknown_calls != [] do
@@ -276,6 +282,11 @@ defmodule Mix.Tasks.Reach.Map do
 
   defp render_text_section(:data, data) do
     IO.puts("  total_data_edges=#{data.total_data_edges}")
+
+    IO.puts(
+      "  #{Format.faint("parameter_in flows into a call; parameter_out flows from a call result")}"
+    )
+
     render_cross_function_flows(Map.get(data, :cross_function_edges, []))
     render_top_data_functions(data.top_functions)
   end
@@ -317,6 +328,17 @@ defmodule Mix.Tasks.Reach.Map do
       Enum.find_index(@section_order, &(&1 == key)) || 999
     end)
   end
+
+  defp percent(value) when is_float(value),
+    do: :erlang.float_to_binary(value * 100, decimals: 1) <> "%"
+
+  defp percent(value), do: to_string(value)
+
+  defp instability_label(value) when is_number(value) and value >= 0.8,
+    do: Format.yellow(to_string(value))
+
+  defp instability_label(value) when is_number(value), do: to_string(value)
+  defp instability_label(value), do: to_string(value)
 
   defp section_title(:modules), do: "Modules"
   defp section_title(:hotspots), do: "Hotspots"

@@ -156,7 +156,7 @@ defmodule Mix.Tasks.Reach.Check do
 
   defp render_candidates_text(%{candidates: []}) do
     IO.puts(Format.header("Refactoring Candidates"))
-    IO.puts("No refactoring candidates found.")
+    IO.puts("  " <> Format.empty("no refactoring candidates"))
   end
 
   defp render_candidates_text(%{candidates: candidates, note: note}) do
@@ -166,24 +166,32 @@ defmodule Mix.Tasks.Reach.Check do
 
     Enum.each(candidates, fn candidate ->
       IO.puts(
-        "  #{Format.bright(candidate.id)} #{Format.yellow(candidate.kind)} #{candidate.target}"
+        "  #{Format.bright(candidate.id)} #{Format.yellow(humanize(candidate.kind))}: #{candidate.target}"
       )
 
       IO.puts(
-        "    benefit=#{candidate.benefit} risk=#{candidate.risk} confidence=#{candidate[:confidence] || :unknown}"
+        "    benefit=#{candidate.benefit} risk=#{Format.risk(candidate.risk)} confidence=#{Format.risk(candidate[:confidence] || :unknown)}"
       )
 
       if candidate[:file] do
         IO.puts("    #{Format.loc(candidate.file, candidate.line)}")
       end
 
-      IO.puts("    evidence=#{Enum.join(candidate.evidence, ",")}")
+      IO.puts("    evidence=#{humanized_list(candidate.evidence)}")
 
       render_representative_calls(candidate)
 
       IO.puts("    suggestion=#{candidate.suggestion}")
       IO.puts("")
     end)
+  end
+
+  defp humanized_list(values), do: Enum.map_join(values, ", ", &humanize/1)
+
+  defp humanize(value) do
+    value
+    |> to_string()
+    |> String.replace("_", " ")
   end
 
   defp render_representative_calls(%{representative_calls: calls}) when calls != [] do
