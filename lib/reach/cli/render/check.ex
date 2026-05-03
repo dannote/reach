@@ -121,6 +121,8 @@ defmodule Reach.CLI.Render.Check do
         IO.puts(
           "  #{Format.bright(function.id)} #{Format.loc(function.file, function.line)} risk=#{risk_label(function.risk)} callers=#{function.direct_caller_count}/#{function.transitive_caller_count} branches=#{function.branch_count} effects=#{Format.effects_join(function.effects)}"
         )
+
+        render_clone_siblings(function.clone_siblings)
       end)
     )
     |> add_omitted(
@@ -136,6 +138,19 @@ defmodule Reach.CLI.Render.Check do
       )
     )
     |> render_omitted_summary()
+  end
+
+  defp render_clone_siblings([]), do: :ok
+  defp render_clone_siblings(nil), do: :ok
+
+  defp render_clone_siblings(siblings) do
+    IO.puts("    #{Format.faint("similar cloned functions may need matching updates:")}")
+
+    siblings
+    |> Enum.take(3)
+    |> Enum.each(fn sibling ->
+      IO.puts("      #{sibling.id} #{Format.loc(sibling.file, sibling.line)}")
+    end)
   end
 
   defp render_representative_calls(%{representative_calls: calls})

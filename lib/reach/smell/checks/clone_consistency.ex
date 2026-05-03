@@ -38,13 +38,12 @@ defmodule Reach.Smell.Checks.CloneConsistency do
 
   defp return_contract_drift(fragments) do
     fragments
-    |> Enum.map(&%{&1 | return_shapes: normalize_return_shapes(&1.return_shapes)})
-    |> singleton_drift_groups(& &1.return_shapes)
+    |> singleton_drift_groups(&normalize_return_shapes(&1.return_shapes))
     |> Enum.map(fn {outlier, majority} ->
       Finding.new(
         kind: :return_contract_drift,
         message:
-          "#{function_name(outlier)} returns #{format_shapes(outlier.return_shapes)} while similar functions return #{format_shapes(majority.return_shapes)}; align the contract or split the abstraction",
+          "#{function_name(outlier)} returns #{format_shapes(normalize_return_shapes(outlier.return_shapes))} while similar functions return #{format_shapes(normalize_return_shapes(majority.return_shapes))}; align the contract or split the abstraction",
         location: location(outlier),
         evidence: evidence([outlier, majority]),
         confidence: :high
@@ -60,7 +59,7 @@ defmodule Reach.Smell.Checks.CloneConsistency do
       Finding.new(
         kind: :side_effect_order_drift,
         message:
-          "#{function_name(outlier)} has a different side-effect order than similar functions; verify persistence, notification, audit, and transaction ordering",
+          "#{function_name(outlier)} has a different side-effect order than similar functions; verify observable operation ordering before refactoring",
         location: location(outlier),
         evidence: evidence([outlier, majority]),
         confidence: :high

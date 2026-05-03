@@ -12,7 +12,8 @@ defmodule Reach.Check.Changed.Function do
     :branch_count,
     :direct_callers,
     :direct_caller_count,
-    :transitive_caller_count
+    :transitive_caller_count,
+    clone_siblings: []
   ]
 
   def new(attrs), do: struct!(__MODULE__, attrs)

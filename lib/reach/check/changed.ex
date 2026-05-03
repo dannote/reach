@@ -4,6 +4,7 @@ defmodule Reach.Check.Changed do
   alias Reach.Check.Architecture
   alias Reach.Check.Changed.Function, as: ChangedFunction
   alias Reach.Check.Changed.Result
+  alias Reach.CloneAnalysis
   alias Reach.Config
   alias Reach.IR
   alias Reach.IR.Helpers, as: IRHelpers
@@ -13,8 +14,13 @@ defmodule Reach.Check.Changed do
     base = Keyword.get(opts, :base) || default_base_ref()
     files = changed_files(base)
     changed_ranges = changed_ranges(base)
-    functions = changed_functions(project, changed_ranges, config)
     normalized_config = Config.normalize(config)
+
+    functions =
+      project
+      |> changed_functions(changed_ranges, normalized_config)
+      |> add_clone_siblings(project, normalized_config)
+
     tests = suggested_tests(files, functions, normalized_config.tests.hints)
     {risk, risk_reasons} = aggregate_change_risk(functions)
 
@@ -63,6 +69,75 @@ defmodule Reach.Check.Changed do
     |> Enum.uniq_by(&{&1.meta[:module], &1.meta[:name], &1.meta[:arity]})
     |> Enum.map(&function_summary(project, &1, Config.normalize(config)))
     |> Enum.sort_by(&{&1.file || "", &1.line || 0, &1.id})
+  end
+
+  defp add_clone_siblings([], _project, _config), do: []
+
+  defp add_clone_siblings(functions, project, config) do
+    clone_index = clone_sibling_index(project, config)
+
+    Enum.map(functions, fn function ->
+      %{function | clone_siblings: Map.get(clone_index, function.id, [])}
+    end)
+  end
+
+  defp clone_sibling_index(project, config) do
+    project
+    |> CloneAnalysis.analyze(config)
+    |> Enum.reduce(%{}, &index_clone_siblings/2)
+  end
+
+  defp index_clone_siblings(clone, acc) do
+    fragments = Enum.filter(clone.fragments, &complete_fragment?/1)
+
+    Enum.reduce(fragments, acc, fn fragment, index ->
+      siblings =
+        fragments
+        |> Enum.reject(&same_fragment?(&1, fragment))
+        |> Enum.map(&clone_sibling/1)
+        |> Enum.uniq()
+
+      add_siblings_to_index(index, fragment, siblings)
+    end)
+  end
+
+  defp add_siblings_to_index(index, _fragment, []), do: index
+
+  defp add_siblings_to_index(index, fragment, siblings) do
+    fragment
+    |> fragment_ids()
+    |> Enum.reduce(index, fn id, acc ->
+      Map.update(acc, id, siblings, &Enum.uniq(&1 ++ siblings))
+    end)
+  end
+
+  defp complete_fragment?(fragment), do: fragment.function && fragment.arity
+
+  defp same_fragment?(left, right) do
+    {left.module, left.function, left.arity, left.file, left.line} ==
+      {right.module, right.function, right.arity, right.file, right.line}
+  end
+
+  defp clone_sibling(fragment) do
+    %{
+      id: fragment_id(fragment),
+      file: fragment.file,
+      line: fragment.line,
+      effects: Enum.map(fragment.effects, &to_string/1),
+      return_shapes: Enum.map(fragment.return_shapes, &to_string/1)
+    }
+  end
+
+  defp fragment_ids(fragment) do
+    [
+      IRHelpers.func_id_to_string({fragment.module, fragment.function, fragment.arity}),
+      IRHelpers.func_id_to_string({nil, fragment.function, fragment.arity})
+    ]
+    |> Enum.uniq()
+  end
+
+  defp fragment_id(fragment) do
+    IRHelpers.func_id_to_string({fragment.module, fragment.function, fragment.arity})
   end
 
   def aggregate_change_risk([]), do: {:low, []}

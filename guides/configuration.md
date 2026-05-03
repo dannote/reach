@@ -297,9 +297,10 @@ candidates: [
 
 Thresholds decide when Reach reports mixed-effect and branch-heavy extraction candidates. Limits bound candidate evidence and per-kind generation while preserving exact cycle-component detection.
 
-### `smells[:fixed_shape_map]`
+### `clone_analysis`
 
-Tune repeated fixed-shape map smell detection.
+Configure optional structural clone evidence. Reach uses clone evidence to raise confidence or find consistency drift in semantic checks; it does not emit an `ex_dna` smell by itself.
+
 
 ```elixir
 clone_analysis: [
@@ -324,9 +325,11 @@ smells: [
 ]
 ```
 
-Use this when a codebase intentionally uses small map contracts, when you want stronger pressure toward structs/contracts, or when behaviour-candidate hints are too noisy for small module families.
+Reach runs ExDNA when the package is available; package consumers can disable clone evidence with `provider: false` or tune clone mass/similarity when needed.
 
-`clone_analysis` controls optional clone evidence used by semantic smells and candidates. Reach runs ExDNA when the package is available; package consumers can disable it with `provider: false` or tune clone mass/similarity when needed.
+### `smells[:fixed_shape_map]` and `smells[:behaviour_candidate]`
+
+Use smell-specific thresholds when a codebase intentionally uses small map contracts, when you want stronger pressure toward structs/contracts, or when behaviour-candidate hints are too noisy for small module families.
 
 ### `tests[:hints]`
 
