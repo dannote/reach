@@ -7,6 +7,25 @@ defmodule Reach.Map.Analysis do
   alias Reach.Effects
   alias Reach.IR
   alias Reach.IR.Helpers, as: IRHelpers
+
+  alias Reach.Map.{
+    Boundary,
+    Coupling,
+    Cycle,
+    DataFunction,
+    DataSummary,
+    DepthMetric,
+    EffectCall,
+    EffectRow,
+    EffectSummary,
+    Hotspot,
+    ModuleCoupling,
+    ModuleMetric,
+    Summary,
+    UnknownCall,
+    XrefEdge
+  }
+
   alias Reach.Project.Query
 
   @xref_variable_sample_limit 5
@@ -16,7 +35,7 @@ defmodule Reach.Map.Analysis do
     modules = module_defs(project, path)
     effects = effect_counts(funcs)
 
-    %{
+    Summary.new(
       modules: length(modules),
       functions: length(funcs),
       call_graph_vertices: Graph.num_vertices(project.call_graph),
@@ -24,7 +43,7 @@ defmodule Reach.Map.Analysis do
       graph_nodes: map_size(project.nodes),
       graph_edges: Graph.num_edges(project.graph),
       effects: Map.new(effects, fn {effect, count} -> {to_string(effect), count} end)
-    }
+    )
   end
 
   def section_data(project, :modules, opts, path) do
@@ -51,10 +70,10 @@ defmodule Reach.Map.Analysis do
       |> sort_coupling(opts[:sort])
       |> Enum.take(top || 50)
 
-    %{
+    Coupling.new(
       modules: modules,
       cycles: coupling.cycles |> Enum.take(top || 20)
-    }
+    )
   end
 
   def section_data(project, :effects, opts, path) do
@@ -76,7 +95,7 @@ defmodule Reach.Map.Analysis do
       module = func.meta[:module] && inspect(func.meta[:module])
       function = "#{func.meta[:name]}/#{func.meta[:arity]}"
 
-      %{
+      Boundary.new(
         module: module,
         function: function,
         display_function: IRHelpers.func_id_to_string(mfa),
@@ -84,7 +103,7 @@ defmodule Reach.Map.Analysis do
         line: func.source_span && func.source_span.start_line,
         effects: Enum.map(effects, &to_string/1),
         calls: effect_calls(func)
-      }
+      )
     end)
   end
 
@@ -112,21 +131,21 @@ defmodule Reach.Map.Analysis do
       |> Enum.map(fn func ->
         id = function_id(func)
 
-        %{
+        DataFunction.new(
           function: func_id(func),
           file: func.source_span && func.source_span.file,
           line: func.source_span && func.source_span.start_line,
           data_edges: Map.get(edge_counts, id, 0)
-        }
+        )
       end)
       |> Enum.sort_by(& &1.data_edges, :desc)
       |> Enum.take(top)
 
-    %{
+    DataSummary.new(
       total_data_edges: length(data_edges),
       top_functions: top_functions,
       cross_function_edges: cross_function_edges(project, data_edges, top, func_index)
-    }
+    )
   end
 
   def section_data(project, :xref, opts, path), do: section_data(project, :data, opts, path)
@@ -164,7 +183,7 @@ defmodule Reach.Map.Analysis do
       total_complexity = Enum.map(funcs, &branch_count/1) |> Enum.sum()
       callbacks = detect_callbacks(module |> IR.all_nodes())
 
-      %{
+      ModuleMetric.new(
         name: inspect(module.meta[:name]),
         file: span_file(module),
         functions: length(funcs),
@@ -180,7 +199,7 @@ defmodule Reach.Map.Analysis do
         callbacks: callbacks,
         fan_in: count_fan_in(project.call_graph, funcs),
         fan_out: count_fan_out(project.call_graph, funcs)
-      }
+      )
     end)
     |> Enum.reject(&(&1.functions == 0))
   end
@@ -198,7 +217,7 @@ defmodule Reach.Map.Analysis do
       module = func.meta[:module] && inspect(func.meta[:module])
       function = "#{func.meta[:name]}/#{func.meta[:arity]}"
 
-      %{
+      Hotspot.new(
         module: module,
         function: function,
         display_function: IRHelpers.func_id_to_string(mfa),
@@ -208,7 +227,7 @@ defmodule Reach.Map.Analysis do
         callers: callers,
         score: branches * callers,
         clauses: IRHelpers.clause_labels(func)
-      }
+      )
     end)
     |> Enum.filter(&(&1.score > 0))
     |> Enum.sort_by(& &1.score, :desc)
@@ -227,23 +246,22 @@ defmodule Reach.Map.Analysis do
         ca = Map.get(afferent, name, []) |> length()
         total = ca + ce
 
-        %{
+        ModuleCoupling.new(
           name: inspect(name),
           file: span_file(module),
           afferent: ca,
           efferent: ce,
           instability: if(total == 0, do: 0.0, else: Float.round(ce / total, 2))
-        }
+        )
       end)
 
     cycles =
       deps
-      |> Map.keys()
-      |> Enum.flat_map(&walk_cycle(deps, &1, &1, [], 5, 0))
-      |> Enum.map(fn cycle -> %{modules: cycle |> Enum.map(&inspect/1) |> Enum.sort()} end)
-      |> Enum.uniq()
+      |> module_dependency_graph()
+      |> Reach.GraphAlgorithms.cycle_components(&canonical_module_cycle/1)
+      |> Enum.map(&Cycle.new(modules: &1))
 
-    %{modules: modules, cycles: cycles}
+    Coupling.new(modules: modules, cycles: cycles)
   end
 
   defp direct_caller_counts(call_graph) do
@@ -303,19 +321,18 @@ defmodule Reach.Map.Analysis do
     end)
   end
 
-  defp walk_cycle(_deps, _start, _current, _path, max_depth, depth) when depth >= max_depth,
-    do: []
-
-  defp walk_cycle(deps, start, current, path, max_depth, depth) do
-    deps
-    |> Map.get(current, [])
-    |> Enum.flat_map(fn next ->
-      cond do
-        next == start and path != [] -> [Enum.reverse([current | path])]
-        next in path -> []
-        true -> walk_cycle(deps, start, next, [current | path], max_depth, depth + 1)
-      end
+  defp module_dependency_graph(deps) do
+    Enum.reduce(deps, Graph.new(type: :directed), fn {module, module_deps}, graph ->
+      Enum.reduce(module_deps, Graph.add_vertex(graph, module), fn dep, graph ->
+        Graph.add_edge(graph, module, dep)
+      end)
     end)
+  end
+
+  defp canonical_module_cycle(cycle) do
+    cycle
+    |> Enum.map(&inspect/1)
+    |> Enum.sort()
   end
 
   defp effect_counts(functions) do
@@ -345,21 +362,25 @@ defmodule Reach.Map.Analysis do
       |> Enum.sort_by(&elem(&1, 1), :desc)
       |> Enum.take(top)
       |> Enum.map(fn {{mod, fun}, count} ->
-        %{
+        UnknownCall.new(
           module: if(mod, do: inspect(mod), else: "Kernel"),
           function: to_string(fun),
           count: count
-        }
+        )
       end)
 
-    %{
+    EffectSummary.new(
       total_calls: total,
       distribution:
         Enum.map(distribution, fn {effect, count} ->
-          %{effect: to_string(effect), count: count, ratio: Float.round(count / max(total, 1), 3)}
+          EffectRow.new(
+            effect: effect,
+            count: count,
+            ratio: Float.round(count / max(total, 1), 3)
+          )
         end),
       unknown_calls: unknown_calls
-    }
+    )
   end
 
   defp function_effects(func) do
@@ -378,7 +399,7 @@ defmodule Reach.Map.Analysis do
 
     if depth > 0 do
       [
-        %{
+        DepthMetric.new(
           module: inspect(func.meta[:module]),
           function: func_id(func),
           depth: depth,
@@ -386,7 +407,7 @@ defmodule Reach.Map.Analysis do
           file: span_file(func),
           line: func.source_span && func.source_span.start_line,
           branch_count: branch_count(func)
-        }
+        )
       ]
     else
       []
@@ -459,13 +480,13 @@ defmodule Reach.Map.Analysis do
         |> Enum.uniq()
         |> Enum.take(@xref_variable_sample_limit)
 
-      %{
+      XrefEdge.new(
         from: func_id_tuple(from),
         to: func_id_tuple(to),
         edges: Enum.sum(Map.values(labels)),
         labels: labels,
         variables: variables
-      }
+      )
     end)
     |> Enum.sort_by(& &1.edges, :desc)
     |> Enum.take(top)
@@ -574,7 +595,7 @@ defmodule Reach.Map.Analysis do
     |> Enum.filter(&(&1.type == :call))
     |> Enum.reject(&(Effects.classify(&1) in [:pure, :unknown]))
     |> Enum.map(fn call ->
-      %{effect: to_string(Effects.classify(call)), call: IRHelpers.call_name(call)}
+      EffectCall.new(effect: Effects.classify(call), call: IRHelpers.call_name(call))
     end)
     |> Enum.uniq_by(& &1.call)
     |> Enum.sort_by(& &1.effect)
