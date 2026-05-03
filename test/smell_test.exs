@@ -31,6 +31,7 @@ defmodule Reach.SmellTest do
 
       assert Reach.Smell.Checks.DualKeyAccess in checks
       assert Reach.Smell.Checks.FixedShapeMap in checks
+      assert Reach.Smell.Checks.ConfigPhase in checks
       assert Reach.Smell.Checks.EagerPattern in checks
       assert Reach.Smell.Checks.PipelineWaste in checks
       assert Reach.Smell.Checks.ReverseAppend in checks
@@ -342,6 +343,54 @@ defmodule Reach.SmellTest do
         """)
 
       assert Enum.filter(findings, &(&1.kind == :dual_key_access)) == []
+    end
+  end
+
+  describe "compile-time vs runtime config detection" do
+    test "flags Application runtime env captured in module attributes" do
+      findings =
+        run_smell_task("""
+        defmodule ConfigPhase do
+          @endpoint Application.get_env(:my_app, :endpoint)
+          def endpoint, do: @endpoint
+        end
+        """)
+
+      assert [%{kind: :config_phase} = finding] =
+               Enum.filter(findings, &(&1.kind == :config_phase))
+
+      assert finding.message =~ "module attribute stores Application.get_env/2 at compile time"
+      assert finding.message =~ "compile_env"
+      assert finding.message =~ "runtime config"
+    end
+
+    test "flags compile_env used inside runtime functions" do
+      findings =
+        run_smell_task("""
+        defmodule ConfigPhase do
+          def endpoint do
+            Application.compile_env(:my_app, :endpoint)
+          end
+        end
+        """)
+
+      assert [%{kind: :config_phase} = finding] =
+               Enum.filter(findings, &(&1.kind == :config_phase))
+
+      assert finding.message =~ "Application.compile_env/2 inside a function"
+      assert finding.message =~ "still compile-time config"
+    end
+
+    test "does not flag explicit compile-time module attributes or runtime function reads" do
+      findings =
+        run_smell_task("""
+        defmodule ConfigPhase do
+          @endpoint Application.compile_env(:my_app, :endpoint)
+          def endpoint, do: Application.get_env(:my_app, :endpoint)
+        end
+        """)
+
+      assert Enum.filter(findings, &(&1.kind == :config_phase)) == []
     end
   end
 
