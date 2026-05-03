@@ -298,6 +298,15 @@ defmodule Reach.Frontend.Elixir do
             children: [translate(bare_expr, counter, file)],
             source_span: span_from_meta(bare_meta, file)
           }
+
+        bare_expr ->
+          %Node{
+            id: Counter.next(counter),
+            type: :clause,
+            meta: %{kind: :with_clause},
+            children: [translate(bare_expr, counter, file)],
+            source_span: nil
+          }
       end)
 
     body_node = translate(do_body, counter, file)
