@@ -2,6 +2,7 @@ defmodule Reach.CLI.Render.Check do
   @moduledoc false
 
   alias Reach.CLI.Format
+  alias Reach.CLI.Requirements
 
   @text_limit 30
 
@@ -11,7 +12,7 @@ defmodule Reach.CLI.Render.Check do
   end
 
   def render_result(result, "json", _text_fun) do
-    ensure_json_encoder!()
+    Requirements.json!()
     IO.puts(Jason.encode!(json_envelope(result), pretty: true))
   end
 
@@ -174,11 +175,5 @@ defmodule Reach.CLI.Render.Check do
       command: Map.get(result, :command, "reach.check"),
       data: Map.delete(result, :command)
     }
-  end
-
-  defp ensure_json_encoder! do
-    unless Code.ensure_loaded?(Jason) do
-      Mix.raise("Jason is required for JSON output. Add {:jason, \"~> 1.0\"} to your deps.")
-    end
   end
 end

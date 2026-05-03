@@ -6,12 +6,13 @@ defmodule Reach.CLI.Render.Map do
 
   alias Reach.CLI.BoxartGraph
   alias Reach.CLI.Format
+  alias Reach.CLI.Requirements
   alias Reach.Project.Query
 
   @section_order [:hotspots, :boundaries, :coupling, :modules, :effects, :depth, :data, :xref]
 
   def render(result, "json") do
-    ensure_json_encoder!()
+    Requirements.json!()
     IO.puts(Jason.encode!(json_envelope(result), pretty: true))
   end
 
@@ -331,10 +332,4 @@ defmodule Reach.CLI.Render.Map do
 
   defp json_envelope(%{command: command} = data),
     do: %Reach.CLI.JSONEnvelope{command: command, data: Map.delete(data, :command)}
-
-  defp ensure_json_encoder! do
-    unless Code.ensure_loaded?(Jason) do
-      Mix.raise("Jason is required for JSON output. Add {:jason, \"~> 1.0\"} to your deps.")
-    end
-  end
 end

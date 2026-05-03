@@ -16,6 +16,8 @@ defmodule Reach.CLI.Commands.Report do
 
   """
 
+  alias Reach.CLI.Requirements
+
   @priv_dir Application.app_dir(:reach, "priv")
 
   @template_path Path.join(@priv_dir, "template.html.eex")
@@ -69,7 +71,7 @@ defmodule Reach.CLI.Commands.Report do
   end
 
   defp render_html(graph_data, output_dir, opts) do
-    ensure_json_encoder!()
+    Requirements.json!("HTML/JSON output")
 
     File.mkdir_p!(output_dir)
 
@@ -106,7 +108,7 @@ defmodule Reach.CLI.Commands.Report do
   end
 
   defp render_json(graph_data, output_dir) do
-    ensure_json_encoder!()
+    Requirements.json!("HTML/JSON output")
 
     File.mkdir_p!(output_dir)
     path = Path.join(output_dir, "reach.json")
@@ -114,12 +116,6 @@ defmodule Reach.CLI.Commands.Report do
     File.write!(path, Jason.encode!(graph_data, pretty: true))
 
     Mix.shell().info("JSON file: #{path}")
-  end
-
-  defp ensure_json_encoder! do
-    unless Code.ensure_loaded?(Jason) do
-      Mix.raise("Jason is required for HTML/JSON output. Add {:jason, \"~> 1.0\"} to your deps.")
-    end
   end
 
   defp open_browser(path) do

@@ -2,6 +2,7 @@ defmodule Reach.CLI.Render.Inspect do
   @moduledoc false
 
   alias Reach.CLI.Format
+  alias Reach.CLI.Requirements
   alias Reach.Inspect.Context
 
   def render_why(result, "json"), do: render_json(result)
@@ -217,7 +218,7 @@ defmodule Reach.CLI.Render.Inspect do
   end
 
   defp render_json(data) do
-    ensure_json_encoder!()
+    Requirements.json!()
     IO.puts(Jason.encode!(json_envelope(data), pretty: true))
   end
 
@@ -226,10 +227,4 @@ defmodule Reach.CLI.Render.Inspect do
   end
 
   defp json_envelope(data), do: %Reach.CLI.JSONEnvelope{command: "reach.inspect", data: data}
-
-  defp ensure_json_encoder! do
-    unless Code.ensure_loaded?(Jason) do
-      Mix.raise("Jason is required for JSON output. Add {:jason, \"~> 1.0\"} to your deps.")
-    end
-  end
 end
