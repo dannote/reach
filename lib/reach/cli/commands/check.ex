@@ -25,8 +25,8 @@ defmodule Reach.CLI.Commands.Check do
   alias Reach.Check.Architecture
   alias Reach.Check.Candidates
   alias Reach.Check.Changed
-  alias Reach.Check.DeadCode
-  alias Reach.Check.Smells
+  alias Reach.CLI.Commands.Check.DeadCode
+  alias Reach.CLI.Commands.Check.Smells
   alias Reach.CLI.Format
   alias Reach.CLI.Project
 
@@ -41,10 +41,10 @@ defmodule Reach.CLI.Commands.Check do
         run_changed(opts)
 
       opts[:dead_code] ->
-        DeadCode.run_opts(opts, positional, command: "reach.check")
+        DeadCode.run(opts, positional, "reach.check")
 
       opts[:smells] ->
-        Smells.run_opts(opts, positional, command: "reach.check")
+        Smells.run(opts, positional, "reach.check")
 
       opts[:candidates] ->
         render_candidates_placeholder(opts, positional)

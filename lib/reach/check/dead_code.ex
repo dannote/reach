@@ -1,86 +1,41 @@
 defmodule Reach.Check.DeadCode do
   @moduledoc """
   Finds dead code — pure expressions whose values are never used.
-
-      mix reach.check --dead-code
-      mix reach.check --dead-code lib/my_app/
-      mix reach.check --dead-code --format json
-
-  ## Options
-
-    * `--format` — output format: `text` (default), `json`, `oneline`
-    * `--path` — restrict analysis to specific path
-
   """
 
-  alias Reach.CLI.Format
-  alias Reach.CLI.Options
-  alias Reach.CLI.Project
-
-  @switches [format: :string, path: :string]
-  @aliases [f: :format]
-
-  def run(args, cli_opts \\ []) do
-    {opts, positional} = Options.parse(args, @switches, @aliases)
-    run_opts(opts, positional, cli_opts)
-  end
-
-  def run_opts(opts, positional \\ [], cli_opts \\ []) do
-    format = opts[:format] || "text"
-
-    Project.compile(opts[:format] == "json")
-
-    files = collect_files(opts[:path] || List.first(positional))
-    unless format == "json", do: Mix.shell().info("Analyzing #{length(files)} file(s)...")
-
-    findings =
-      files
-      |> Task.async_stream(
-        fn file ->
-          case Reach.file_to_graph(file) do
-            {:ok, graph} ->
-              Reach.dead_code(graph)
-              |> Enum.filter(& &1.source_span)
-              |> Enum.map(&finding_from_node(&1, file))
-
-            _ ->
-              []
-          end
-        end,
-        max_concurrency: System.schedulers_online(),
-        ordered: false
-      )
-      |> Enum.flat_map(fn {:ok, results} -> results end)
-      |> Enum.sort_by(&{&1.file, &1.line})
-      |> Enum.uniq_by(&{&1.file, &1.line})
-
-    case format do
-      "json" ->
-        Format.render(%{findings: findings}, command(cli_opts), format: "json", pretty: true)
-
-      "oneline" ->
-        Enum.each(findings, fn f ->
-          IO.puts(
-            "#{Format.faint("#{f.file}:#{f.line}")}: #{Format.yellow(to_string(f.kind))}: #{f.description}"
-          )
-        end)
-
-      _ ->
-        render_text(findings)
-    end
-  end
-
-  defp command(cli_opts), do: Keyword.get(cli_opts, :command, "reach.check")
-
-  defp collect_files(nil) do
+  def collect_files(nil) do
     Path.wildcard("lib/**/*.ex") ++ Path.wildcard("src/**/*.erl")
   end
 
-  defp collect_files(path) do
+  def collect_files(path) do
     if File.dir?(path) do
       Path.wildcard(Path.join(path, "**/*.ex"))
     else
       [path]
+    end
+  end
+
+  def run(files) do
+    files
+    |> Task.async_stream(&find_in_file/1,
+      max_concurrency: System.schedulers_online(),
+      ordered: false
+    )
+    |> Enum.flat_map(fn {:ok, results} -> results end)
+    |> Enum.sort_by(&{&1.file, &1.line})
+    |> Enum.uniq_by(&{&1.file, &1.line})
+  end
+
+  defp find_in_file(file) do
+    case Reach.file_to_graph(file) do
+      {:ok, graph} ->
+        graph
+        |> Reach.dead_code()
+        |> Enum.filter(& &1.source_span)
+        |> Enum.map(&finding_from_node(&1, file))
+
+      _ ->
+        []
     end
   end
 
@@ -126,27 +81,5 @@ defmodule Reach.Check.DeadCode do
       _ ->
         "match result unused"
     end
-  end
-
-  defp render_text([]) do
-    IO.puts(Format.header("Dead Code"))
-    IO.puts("  " <> Format.empty())
-  end
-
-  defp render_text(findings) do
-    IO.puts(Format.header("Dead Code"))
-
-    findings
-    |> Enum.group_by(& &1.file)
-    |> Enum.sort_by(fn {file, _} -> file end)
-    |> Enum.each(fn {file, file_findings} ->
-      IO.puts(Format.section(Format.faint(file)))
-
-      Enum.each(file_findings, fn f ->
-        IO.puts("  line #{Format.yellow(to_string(f.line))}: #{f.description}")
-      end)
-    end)
-
-    IO.puts("\n#{Format.count(length(findings))} finding(s)\n")
   end
 end
