@@ -24,7 +24,7 @@ defmodule Reach.HigherOrder do
   end
 
   defp module_flows(mod) do
-    for {{^mod, name, arity}, flows} <- Reach.Project.summarize_dependency(mod),
+    for {{^mod, name, arity}, flows} <- Reach.DependencySummary.summarize(mod),
         Reach.Effects.pure_call?(mod, name, arity),
         flowing = for({idx, true} <- flows, do: idx),
         flowing != [],

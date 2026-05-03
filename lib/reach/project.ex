@@ -20,11 +20,10 @@ defmodule Reach.Project do
       )
   """
 
-  alias Reach.{Frontend, IR}
+  alias Reach.{DependencySummary, Frontend, IR}
   alias Reach.IR.Counter
 
-  import Reach.IR.Helpers,
-    only: [param_var_name: 1, var_used_in_subtree?: 2, language_from_path: 1, module_from_path: 1]
+  import Reach.IR.Helpers, only: [language_from_path: 1, module_from_path: 1]
 
   @type t :: %__MODULE__{
           modules: %{module() => map()},
@@ -96,22 +95,7 @@ defmodule Reach.Project do
   These summaries can be passed as the `:summaries` option to `from_sources/2`.
   """
   @spec summarize_dependency(module()) :: %{{module(), atom(), non_neg_integer()} => map()}
-  def summarize_dependency(module) do
-    case Frontend.BEAM.from_module(module) do
-      {:ok, ir_nodes} ->
-        all = IR.all_nodes(ir_nodes)
-
-        all
-        |> Enum.filter(&(&1.type == :function_def))
-        |> Map.new(fn func_def ->
-          func_id = {module, func_def.meta[:name], func_def.meta[:arity]}
-          {func_id, compute_param_flows(func_def)}
-        end)
-
-      {:error, _} ->
-        %{}
-    end
-  end
+  def summarize_dependency(module), do: DependencySummary.summarize(module)
 
   @doc """
   Runs taint analysis across the entire project.
@@ -339,44 +323,6 @@ defmodule Reach.Project do
   defp find_func_def(pdg) do
     Map.get(pdg, :func_def) ||
       pdg.nodes |> Map.values() |> Enum.find(&(&1.type == :function_def))
-  end
-
-  defp compute_param_flows(func_def) do
-    case func_def.children do
-      [%{type: :clause, children: children, meta: %{kind: :function_clause}} | _] ->
-        arity = func_def.meta[:arity] || 0
-        params = Enum.take(children, arity)
-        return_nodes = find_return_expressions(func_def)
-
-        params
-        |> Enum.with_index()
-        |> Map.new(fn {param, index} ->
-          var_name = param_var_name(param)
-
-          flows =
-            var_name != nil and
-              Enum.any?(return_nodes, &var_used_in_subtree?(&1, var_name))
-
-          {index, flows}
-        end)
-
-      _ ->
-        %{}
-    end
-  end
-
-  defp find_return_expressions(func_def) do
-    func_def
-    |> IR.all_nodes()
-    |> Enum.filter(&(&1.type == :clause and &1.meta[:kind] == :function_clause))
-    |> Enum.flat_map(fn clause ->
-      clause.children
-      |> Enum.reverse()
-      |> case do
-        [] -> []
-        [last | _rest] -> [last]
-      end
-    end)
   end
 
   defp extract_module_name(ir_nodes) do
