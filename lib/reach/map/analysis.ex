@@ -181,7 +181,7 @@ defmodule Reach.Map.Analysis do
       private_count = Enum.count(funcs, &(&1.meta[:kind] in [:defp, :defmacrop]))
       macro_count = Enum.count(funcs, &(&1.meta[:kind] == :defmacro))
       total_complexity = Enum.map(funcs, &branch_count/1) |> Enum.sum()
-      callbacks = detect_callbacks(module |> IR.all_nodes())
+      callbacks = detect_callbacks(module |> IR.all_nodes(), project.plugins)
 
       ModuleMetric.new(
         name: inspect(module.meta[:name]),
@@ -517,14 +517,14 @@ defmodule Reach.Map.Analysis do
     "#{func.meta[:name]}/#{func.meta[:arity]} (#{branch_count(func)})"
   end
 
-  defp detect_callbacks(nodes) do
+  defp detect_callbacks(nodes, plugins) do
     callbacks =
       nodes
       |> Enum.filter(&callback_function?/1)
       |> Enum.map(& &1.meta[:name])
       |> Enum.uniq()
 
-    case infer_behaviour(callbacks) do
+    case infer_behaviour(callbacks, plugins) do
       nil -> callbacks
       behaviour -> [behaviour | callbacks]
     end
@@ -547,13 +547,11 @@ defmodule Reach.Map.Analysis do
       ]
   end
 
-  defp infer_behaviour(callbacks) do
+  defp infer_behaviour(callbacks, plugins) do
     cond do
       :handle_call in callbacks or :handle_cast in callbacks -> "GenServer"
       :handle_event in callbacks -> "GenStage"
-      :mount in callbacks and :render in callbacks -> "LiveView"
-      :perform in callbacks -> "Oban.Worker"
-      true -> nil
+      true -> Reach.Plugin.behaviour_label(plugins, callbacks)
     end
   end
 

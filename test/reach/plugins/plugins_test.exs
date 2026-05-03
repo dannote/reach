@@ -1,6 +1,41 @@
 defmodule Reach.PluginsTest do
   use ExUnit.Case, async: true
 
+  alias Reach.IR.Node
+  alias Reach.Plugin
+  alias Reach.Plugins
+  alias Reach.Trace.Pattern
+
+  describe "plugin trace patterns" do
+    test "Phoenix owns conn params pattern" do
+      matcher = Plugin.trace_pattern([Plugins.Phoenix], "conn.params")
+
+      assert matcher.(%Node{type: :var, id: 1, meta: %{name: :params}})
+
+      refute Pattern.compile("conn.params", []).(%Node{
+               type: :var,
+               id: 2,
+               meta: %{name: :params}
+             })
+    end
+
+    test "Ecto owns repo sink pattern" do
+      matcher = Plugin.trace_pattern([Plugins.Ecto], "Repo")
+
+      assert matcher.(%Node{
+               type: :call,
+               id: 1,
+               meta: %{kind: :remote, module: MyApp.Repo, function: :insert, arity: 1}
+             })
+
+      refute Pattern.compile("Repo", []).(%Node{
+               type: :call,
+               id: 2,
+               meta: %{kind: :remote, module: MyApp.Repo, function: :insert, arity: 1}
+             })
+    end
+  end
+
   describe "Ecto plugin" do
     test "tracks cast params to Repo.insert within same function" do
       graph =

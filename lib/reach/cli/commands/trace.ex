@@ -2,8 +2,8 @@ defmodule Reach.CLI.Commands.Trace do
   @moduledoc """
   Traces data flow, taint paths, and forward/backward slices.
 
-      mix reach.trace --from conn.params --to Repo
-      mix reach.trace --from conn.params --to System.cmd
+      mix reach.trace --from params --to write!
+      mix reach.trace --from input --to System.cmd
       mix reach.trace --variable user --in MyApp.Accounts.create/1
       mix reach.trace --backward lib/my_app/accounts.ex:45
       mix reach.trace --forward lib/my_app/accounts.ex:45

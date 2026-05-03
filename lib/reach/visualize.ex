@@ -169,51 +169,24 @@ defmodule Reach.Visualize do
   defp func_key(_), do: nil
 
   defp garbage_call?(edge) do
-    {tgt_mod, tgt_fn, tgt_ar} = edge.v2
+    {_target_module, target_function, _target_arity} = edge.v2
 
     cond do
-      # Ecto query field access: :e.name/0, :s.timestamp/0
-      is_atom(tgt_mod) and tgt_ar == 0 and field_access?(tgt_mod) ->
+      Reach.Plugin.ignore_call_edge?(Reach.Plugin.detect(), edge) ->
         true
 
-      # Pipe operator
-      tgt_fn == :\\ ->
+      target_function == :\\ ->
         true
 
-      # Kernel operators that aren't real calls
-      tgt_fn in [:!, :&&, :||, :|>, :"~~~", :not, :and, :or, :in] ->
+      target_function in [:!, :&&, :||, :|>, :"~~~", :not, :and, :or, :in] ->
         true
 
-      # AST leakage — module is a tuple/list
-      not is_atom(tgt_mod) ->
-        true
-
-      # Ecto query DSL macros injected as local calls
-      ecto_dsl_macro?(tgt_fn, tgt_ar) ->
+      not is_atom(elem(edge.v2, 0)) ->
         true
 
       true ->
         false
     end
-  end
-
-  @ecto_dsl_macros ~w(from assoc is_nil field type selected_as coalesce fragment subquery dynamic select_merge)a
-  defp ecto_dsl_macro?(fn_name, arity), do: fn_name in @ecto_dsl_macros and arity <= 3
-
-  defp field_access?(mod), do: ecto_binding?(mod) or variable_access?(mod)
-  defp variable_access?(nil), do: false
-
-  defp variable_access?(mod) when is_atom(mod) do
-    name = Atom.to_string(mod)
-
-    String.first(name) == String.downcase(String.first(name)) and
-      not String.starts_with?(name, "Elixir.")
-  end
-
-  defp ecto_binding?(mod) when is_atom(mod) do
-    s = Atom.to_string(mod)
-    # Single-letter atoms like :e, :s, :t, :p — Ecto query bindings
-    byte_size(s) <= 2 and s =~ ~r/^[a-z]{1,2}$/
   end
 
   defp resolve_nil_module({nil, func, arity}, module_name),

@@ -142,6 +142,26 @@ defmodule Reach.Plugins.Ecto do
   ]
 
   @impl true
+  def trace_pattern(pattern) when pattern in ["Repo", "Repo.query"] do
+    fn node ->
+      node.type == :call and repo_call?(node)
+    end
+  end
+
+  def trace_pattern(_pattern), do: nil
+
+  @impl true
+  def ignore_call_edge?(%Graph.Edge{v2: {target_module, target_function, target_arity}}) do
+    cond do
+      is_atom(target_module) and target_arity == 0 and field_access?(target_module) -> true
+      target_function in @query_expr and target_arity <= 3 -> true
+      true -> false
+    end
+  end
+
+  def ignore_call_edge?(_edge), do: false
+
+  @impl true
   def classify_effect(%Node{type: :call, meta: %{kind: :local, function: fun}})
       when fun in @query_dsl or fun in @query_expr or
              fun in @changeset_fns or fun in @schema_fns,
@@ -224,6 +244,26 @@ defmodule Reach.Plugins.Ecto do
   end
 
   defp cast_param_edges(_), do: []
+
+  defp repo_call?(node) do
+    repo_module?(node.meta[:module]) or node.meta[:module] == Ecto.Adapters.SQL
+  end
+
+  defp field_access?(module), do: ecto_binding?(module) or variable_access?(module)
+  defp variable_access?(nil), do: false
+
+  defp variable_access?(module) when is_atom(module) do
+    name = Atom.to_string(module)
+
+    String.first(name) == String.downcase(String.first(name)) and
+      not String.starts_with?(name, "Elixir.")
+  end
+
+  defp ecto_binding?(module) when is_atom(module) do
+    module
+    |> Atom.to_string()
+    |> then(&(byte_size(&1) <= 2 and &1 =~ ~r/^[a-z]{1,2}$/))
+  end
 
   defp repo_module?(mod) when is_atom(mod) and not is_nil(mod) do
     mod_str = Atom.to_string(mod)

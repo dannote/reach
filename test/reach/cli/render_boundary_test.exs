@@ -64,12 +64,18 @@ defmodule Reach.CLI.RenderBoundaryTest do
     assert offenders == []
   end
 
-  test "framework-specific policy stays out of generic smell and clone analysis" do
+  test "framework-specific policy stays in plugins" do
     forbidden =
       ~r/\b(Ecto|Repo|Oban|Phoenix|Ash|Jido|LiveView)\b|insert_all|update_all|delete_all|validate_required/
 
     offenders =
-      ["lib/reach/smell/**/*.ex", "lib/reach/clone_analysis/**/*.ex"]
+      [
+        "lib/reach/smell/**/*.ex",
+        "lib/reach/clone_analysis/**/*.ex",
+        "lib/reach/trace/**/*.ex",
+        "lib/reach/map/**/*.ex",
+        "lib/reach/visualize.ex"
+      ]
       |> Enum.flat_map(&Path.wildcard/1)
       |> Enum.flat_map(fn file ->
         file

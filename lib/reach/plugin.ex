@@ -15,6 +15,10 @@ defmodule Reach.Plugin do
      literals (e.g. JS inside QuickBEAM.eval) and returns additional IR
      nodes plus cross-language edges.
 
+  4. **Framework presentation/patterns** — optional callbacks provide
+     framework-specific trace presets, behaviour labels, and visualization
+     edge filtering.
+
   ## Implementing a plugin
 
       defmodule MyPlugin do
@@ -78,7 +82,16 @@ defmodule Reach.Plugin do
   """
   @callback analyze_embedded(all_nodes :: [Node.t()], opts :: keyword()) :: embedded_result()
 
-  @optional_callbacks analyze_project: 3, classify_effect: 1, analyze_embedded: 2
+  @callback trace_pattern(pattern :: String.t()) :: (Node.t() -> boolean()) | nil
+  @callback behaviour_label(callbacks :: [atom()]) :: String.t() | nil
+  @callback ignore_call_edge?(Graph.Edge.t()) :: boolean()
+
+  @optional_callbacks analyze_project: 3,
+                      classify_effect: 1,
+                      analyze_embedded: 2,
+                      trace_pattern: 1,
+                      behaviour_label: 1,
+                      ignore_call_edge?: 1
 
   @known_plugins [
     {Phoenix.Router, Reach.Plugins.Phoenix},
@@ -143,6 +156,32 @@ defmodule Reach.Plugin do
       else
         {all_nodes_acc, edges_acc}
       end
+    end)
+  end
+
+  @doc "Compiles a framework-specific trace pattern, if a plugin recognizes it."
+  def trace_pattern(plugins, pattern) do
+    Enum.find_value(plugins, fn plugin ->
+      if Code.ensure_loaded?(plugin) and function_exported?(plugin, :trace_pattern, 1) do
+        plugin.trace_pattern(pattern)
+      end
+    end)
+  end
+
+  @doc "Infers a framework-specific behaviour label from callback names."
+  def behaviour_label(plugins, callbacks) do
+    Enum.find_value(plugins, fn plugin ->
+      if Code.ensure_loaded?(plugin) and function_exported?(plugin, :behaviour_label, 1) do
+        plugin.behaviour_label(callbacks)
+      end
+    end)
+  end
+
+  @doc "Returns true when a plugin marks a call-graph edge as visualization noise."
+  def ignore_call_edge?(plugins, edge) do
+    Enum.any?(plugins, fn plugin ->
+      Code.ensure_loaded?(plugin) and function_exported?(plugin, :ignore_call_edge?, 1) and
+        plugin.ignore_call_edge?(edge)
     end)
   end
 

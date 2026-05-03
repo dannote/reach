@@ -1,34 +1,21 @@
 defmodule Reach.Trace.Pattern do
   @moduledoc false
 
-  @param_names [:params, :user_params, :body_params]
-
-  def compile(pattern) when pattern in ["conn.params", "params"] do
-    fn node ->
-      node.type == :var and node.meta[:name] in @param_names
-    end
+  def compile(pattern, plugins \\ []) do
+    Reach.Plugin.trace_pattern(plugins, pattern) || compile_generic(pattern)
   end
 
-  def compile(pattern) when pattern in ["Repo", "Repo.query"] do
-    fn node ->
-      node.type == :call and repo_call?(node)
-    end
-  end
-
-  def compile("System.cmd") do
+  defp compile_generic("System.cmd") do
     fn node ->
       node.type == :call and node.meta[:module] == System and node.meta[:function] == :cmd
     end
   end
 
-  def compile(pattern) do
-    fn node ->
-      node.type == :call and to_string(node.meta[:function] || "") =~ pattern
+  defp compile_generic(pattern) do
+    fn
+      %{type: :var, meta: %{name: name}} -> to_string(name) == pattern
+      %{type: :call, meta: meta} -> to_string(meta[:function] || "") =~ pattern
+      _node -> false
     end
-  end
-
-  defp repo_call?(node) do
-    (is_atom(node.meta[:module]) and to_string(node.meta[:module]) =~ "Repo") or
-      node.meta[:module] == Ecto.Adapters.SQL
   end
 end

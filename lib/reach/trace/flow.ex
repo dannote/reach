@@ -9,8 +9,8 @@ defmodule Reach.Trace.Flow do
   @max_intermediate_nodes 10
 
   def analyze_taint(project, from_pattern, to_pattern, max_paths) do
-    sources = find_nodes(project, Pattern.compile(from_pattern))
-    sinks = find_nodes(project, Pattern.compile(to_pattern))
+    sources = find_nodes(project, Pattern.compile(from_pattern, project.plugins))
+    sinks = find_nodes(project, Pattern.compile(to_pattern, project.plugins))
 
     paths = find_taint_paths(project, sources, sinks, max_paths)
 

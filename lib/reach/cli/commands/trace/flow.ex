@@ -3,14 +3,14 @@ defmodule Reach.CLI.Commands.Trace.Flow do
   Traces data flow from sources to sinks. Detects taint paths where
   untrusted input reaches dangerous operations.
 
-      mix reach.trace --from conn.params --to Repo
+      mix reach.trace --from params --to write!
       mix reach.trace --variable user --in UserService.register/2
-      mix reach.trace --from conn.params --to System.cmd --format json
+      mix reach.trace --from input --to System.cmd --format json
 
   ## Options
 
-    * `--from` — taint source pattern (e.g. `conn.params`, `params`)
-    * `--to` — sink pattern (e.g. `Repo`, `System.cmd`)
+    * `--from` — taint source pattern (e.g. `params`, `input`)
+    * `--to` — sink pattern (e.g. `write!`, `System.cmd`)
     * `--variable` — trace a specific variable name
     * `--in` — restrict to a specific function
     * `--format` — output format: `text` (default), `json`, `oneline`
