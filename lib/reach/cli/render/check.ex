@@ -71,6 +71,11 @@ defmodule Reach.CLI.Render.Check do
       %{type: "layer_cycle"} = violation ->
         IO.puts("  layer cycle: #{Enum.join(violation.layers, " -> ")}")
 
+      %{type: "forbidden_call"} = violation ->
+        IO.puts(
+          "  #{Format.loc(violation.file, violation.line)} #{violation.caller_module} calls #{violation.call} (#{violation.rule})"
+        )
+
       %{type: "effect_policy"} = violation ->
         IO.puts([
           "  #{Format.loc(violation.file, violation.line)} #{violation.module}.#{violation.function} disallowed effects: ",

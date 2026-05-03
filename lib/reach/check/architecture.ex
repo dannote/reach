@@ -8,6 +8,7 @@ defmodule Reach.Check.Architecture do
     :layers,
     :forbidden_deps,
     :allowed_effects,
+    :forbidden_calls,
     :public_api,
     :internal,
     :internal_callers,
@@ -36,6 +37,7 @@ defmodule Reach.Check.Architecture do
 
     dependency_violations(project, config, graph) ++
       public_boundary_violations(project, config) ++
+      forbidden_call_violations(project, config) ++
       layer_cycle_violations(graph) ++
       effect_policy_violations(project, config)
   end
@@ -151,6 +153,12 @@ defmodule Reach.Check.Architecture do
     )
     |> config_check(
       config,
+      :forbidden_calls,
+      &valid_forbidden_calls?/1,
+      "expected list of {caller_patterns, call_patterns} or {caller_patterns, call_patterns, opts}"
+    )
+    |> config_check(
+      config,
       :public_api,
       &valid_pattern_list?/1,
       "expected string or list of module patterns"
@@ -212,6 +220,22 @@ defmodule Reach.Check.Architecture do
   end
 
   defp valid_allowed_effects?(_value), do: false
+
+  defp valid_forbidden_calls?(value) when is_list(value) do
+    Enum.all?(value, fn
+      {caller_patterns, call_patterns} ->
+        valid_pattern_list?(caller_patterns) and valid_pattern_list?(call_patterns)
+
+      {caller_patterns, call_patterns, opts} when is_list(opts) ->
+        valid_pattern_list?(caller_patterns) and valid_pattern_list?(call_patterns) and
+          valid_pattern_list?(Keyword.get(opts, :except, []))
+
+      _ ->
+        false
+    end)
+  end
+
+  defp valid_forbidden_calls?(_value), do: false
 
   defp valid_pattern_list?(value) when is_binary(value), do: true
   defp valid_pattern_list?(value) when is_list(value), do: Enum.all?(value, &is_binary/1)
@@ -295,6 +319,67 @@ defmodule Reach.Check.Architecture do
       end
     end)
   end
+
+  defp forbidden_call_violations(project, config) do
+    rules = Keyword.get(config, :forbidden_calls, [])
+    module_by_file = module_by_file(project)
+
+    project.nodes
+    |> Map.values()
+    |> Enum.filter(&remote_call?/1)
+    |> Enum.flat_map(&forbidden_call_violations_for_node(&1, rules, module_by_file))
+  end
+
+  defp forbidden_call_violations_for_node(node, rules, module_by_file) do
+    caller = node.source_span && Map.get(module_by_file, node.source_span.file)
+    call = remote_call_name(node)
+
+    rules
+    |> Enum.filter(&forbidden_call_rule_matches?(&1, caller, call))
+    |> Enum.map(fn _rule ->
+      %{
+        type: "forbidden_call",
+        caller_module: inspect(caller),
+        call: call,
+        file: node.source_span.file,
+        line: node.source_span.start_line,
+        rule: "configured forbidden call"
+      }
+    end)
+  end
+
+  defp forbidden_call_rule_matches?(_rule, nil, _call), do: false
+
+  defp forbidden_call_rule_matches?(rule, caller, call) do
+    {caller_patterns, call_patterns, except_patterns} = forbidden_call_rule(rule)
+
+    module_matches_any?(caller, List.wrap(caller_patterns)) and
+      not module_matches_any?(caller, List.wrap(except_patterns)) and
+      call_matches_any?(call, List.wrap(call_patterns))
+  end
+
+  defp forbidden_call_rule({caller_patterns, call_patterns}),
+    do: {caller_patterns, call_patterns, []}
+
+  defp forbidden_call_rule({caller_patterns, call_patterns, opts}) do
+    {caller_patterns, call_patterns, Keyword.get(opts, :except, [])}
+  end
+
+  defp remote_call_name(node) do
+    module = node.meta[:module] |> inspect() |> String.replace_leading("Elixir.", "")
+    function = node.meta[:function]
+    arity = node.meta[:arity]
+    "#{module}.#{function}/#{arity}"
+  end
+
+  defp call_matches_any?(call, patterns) do
+    Enum.any?(patterns, fn pattern ->
+      pattern = to_string(pattern)
+      glob_match?(call, pattern) or glob_match?(call_without_arity(call), pattern)
+    end)
+  end
+
+  defp call_without_arity(call), do: call |> String.split("/", parts: 2) |> List.first()
 
   defp top_level_api_call?(caller, callee, public_api, internal) do
     public_api

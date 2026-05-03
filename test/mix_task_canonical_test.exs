@@ -172,7 +172,7 @@ defmodule Mix.Tasks.Reach.CanonicalTest do
   test "canonical command modules keep rendering in render layer" do
     forbidden = ~r/IO\.puts|Format\.render|Jason\.encode!/
 
-    allowed = MapSet.new(["lib/reach/cli/commands/map.ex", "lib/reach/cli/commands/report.ex"])
+    allowed = MapSet.new(["lib/reach/cli/commands/report.ex"])
 
     offenders =
       "lib/reach/cli/commands/**/*.ex"
