@@ -76,21 +76,71 @@ defmodule Reach.MixProject do
 
   defp docs do
     [
-      main: "Reach",
-      extras: [
-        "README.md",
-        "CHANGELOG.md",
-        "CONFIG.md",
-        "LICENSE"
-      ],
-      groups_for_modules: [
-        "Public API": [Reach, Reach.Project],
-        IR: [Reach.IR, Reach.IR.Node],
-        Analysis: [Reach.Effects],
-        Frontends: [Reach.Frontend.Elixir, Reach.Frontend.Erlang]
-      ],
+      main: "overview",
       source_url: @source_url,
-      source_ref: "v#{@version}"
+      source_ref: "v#{@version}",
+      extra_section: "GUIDES",
+      extras: extras(),
+      groups_for_extras: groups_for_extras(),
+      groups_for_modules: groups_for_modules(),
+      skip_undefined_reference_warnings_on: ["CHANGELOG.md"]
+    ]
+  end
+
+  defp extras do
+    [
+      "guides/overview.md",
+      "guides/installation.md",
+      "guides/quickstart.md",
+      "guides/cli.md",
+      "guides/json-output.md",
+      "guides/configuration.md",
+      "guides/concepts.md",
+      "guides/validation.md",
+      "guides/recipes.md",
+      "guides/contributing.md",
+      "CONFIG.md": [title: "Configuration Reference"],
+      "CHANGELOG.md": [title: "Changelog"],
+      LICENSE: [title: "License"]
+    ]
+  end
+
+  defp groups_for_extras do
+    [
+      Introduction: ["guides/overview.md", "guides/installation.md", "guides/quickstart.md"],
+      "Canonical CLI": ["guides/cli.md", "guides/json-output.md"],
+      Configuration: ["guides/configuration.md", "CONFIG.md"],
+      Concepts: ["guides/concepts.md"],
+      Validation: ["guides/validation.md"],
+      Recipes: ["guides/recipes.md"],
+      Contributing: ["guides/contributing.md"]
+    ]
+  end
+
+  defp groups_for_modules do
+    [
+      "Public API": [Reach, Reach.Project],
+      "CLI Commands": [~r/Reach\.CLI\.Commands/],
+      "CLI Rendering": [~r/Reach\.CLI\.Render/],
+      "Project Queries": [Reach.Project.Query],
+      Inspect: [~r/Reach\.Inspect/],
+      Map: [~r/Reach\.Map/],
+      Trace: [~r/Reach\.Trace/],
+      Check: [~r/Reach\.Check/],
+      Smells: [~r/Reach\.Smell/],
+      OTP: [~r/Reach\.OTP/],
+      IR: [Reach.IR, Reach.IR.Node, Reach.IR.Helpers],
+      Analysis: [
+        Reach.ControlFlow,
+        Reach.DataDependence,
+        Reach.ControlDependence,
+        Reach.Dominator,
+        Reach.Effects,
+        Reach.SystemDependence
+      ],
+      Frontends: [~r/Reach\.Frontend/],
+      Visualization: [~r/Reach\.Visualize/],
+      Plugins: [Reach.Plugin, ~r/Reach\.Plugins/]
     ]
   end
 
