@@ -233,6 +233,10 @@ defmodule Mix.Tasks.Reach.Inspect do
     end
   end
 
+  defp render_limited([], _limit, _render_fun) do
+    IO.puts("  " <> Format.empty())
+  end
+
   defp render_limited(items, :all, render_fun) do
     Enum.each(items, render_fun)
   end

@@ -106,7 +106,7 @@ defmodule Reach.CLI.Analyses.Deps do
 
     case result.callers do
       [] ->
-        IO.puts("  (no callers found)")
+        IO.puts("  " <> Format.empty("no callers"))
 
       callers ->
         Enum.each(callers, fn %{id: id} ->
@@ -121,7 +121,7 @@ defmodule Reach.CLI.Analyses.Deps do
 
     case result.shared_state_writers do
       [] ->
-        IO.puts("  (none found)")
+        IO.puts("  " <> Format.empty())
 
       writers ->
         Enum.each(writers, &IO.puts("  #{Format.func_id_to_string(&1)}  #{Format.tag(:warning)}"))
@@ -132,6 +132,7 @@ defmodule Reach.CLI.Analyses.Deps do
     IO.puts("\n#{n} caller(s), risk: #{risk}\n")
   end
 
+  defp render_callee_tree([], ""), do: IO.puts("  " <> Format.empty())
   defp render_callee_tree([], _prefix), do: nil
 
   defp render_callee_tree(items, prefix) do
