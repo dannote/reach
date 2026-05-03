@@ -36,6 +36,7 @@ defmodule Reach.CLI.Render.Check.Smells do
       render_group(Map.get(grouped, :eager_pattern, []), "Eager where lazy suffices")
       render_group(Map.get(grouped, :string_building, []), "String building (use iolists)")
       render_group(Map.get(grouped, :config_phase, []), "Compile-time vs runtime config")
+      render_group(Map.get(grouped, :behaviour_candidate, []), "Behaviour candidates")
       render_group(Map.get(grouped, :dual_key_access, []), "Loose map contracts")
       render_group(Map.get(grouped, :fixed_shape_map, []), "Repeated map shapes")
 
@@ -48,6 +49,19 @@ defmodule Reach.CLI.Render.Check.Smells do
   defp render_group(findings, title) do
     IO.puts(Format.section(title))
     Enum.each(findings, &render_finding/1)
+  end
+
+  defp render_finding(%Finding{kind: :behaviour_candidate} = finding) do
+    IO.puts("  #{Format.location_text(finding.location)}")
+    IO.puts("    #{Format.yellow(finding.message)}")
+
+    if finding.modules do
+      IO.puts("    modules=#{Enum.join(finding.modules, ", ")}")
+    end
+
+    if finding.callbacks do
+      IO.puts("    callbacks=#{Enum.join(finding.callbacks, ", ")}")
+    end
   end
 
   defp render_finding(%Finding{kind: :fixed_shape_map} = finding) do

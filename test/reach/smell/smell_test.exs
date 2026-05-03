@@ -31,6 +31,7 @@ defmodule Reach.SmellTest do
 
       assert Reach.Smell.Checks.DualKeyAccess in checks
       assert Reach.Smell.Checks.FixedShapeMap in checks
+      assert Reach.Smell.Checks.BehaviourCandidate in checks
       assert Reach.Smell.Checks.CollectionIdioms in checks
       assert Reach.Smell.Checks.ConfigPhase in checks
       assert Reach.Smell.Checks.EagerPattern in checks
@@ -344,6 +345,60 @@ defmodule Reach.SmellTest do
         """)
 
       assert Enum.filter(findings, &(&1.kind == :dual_key_access)) == []
+    end
+  end
+
+  describe "behaviour candidate detection" do
+    test "flags modules exposing the same public callbacks" do
+      findings =
+        run_smell_task("""
+        defmodule Providers.HTTP do
+          def init(opts), do: opts
+          def fetch(id), do: {:ok, id}
+          def normalize(value), do: value
+        end
+
+        defmodule Providers.File do
+          def init(opts), do: opts
+          def fetch(id), do: {:ok, id}
+          def normalize(value), do: value
+        end
+
+        defmodule Providers.Mock do
+          def init(opts), do: opts
+          def fetch(id), do: {:ok, id}
+          def normalize(value), do: value
+        end
+        """)
+
+      assert [%{kind: :behaviour_candidate} = finding] =
+               Enum.filter(findings, &(&1.kind == :behaviour_candidate))
+
+      assert finding.occurrences == 3
+      assert "init/1" in finding.callbacks
+      assert "fetch/1" in finding.callbacks
+      assert "normalize/1" in finding.callbacks
+      assert Enum.any?(finding.modules, &(&1 == "Providers.HTTP"))
+      assert finding.message =~ "consider extracting a behaviour"
+    end
+
+    test "does not flag pairs of similar modules" do
+      findings =
+        run_smell_task("""
+        defmodule Providers.HTTP do
+          def init(opts), do: opts
+          def fetch(id), do: {:ok, id}
+          def normalize(value), do: value
+        end
+
+        defmodule Providers.File do
+          def init(opts), do: opts
+          def fetch(id), do: {:ok, id}
+          def normalize(value), do: value
+        end
+        """)
+
+      assert Enum.filter(findings, &(&1.kind == :behaviour_candidate)) == []
     end
   end
 
