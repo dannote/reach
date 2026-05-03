@@ -19,9 +19,9 @@ defmodule Reach.CLI.Commands.Trace.Slice do
   @aliases [f: :format]
 
   alias Reach.CLI.BoxartGraph
-  alias Reach.CLI.Format
   alias Reach.CLI.Options
   alias Reach.CLI.Project
+  alias Reach.CLI.Render.Trace.Slice, as: SliceRender
   alias Reach.Project.Query
   alias Reach.Trace.Slice
 
@@ -60,16 +60,16 @@ defmodule Reach.CLI.Commands.Trace.Slice do
       BoxartGraph.require!()
       BoxartGraph.render_slice_graph(project, node.id, forward?)
     else
-      render(format, result, target, cli_opts)
+      SliceRender.render(result, target, format, command(cli_opts))
     end
   end
 
   defp resolve_slice_target(project, raw) do
     case Project.parse_file_line(raw) do
       {file, line} ->
-        n = Slice.find_node_at_location(project, file, line)
-        unless n, do: Mix.raise("No node found at #{file}:#{line}")
-        {n, %{file: file, line: line}}
+        node = Slice.find_node_at_location(project, file, line)
+        unless node, do: Mix.raise("No node found at #{file}:#{line}")
+        {node, %{file: file, line: line}}
 
       nil ->
         mfa = Query.resolve_target(project, raw)
@@ -83,53 +83,7 @@ defmodule Reach.CLI.Commands.Trace.Slice do
     end
   end
 
-  defp render("json", result, target, cli_opts) do
-    Format.render(
-      %{
-        target: %{file: target.file, line: target.line, node_id: result.node.id},
-        direction: to_string(result.direction),
-        statements: result.statements
-      },
-      command(cli_opts),
-      format: "json",
-      pretty: true
-    )
-  end
-
-  defp render("oneline", result, _target, _cli_opts) do
-    Enum.each(result.statements, fn stmt ->
-      IO.puts("#{stmt.file}:#{stmt.line}: #{stmt.description}")
-    end)
-  end
-
-  defp render(_format, result, _target, _cli_opts) do
-    render_text(result)
-  end
-
   defp command(cli_opts), do: Keyword.get(cli_opts, :command, "reach.trace")
 
   defp statement_limit(opts), do: Keyword.get(opts, :statement_limit, @default_statement_limit)
-
-  defp render_text(result) do
-    forward? = result.direction == :forward
-    direction = if forward?, do: "Forward", else: "Backward"
-    target_desc = Slice.describe_node(result.node)
-    loc = Format.location(result.node)
-
-    IO.puts(Format.header("#{direction} slice of #{target_desc} (#{loc})"))
-
-    if result.statements == [] do
-      hint = if forward?, do: "", else: " Try --forward to see where this value flows."
-      IO.puts("No dependencies found.#{hint}")
-    else
-      Enum.each(result.statements, fn stmt ->
-        IO.puts(
-          "  #{Format.faint(Path.basename(stmt.file) <> ":" <> to_string(stmt.line))}  #{stmt.description}"
-        )
-      end)
-
-      files = result.statements |> Enum.map(& &1.file) |> Enum.uniq() |> length()
-      IO.puts("\n#{Format.count(length(result.statements))} statements, #{files} file(s)")
-    end
-  end
 end
