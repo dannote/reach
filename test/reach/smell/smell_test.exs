@@ -8,17 +8,16 @@ defmodule Reach.SmellTest do
     File.write!(path, code)
     project = Reach.Project.from_sources([path])
 
+    {:ok, result} = Agent.start_link(fn -> [] end)
+
     try do
       ExUnit.CaptureIO.capture_io(fn ->
-        send(self(), {:findings, Smells.run(project, config)})
+        Agent.update(result, fn _ -> Smells.run(project, config) end)
       end)
 
-      receive do
-        {:findings, findings} -> findings
-      after
-        1000 -> []
-      end
+      Agent.get(result, & &1)
     after
+      Agent.stop(result)
       File.rm(path)
     end
   end

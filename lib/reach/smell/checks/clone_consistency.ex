@@ -21,11 +21,13 @@ defmodule Reach.Smell.Checks.CloneConsistency do
   defp findings(clone) do
     fragments = meaningful_fragments(clone.fragments)
 
-    []
-    |> Kernel.++(return_contract_drift(fragments))
-    |> Kernel.++(side_effect_order_drift(fragments))
-    |> Kernel.++(map_contract_drift(fragments))
-    |> Kernel.++(validation_drift(fragments))
+    [
+      &return_contract_drift/1,
+      &side_effect_order_drift/1,
+      &map_contract_drift/1,
+      &validation_drift/1
+    ]
+    |> Enum.flat_map(& &1.(fragments))
   end
 
   defp meaningful_fragments(fragments) do
