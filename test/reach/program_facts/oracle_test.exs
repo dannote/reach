@@ -162,10 +162,14 @@ defmodule Reach.ProgramFactsOracleTest do
                 depth_range: 2..5,
                 width_range: 2..4
               ),
-            transform <- StreamData.member_of(@metamorphic_transforms),
+            transforms <-
+              StreamData.list_of(StreamData.member_of(@metamorphic_transforms),
+                min_length: 1,
+                max_length: 3
+              ),
             max_runs: 16
           ) do
-      transformed = ProgramFacts.Transform.apply!(program, transform)
+      transformed = ProgramFacts.Transform.apply!(program, transforms)
       ProgramFacts.Metamorphic.assert_preserved!(program, transformed)
 
       assert_preserved_oracles(transformed)
