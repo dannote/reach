@@ -77,21 +77,25 @@ Use this responsibility split when refactoring or adding features:
 | `Reach.Inspect.*` | target-local deps/impact/context/why/candidate analysis | CLI rendering |
 | `Reach.OTP.*` | OTP/process/domain analysis | CLI rendering |
 | `Reach.Visualize.*` | graph/HTML/web visualization | CLI command orchestration |
+| `Reach.Plugin` / `Reach.Plugins.*` | framework-specific semantics: effect classification, trace presets, behaviour labels, visualization edge filtering, framework graph edges | generic smell/trace/map/visualization policy |
 
 `Reach.CLI.Analyses.*` must not exist; add command orchestration under `Reach.CLI.Commands.*` and domain logic under the appropriate `Reach.*` subsystem.
+
+Framework-specific semantics must stay in plugins. Generic modules such as `Reach.Smell.*`, `Reach.CloneAnalysis.*`, `Reach.Trace.*`, `Reach.Map.*`, and `Reach.Visualize` must not hardcode framework/library names such as Ecto/Repo/Phoenix/Oban/Ash/Jido or framework-specific CRUD/validation calls. Add plugin callbacks instead.
 
 ## Constants and Limits
 
 - No unexplained magic numbers like `Enum.take(20)` or `Enum.take(30)` in domain code.
 - Analysis safety caps must be named options/defaults, e.g. `max_return_dependents`, `max_dependency_nodes`.
 - Text display limits belong in CLI command/render defaults and should be user-overridable where practical.
-- Hardcoded taint examples such as `conn.params`, `Repo.query`, and `System.cmd` belong in named trace pattern presets, not hidden inside CLI modules.
+- Hardcoded framework taint examples such as `conn.params` and `Repo.query` belong in plugin trace pattern callbacks, not generic trace/CLI modules. Generic built-in patterns may cover platform/runtime calls such as `System.cmd`.
 
 ## Check vs Smell
 
 - `Reach.Check.*` is for release/CI safety: architecture policy, changed-code risk, refactoring candidates, and adapters that run checks.
-- `Reach.Smell.*` is the local code-shape finding engine: loose map contracts, repeated fixed-shape maps, pipeline waste, reverse append, eager patterns, string building, redundant computation.
+- `Reach.Smell.*` is the local code-shape finding engine: loose map contracts, repeated fixed-shape maps, pipeline waste, reverse append, eager patterns, string building, redundant computation, and clone-backed structural consistency.
 - `mix reach.check --smells` may call the smell engine, but smell rules themselves must live under `Reach.Smell.*`, not `Reach.CLI.*`.
+- `Reach.CloneAnalysis.*` is an evidence provider, not a smell namespace. ExDNA integration must emit Reach-owned clone evidence consumed by semantic checks; ExDNA must not appear as a user-facing smell kind.
 
 ## Tests and Refactors
 
@@ -119,6 +123,7 @@ Add/maintain architecture regression tests for:
 - no direct compile calls outside `Reach.CLI.Project`
 - no magic `Enum.take(N)` in domain modules without named limits
 - no hardcoded trace source/sink presets in CLI modules
+- no framework-specific policy in generic smell, clone-analysis, trace, map, or visualization modules; put it behind `Reach.Plugin` callbacks
 
 ## Block Quality Acceptance Criteria
 
