@@ -480,14 +480,14 @@ defmodule Mix.Tasks.Reach.Inspect do
     IO.puts("")
 
     Enum.each(candidates, fn candidate ->
-      IO.puts("#{candidate.id} #{candidate.kind}")
+      IO.puts("#{candidate.id} #{Format.humanize(candidate.kind)}")
 
       IO.puts(
         "  benefit=#{candidate.benefit} risk=#{candidate.risk} confidence=#{candidate[:confidence] || :unknown}"
       )
 
       IO.puts("  location=#{Format.loc(candidate.file, candidate.line)}")
-      IO.puts("  evidence=#{Enum.join(candidate.evidence, ",")}")
+      IO.puts("  evidence=#{Format.humanized_join(candidate.evidence)}")
       IO.puts("  suggestion=#{candidate.suggestion}")
       IO.puts("")
     end)

@@ -48,6 +48,16 @@ defmodule Reach.CLI.Format do
     Enum.map_join(effects, separator, &effect/1)
   end
 
+  def humanize(value) do
+    value
+    |> to_string()
+    |> String.replace("_", " ")
+  end
+
+  def humanized_join(values, separator \\ ", ") do
+    Enum.map_join(values, separator, &humanize/1)
+  end
+
   # ── Rendering ──
 
   @command_override_key {__MODULE__, :command_override}

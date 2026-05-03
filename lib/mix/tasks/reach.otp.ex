@@ -217,7 +217,7 @@ defmodule Mix.Tasks.Reach.Otp do
   defp action_label(:unknown), do: Format.faint("no state access")
 
   defp render_state_machine(sm) do
-    mode_label = sm.callback_mode |> to_string() |> String.replace("_", " ")
+    mode_label = Format.humanize(sm.callback_mode)
 
     IO.puts(
       Format.section(

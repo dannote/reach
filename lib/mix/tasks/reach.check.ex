@@ -166,7 +166,7 @@ defmodule Mix.Tasks.Reach.Check do
 
     Enum.each(candidates, fn candidate ->
       IO.puts(
-        "  #{Format.bright(candidate.id)} #{Format.yellow(humanize(candidate.kind))}: #{candidate.target}"
+        "  #{Format.bright(candidate.id)} #{Format.yellow(Format.humanize(candidate.kind))}: #{candidate.target}"
       )
 
       IO.puts(
@@ -177,21 +177,13 @@ defmodule Mix.Tasks.Reach.Check do
         IO.puts("    #{Format.loc(candidate.file, candidate.line)}")
       end
 
-      IO.puts("    evidence=#{humanized_list(candidate.evidence)}")
+      IO.puts("    evidence=#{Format.humanized_join(candidate.evidence)}")
 
       render_representative_calls(candidate)
 
       IO.puts("    suggestion=#{candidate.suggestion}")
       IO.puts("")
     end)
-  end
-
-  defp humanized_list(values), do: Enum.map_join(values, ", ", &humanize/1)
-
-  defp humanize(value) do
-    value
-    |> to_string()
-    |> String.replace("_", " ")
   end
 
   defp render_representative_calls(%{representative_calls: calls}) when calls != [] do
