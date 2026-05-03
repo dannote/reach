@@ -42,8 +42,8 @@ defmodule Reach.CLI.Commands.Trace.Slice do
   end
 
   def run_target(raw_target, opts, cli_opts \\ []) do
-    project = Project.load(quiet: opts[:format] == "json")
     format = opts[:format] || "text"
+    project = Project.load(quiet: format == "json")
     forward? = Keyword.get(opts, :forward, false)
     var_name = opts[:variable]
 

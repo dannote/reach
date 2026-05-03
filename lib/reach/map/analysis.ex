@@ -66,8 +66,7 @@ defmodule Reach.Map.Analysis do
 
     project
     |> function_defs(path)
-    |> Enum.map(fn func -> {func, function_effects(func) -- [:pure, :unknown]} end)
-    |> Enum.filter(fn {_func, effects} -> length(effects) >= min end)
+    |> Enum.flat_map(&boundary_candidate(&1, min))
     |> Enum.sort_by(fn {func, effects} -> {-length(effects), location_sort(func)} end)
     |> Enum.take(opts[:top] || 20)
     |> Enum.map(fn {func, effects} ->
@@ -556,26 +555,34 @@ defmodule Reach.Map.Analysis do
     end
   end
 
+  defp boundary_candidate(func, min) do
+    effects = function_effects(func) -- [:pure, :unknown]
+
+    if length(effects) >= min, do: [{func, effects}], else: []
+  end
+
   defp count_fan_in(call_graph, funcs) do
     funcs
-    |> Enum.map(&function_vertex/1)
-    |> Enum.map(fn vertex ->
-      if Graph.has_vertex?(call_graph, vertex),
-        do: length(Graph.in_neighbors(call_graph, vertex)),
-        else: 0
-    end)
+    |> Enum.map(&fan_in(call_graph, function_vertex(&1)))
     |> Enum.sum()
   end
 
   defp count_fan_out(call_graph, funcs) do
     funcs
-    |> Enum.map(&function_vertex/1)
-    |> Enum.map(fn vertex ->
-      if Graph.has_vertex?(call_graph, vertex),
-        do: length(Graph.out_neighbors(call_graph, vertex)),
-        else: 0
-    end)
+    |> Enum.map(&fan_out(call_graph, function_vertex(&1)))
     |> Enum.sum()
+  end
+
+  defp fan_in(call_graph, vertex) do
+    if Graph.has_vertex?(call_graph, vertex),
+      do: length(Graph.in_neighbors(call_graph, vertex)),
+      else: 0
+  end
+
+  defp fan_out(call_graph, vertex) do
+    if Graph.has_vertex?(call_graph, vertex),
+      do: length(Graph.out_neighbors(call_graph, vertex)),
+      else: 0
   end
 
   defp function_vertex(func), do: {func.meta[:module], func.meta[:name], func.meta[:arity]}

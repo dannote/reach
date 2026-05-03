@@ -48,7 +48,7 @@ defmodule Reach.CLI.Commands.Trace.Flow do
   def run_opts(opts, cli_opts \\ []) do
     format = opts[:format] || "text"
 
-    project = Project.load(quiet: opts[:format] == "json")
+    project = Project.load(quiet: format == "json")
     result = analyze(project, opts)
 
     FlowRender.render(result, format, display_limit(opts), command(cli_opts))

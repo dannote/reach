@@ -181,9 +181,11 @@ defmodule Reach.Inspect.Why do
   defp why_vertex?(vertex), do: Query.mfa?(vertex) or is_atom(vertex)
 
   defp resolve_why_target(project, raw) do
+    parsed_file_line = Query.parse_file_line(raw)
+
     cond do
-      Query.parse_file_line(raw) != nil ->
-        {file, line} = Query.parse_file_line(raw)
+      parsed_file_line != nil ->
+        {file, line} = parsed_file_line
 
         case Query.find_function_at_location(project, file, line) do
           nil -> nil

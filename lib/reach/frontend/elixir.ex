@@ -827,7 +827,11 @@ defmodule Reach.Frontend.Elixir do
     params = fun_params(head)
 
     param_nodes =
-      Enum.map(params, &translate(&1, counter, file)) |> Enum.map(&mark_as_definitions/1)
+      Enum.map(params, fn param ->
+        param
+        |> translate(counter, file)
+        |> mark_as_definitions()
+      end)
 
     guard_nodes =
       Enum.map(guards, fn g ->
