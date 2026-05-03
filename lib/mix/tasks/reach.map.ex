@@ -180,6 +180,8 @@ defmodule Mix.Tasks.Reach.Map do
     end)
   end
 
+  defp render_text_section(:modules, []), do: IO.puts("  " <> Format.empty())
+
   defp render_text_section(:modules, modules) do
     Enum.each(modules, fn module ->
       behaviours = module_behaviour_label(module.callbacks)
@@ -197,6 +199,8 @@ defmodule Mix.Tasks.Reach.Map do
     end)
   end
 
+  defp render_text_section(:hotspots, []), do: IO.puts("  " <> Format.empty())
+
   defp render_text_section(:hotspots, hotspots) do
     Enum.each(hotspots, fn hotspot ->
       label = Map.get(hotspot, :display_function, hotspot.function)
@@ -208,6 +212,9 @@ defmodule Mix.Tasks.Reach.Map do
       IO.puts("    #{Format.loc(hotspot.file, hotspot.line)}")
     end)
   end
+
+  defp render_text_section(:coupling, %{modules: [], cycles: []}),
+    do: IO.puts("  " <> Format.empty())
 
   defp render_text_section(:coupling, %{modules: modules, cycles: cycles}) do
     Enum.each(modules, fn module ->
@@ -222,6 +229,9 @@ defmodule Mix.Tasks.Reach.Map do
     end
   end
 
+  defp render_text_section(:effects, %{distribution: [], unknown_calls: []}),
+    do: IO.puts("  " <> Format.empty())
+
   defp render_text_section(:effects, %{distribution: distribution, unknown_calls: unknown_calls}) do
     Enum.each(distribution, fn row ->
       IO.puts("  #{Format.effect(row.effect)}: #{row.count} (#{row.ratio})")
@@ -233,9 +243,13 @@ defmodule Mix.Tasks.Reach.Map do
     end
   end
 
+  defp render_text_section(:effects, []), do: IO.puts("  " <> Format.empty())
+
   defp render_text_section(:effects, effects) do
     Enum.each(effects, fn {effect, count} -> IO.puts("  #{Format.effect(effect)}: #{count}") end)
   end
+
+  defp render_text_section(:boundaries, []), do: IO.puts("  " <> Format.empty())
 
   defp render_text_section(:boundaries, boundaries) do
     Enum.each(boundaries, fn boundary ->
@@ -251,6 +265,8 @@ defmodule Mix.Tasks.Reach.Map do
     end)
   end
 
+  defp render_text_section(:depth, []), do: IO.puts("  " <> Format.empty())
+
   defp render_text_section(:depth, rows) do
     Enum.each(rows, fn row ->
       IO.puts("  #{Format.bright(row.function)} depth=#{row.depth} branches=#{row.branch_count}")
@@ -264,7 +280,10 @@ defmodule Mix.Tasks.Reach.Map do
     render_top_data_functions(data.top_functions)
   end
 
-  defp render_cross_function_flows([]), do: :ok
+  defp render_cross_function_flows([]) do
+    IO.puts("\n  Cross-function flows:")
+    IO.puts("    " <> Format.empty())
+  end
 
   defp render_cross_function_flows(edges) do
     IO.puts("\n  Cross-function flows:")
@@ -277,6 +296,11 @@ defmodule Mix.Tasks.Reach.Map do
     IO.puts("    #{Format.bright(row.from)} → #{Format.bright(row.to)} edges=#{row.edges}")
     IO.puts("      labels: #{labels}")
     if variables != "", do: IO.puts("      vars: #{variables}")
+  end
+
+  defp render_top_data_functions([]) do
+    IO.puts("\n  Functions by data edges:")
+    IO.puts("    " <> Format.empty())
   end
 
   defp render_top_data_functions(rows) do

@@ -63,7 +63,8 @@ defmodule Reach.CLI.Analyses.Smell do
     IO.puts(Format.header("Cross-Function Smell Detection"))
 
     if findings == [] do
-      IO.puts("No issues found.\n")
+      IO.puts("  " <> Format.empty("no issues"))
+      IO.puts("")
     else
       grouped = Enum.group_by(findings, & &1.kind)
 

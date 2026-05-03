@@ -80,7 +80,8 @@ defmodule Mix.Tasks.Reach.Otp do
     IO.puts(Format.header("OTP Analysis"))
 
     if result.behaviours == [] and result.state_machines == [] do
-      IO.puts("No OTP behaviours detected.\n")
+      IO.puts("  " <> Format.empty("no OTP behaviours detected"))
+      IO.puts("")
     else
       Enum.each(result.behaviours, &render_behaviour(&1, graph_mode))
       Enum.each(result.state_machines, &render_state_machine/1)
@@ -106,6 +107,10 @@ defmodule Mix.Tasks.Reach.Otp do
     end
 
     IO.puts("  Callbacks:")
+
+    if gs.state_transforms == [] do
+      IO.puts("    " <> Format.empty())
+    end
 
     gs.state_transforms
     |> Enum.sort_by(fn t -> t.callback end)

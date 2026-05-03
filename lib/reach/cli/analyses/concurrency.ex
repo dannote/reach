@@ -174,10 +174,12 @@ defmodule Reach.CLI.Analyses.Concurrency do
     render_edges(result.concurrency_edges)
   end
 
-  defp render_tasks(%{async: [], await: []}), do: :ok
-
   defp render_tasks(tasks) do
     IO.puts(Format.section("Tasks"))
+
+    if tasks.async == [] and tasks.await == [] and tasks.unpaired == 0 do
+      IO.puts("  " <> Format.empty())
+    end
 
     Enum.each(tasks.async, fn loc ->
       IO.puts("  #{Format.green("async")}  #{Format.faint(loc)}")
@@ -192,10 +194,12 @@ defmodule Reach.CLI.Analyses.Concurrency do
     end
   end
 
-  defp render_monitors(%{monitors: [], trap_exits: [], down_handlers: []}), do: :ok
-
   defp render_monitors(m) do
     IO.puts(Format.section("Monitors"))
+
+    if m.monitors == [] and m.trap_exits == [] and m.down_handlers == [] do
+      IO.puts("  " <> Format.empty())
+    end
 
     Enum.each(m.monitors, fn loc ->
       IO.puts("  #{Format.green("Process.monitor")}  #{Format.faint(loc)}")
@@ -210,10 +214,12 @@ defmodule Reach.CLI.Analyses.Concurrency do
     end)
   end
 
-  defp render_spawns(%{spawns: [], links: []}), do: :ok
-
   defp render_spawns(s) do
     IO.puts(Format.section("Spawns"))
+
+    if s.spawns == [] and s.links == [] do
+      IO.puts("  " <> Format.empty())
+    end
 
     Enum.each(s.spawns, fn %{function: f, location: loc} ->
       IO.puts("  #{Format.yellow(to_string(f))}  #{Format.faint(loc)}")
@@ -224,20 +230,24 @@ defmodule Reach.CLI.Analyses.Concurrency do
     end)
   end
 
-  defp render_supervisors([]), do: :ok
-
   defp render_supervisors(sups) do
     IO.puts(Format.section("Supervisors"))
+
+    if sups == [] do
+      IO.puts("  " <> Format.empty())
+    end
 
     Enum.each(sups, fn loc ->
       IO.puts("  #{Format.faint(loc)}")
     end)
   end
 
-  defp render_edges(edges) when map_size(edges) == 0, do: :ok
-
   defp render_edges(edges) do
     IO.puts(Format.section("Concurrency Edges"))
+
+    if map_size(edges) == 0 do
+      IO.puts("  " <> Format.empty())
+    end
 
     Enum.each(edges, fn {label, count} ->
       IO.puts("  #{Format.bright(to_string(label))}  ×#{count}")

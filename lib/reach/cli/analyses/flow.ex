@@ -216,7 +216,7 @@ defmodule Reach.CLI.Analyses.Flow do
     IO.puts(Format.header("Taint: #{result.from} → #{result.to}"))
 
     if result.paths == [] do
-      IO.puts("\nNo data flow paths found.\n")
+      IO.puts("\n  " <> Format.empty("no data flow paths") <> "\n")
     else
       shown = take_limited(result.paths, limit)
       IO.puts("#{length(result.paths)} path(s) found. Showing #{length(shown)}.\n")
@@ -243,6 +243,8 @@ defmodule Reach.CLI.Analyses.Flow do
     IO.puts(Format.section("Uses"))
     render_limited_nodes(result.uses, limit)
   end
+
+  defp render_limited_nodes([], _limit), do: IO.puts("  " <> Format.empty())
 
   defp render_limited_nodes(nodes, limit) do
     shown = take_limited(nodes, limit)

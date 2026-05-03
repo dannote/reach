@@ -122,7 +122,7 @@ defmodule Reach.CLI.Analyses.DeadCode do
 
   defp render_text([]) do
     IO.puts(Format.header("Dead Code"))
-    IO.puts("  (none found)")
+    IO.puts("  " <> Format.empty())
   end
 
   defp render_text(findings) do

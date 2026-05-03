@@ -212,7 +212,7 @@ defmodule Reach.CLI.Analyses.Impact do
     IO.puts(Format.section(title))
 
     case callers do
-      [] -> IO.puts("  (none found)")
+      [] -> IO.puts("  " <> Format.empty())
       list -> Enum.each(list, &print_func_with_location(project, &1.id))
     end
   end
@@ -222,7 +222,7 @@ defmodule Reach.CLI.Analyses.Impact do
 
     case return_dependents do
       [] ->
-        IO.puts("  (none found)")
+        IO.puts("  " <> Format.empty())
 
       deps ->
         Enum.each(deps, fn dep ->
