@@ -36,5 +36,5 @@ Reach uses ProgramFacts-generated Elixir projects and oracle facts to validate c
 Visualization changes must preserve source coverage, disjoint block ranges, branch boundaries, clause blocks, non-empty labels, connected exits, and no duplicated lines.
 
 ```bash
-mix test test/visualize/block_quality_test.exs
+mix test test/reach/visualize/block_quality_test.exs
 ```

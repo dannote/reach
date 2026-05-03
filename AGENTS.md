@@ -160,7 +160,7 @@ Multi-clause functions with bodies use `build_multi_clause_cfg` — the CFG incl
 Run the block quality test after visualization changes:
 
 ```bash
-mix test test/visualize/block_quality_test.exs
+mix test test/reach/visualize/block_quality_test.exs
 ```
 
 Smoke test across real codebases — clone first if needed:

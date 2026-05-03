@@ -8,10 +8,5 @@ defmodule Reach.Smell.Finding do
     struct!(__MODULE__, attrs)
   end
 
-  def to_map(%__MODULE__{} = finding) do
-    finding
-    |> Map.from_struct()
-    |> Enum.reject(fn {_key, value} -> is_nil(value) end)
-    |> Map.new()
-  end
+  def to_map(%__MODULE__{} = finding), do: Reach.StructMap.compact(finding)
 end

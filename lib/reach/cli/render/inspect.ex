@@ -98,7 +98,7 @@ defmodule Reach.CLI.Render.Inspect do
       IO.puts("#{candidate.id} #{Format.humanize(candidate.kind)}")
 
       IO.puts(
-        "  benefit=#{candidate.benefit} risk=#{candidate.risk} confidence=#{candidate[:confidence] || :unknown}"
+        "  benefit=#{candidate.benefit} risk=#{candidate.risk} confidence=#{Map.get(candidate, :confidence, :unknown)}"
       )
 
       IO.puts("  location=#{Format.loc(candidate.file, candidate.line)}")

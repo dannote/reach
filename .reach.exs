@@ -169,15 +169,16 @@
   tests: [
     hints: [
       {"lib/reach/visualize/**",
-       ["test/visualize/block_quality_test.exs", "test/visualize_test.exs"]},
-      {"lib/reach/frontend/**", ["test/ir/frontend_elixir_test.exs", "test/frontend"]},
-      {"lib/mix/tasks/**", ["test/cli"]},
-      {"lib/reach/cli/**", ["test/cli"]},
-      {"lib/reach/check/**", ["test/check", "test/smell_test.exs"]},
-      {"lib/reach/inspect/**", ["test/cli"]},
-      {"lib/reach/trace/**", ["test/cli", "test/query_test.exs"]},
-      {"lib/reach/smell/**", ["test/smell_test.exs"]},
-      {"lib/reach/otp/**", ["test/otp_test.exs"]}
+       ["test/reach/visualize/block_quality_test.exs", "test/reach/visualize/visualize_test.exs"]},
+      {"lib/reach/frontend/**",
+       ["test/reach/ir/frontend_elixir_test.exs", "test/reach/frontend"]},
+      {"lib/mix/tasks/**", ["test/reach/cli"]},
+      {"lib/reach/cli/**", ["test/reach/cli"]},
+      {"lib/reach/check/**", ["test/reach/check", "test/reach/smell/smell_test.exs"]},
+      {"lib/reach/inspect/**", ["test/reach/cli"]},
+      {"lib/reach/trace/**", ["test/reach/cli", "test/reach/project/query_test.exs"]},
+      {"lib/reach/smell/**", ["test/reach/smell/smell_test.exs"]},
+      {"lib/reach/otp/**", ["test/reach/otp/otp_test.exs"]}
     ]
   ]
 ]

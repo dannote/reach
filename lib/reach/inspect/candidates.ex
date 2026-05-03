@@ -4,6 +4,7 @@ defmodule Reach.Inspect.Candidates do
   """
 
   alias Reach.Analysis
+  alias Reach.Check.Candidate
   alias Reach.Config
   alias Reach.Effects
   alias Reach.IR
@@ -29,9 +30,9 @@ defmodule Reach.Inspect.Candidates do
         nil
 
       true ->
-        %{
+        Candidate.new(
           id: "R2-001",
-          kind: "isolate_effects",
+          kind: :isolate_effects,
           file: func.source_span && func.source_span.file,
           line: func.source_span && func.source_span.start_line,
           benefit: :medium,
@@ -47,7 +48,7 @@ defmodule Reach.Inspect.Candidates do
           ],
           suggestion:
             "Split pure decision logic from side-effect execution while preserving effect order."
-        }
+        )
     end
   end
 
@@ -60,9 +61,9 @@ defmodule Reach.Inspect.Candidates do
   end
 
   defp do_extract_region_candidate(func, branch_count, callers, candidate_config) do
-    %{
+    Candidate.new(
       id: "R1-001",
-      kind: "extract_pure_region",
+      kind: :extract_pure_region,
       file: func.source_span && func.source_span.file,
       line: func.source_span && func.source_span.start_line,
       benefit: :medium,
@@ -83,7 +84,7 @@ defmodule Reach.Inspect.Candidates do
       ],
       suggestion:
         "Look for a single-entry/single-exit pure branch region before extracting. Do not extract by size alone."
-    }
+    )
   end
 
   defp maybe_candidate(candidates, nil), do: candidates

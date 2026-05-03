@@ -1,6 +1,7 @@
 defmodule Reach.Check.Architecture do
   @moduledoc false
 
+  alias Reach.Check.Violation
   alias Reach.Config
   alias Reach.Effects
   alias Reach.IR
@@ -70,8 +71,8 @@ defmodule Reach.Check.Architecture do
     layer_graph.edges
     |> Enum.filter(&({&1.from, &1.to} in forbidden))
     |> Enum.map(fn edge ->
-      %{
-        type: "forbidden_dependency",
+      Violation.new(
+        type: :forbidden_dependency,
         caller_module: inspect(edge.caller),
         caller_layer: edge.from,
         callee_module: inspect(edge.callee),
@@ -79,7 +80,7 @@ defmodule Reach.Check.Architecture do
         file: edge.node.source_span.file,
         line: edge.node.source_span.start_line,
         call: "#{inspect(edge.callee)}.#{edge.node.meta[:function]}/#{edge.node.meta[:arity]}"
-      }
+      )
     end)
   end
 
@@ -129,13 +130,13 @@ defmodule Reach.Check.Architecture do
     |> Map.values()
     |> Enum.filter(&forbidden_module?(&1, patterns))
     |> Enum.map(fn node ->
-      %{
-        type: "forbidden_module",
+      Violation.new(
+        type: :forbidden_module,
         module: inspect(node.meta[:name]),
         file: node.source_span.file,
         line: node.source_span.start_line,
         rule: "configured forbidden module"
-      }
+      )
     end)
   end
 
@@ -154,11 +155,11 @@ defmodule Reach.Check.Architecture do
     |> Enum.uniq()
     |> Enum.filter(fn file -> Enum.any?(patterns, &glob_match?(file, to_string(&1))) end)
     |> Enum.map(fn file ->
-      %{
-        type: "forbidden_file",
+      Violation.new(
+        type: :forbidden_file,
         file: file,
         rule: "configured forbidden file"
-      }
+      )
     end)
   end
 
@@ -188,28 +189,28 @@ defmodule Reach.Check.Architecture do
 
         public_api != [] and top_level_api_call?(caller, callee, public_api, internal) ->
           [
-            %{
-              type: "public_api_boundary",
+            Violation.new(
+              type: :public_api_boundary,
               caller_module: inspect(caller),
               callee_module: inspect(callee),
               file: node.source_span.file,
               line: node.source_span.start_line,
               call: "#{inspect(callee)}.#{node.meta[:function]}/#{node.meta[:arity]}",
               rule: "calls into non-public API module"
-            }
+            )
           ]
 
         internal != [] and internal_call_violation?(caller, callee, internal, internal_callers) ->
           [
-            %{
-              type: "internal_boundary",
+            Violation.new(
+              type: :internal_boundary,
               caller_module: inspect(caller),
               callee_module: inspect(callee),
               file: node.source_span.file,
               line: node.source_span.start_line,
               call: "#{inspect(callee)}.#{node.meta[:function]}/#{node.meta[:arity]}",
               rule: "caller is not allowed to call configured internal module"
-            }
+            )
           ]
 
         true ->
@@ -236,14 +237,14 @@ defmodule Reach.Check.Architecture do
     rules
     |> Enum.filter(&forbidden_call_rule_matches?(&1, caller, call))
     |> Enum.map(fn _rule ->
-      %{
-        type: "forbidden_call",
+      Violation.new(
+        type: :forbidden_call,
         caller_module: inspect(caller),
         call: call,
         file: node.source_span.file,
         line: node.source_span.start_line,
         rule: "configured forbidden call"
-      }
+      )
     end)
   end
 
@@ -345,7 +346,7 @@ defmodule Reach.Check.Architecture do
   defp layer_cycle_violations(%{adjacency: adjacency}) do
     adjacency
     |> layer_cycle_components()
-    |> Enum.map(fn cycle -> %{type: "layer_cycle", layers: cycle} end)
+    |> Enum.map(fn cycle -> Violation.new(type: :layer_cycle, layers: cycle) end)
   end
 
   defp layer_cycle_components(adjacency) do
@@ -386,8 +387,8 @@ defmodule Reach.Check.Architecture do
          effects <- function_effects(func),
          disallowed when disallowed != [] <- effects -- allowed do
       [
-        %{
-          type: "effect_policy",
+        Violation.new(
+          type: :effect_policy,
           module: inspect(module),
           function: "#{func.meta[:name]}/#{func.meta[:arity]}",
           allowed_effects: Enum.map(allowed, &to_string/1),
@@ -395,7 +396,7 @@ defmodule Reach.Check.Architecture do
           disallowed_effects: Enum.map(disallowed, &to_string/1),
           file: func.source_span && func.source_span.file,
           line: func.source_span && func.source_span.start_line
-        }
+        )
       ]
     else
       _ -> []

@@ -246,11 +246,16 @@ defmodule Reach.Check.Changed do
     cond do
       String.starts_with?(file, "lib/mix/tasks/") ->
         task = file |> Path.basename(".ex") |> String.replace(".", "_")
-        ["test/#{task}_test.exs", "test/mix_task_#{String.replace(task, "reach_", "")}_test.exs"]
+
+        [
+          "test/reach/cli/legacy/#{task}_test.exs",
+          "test/reach/cli/legacy/mix_task_#{String.replace(task, "reach_", "")}_test.exs",
+          "test/reach/cli/canonical_tasks_test.exs"
+        ]
 
       String.starts_with?(file, "lib/") ->
         base = file |> String.replace_prefix("lib/", "") |> Path.rootname()
-        ["test/#{base}_test.exs"]
+        ["test/#{base}_test.exs", "test/reach/#{base}_test.exs"]
 
       true ->
         []

@@ -1,6 +1,8 @@
 defmodule Reach.Config do
   @moduledoc false
 
+  alias Reach.Check.Violation
+
   defmodule Deps do
     @moduledoc false
     defstruct forbidden: []
@@ -83,12 +85,12 @@ defmodule Reach.Config do
       wrapped_path = List.wrap(path)
       key = Enum.map_join(wrapped_path, ".", &to_string/1)
 
-      %{
-        type: "config_error",
+      Violation.new(
+        type: :config_error,
         key: key,
         path: Enum.map(wrapped_path, &to_string/1),
         message: message
-      }
+      )
     end
   end
 

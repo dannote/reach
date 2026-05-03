@@ -34,10 +34,10 @@ defmodule Reach.CLI.Render.Check do
       )
 
       IO.puts(
-        "    benefit=#{candidate.benefit} risk=#{Format.risk(candidate.risk)} confidence=#{Format.risk(candidate[:confidence] || :unknown)}"
+        "    benefit=#{candidate.benefit} risk=#{Format.risk(candidate.risk)} confidence=#{Format.risk(Map.get(candidate, :confidence, :unknown))}"
       )
 
-      if candidate[:file] do
+      if Map.get(candidate, :file) do
         IO.puts("    #{Format.loc(candidate.file, candidate.line)}")
       end
 
@@ -60,38 +60,44 @@ defmodule Reach.CLI.Render.Check do
     IO.puts("  #{Format.red("#{length(violations)} violation(s)")}")
 
     Enum.each(violations, fn
-      %{type: "config_error"} = violation ->
+      %{type: type} = violation when type in [:config_error, "config_error"] ->
         IO.puts("  config #{violation.key}: #{violation.message}")
 
-      %{type: "forbidden_module"} = violation ->
+      %{type: type} = violation when type in [:forbidden_module, "forbidden_module"] ->
         IO.puts(
           "  #{Format.loc(violation.file, violation.line)} #{violation.module} (#{violation.rule})"
         )
 
-      %{type: "forbidden_file"} = violation ->
+      %{type: type} = violation when type in [:forbidden_file, "forbidden_file"] ->
         IO.puts("  #{Format.path(violation.file)} (#{violation.rule})")
 
-      %{type: "forbidden_dependency"} = violation ->
+      %{type: type} = violation when type in [:forbidden_dependency, "forbidden_dependency"] ->
         IO.puts(
           "  #{Format.loc(violation.file, violation.line)} #{violation.caller_layer} -> #{violation.callee_layer} " <>
             "#{violation.call}"
         )
 
-      %{type: "layer_cycle"} = violation ->
+      %{type: type} = violation when type in [:layer_cycle, "layer_cycle"] ->
         IO.puts("  layer cycle: #{Enum.join(violation.layers, " -> ")}")
 
-      %{type: "forbidden_call"} = violation ->
+      %{type: type} = violation when type in [:forbidden_call, "forbidden_call"] ->
         IO.puts(
           "  #{Format.loc(violation.file, violation.line)} #{violation.caller_module} calls #{violation.call} (#{violation.rule})"
         )
 
-      %{type: "effect_policy"} = violation ->
+      %{type: type} = violation when type in [:effect_policy, "effect_policy"] ->
         IO.puts([
           "  #{Format.loc(violation.file, violation.line)} #{violation.module}.#{violation.function} disallowed effects: ",
           Format.effects_join(violation.disallowed_effects)
         ])
 
-      %{type: type} = violation when type in ["public_api_boundary", "internal_boundary"] ->
+      %{type: type} = violation
+      when type in [
+             :public_api_boundary,
+             :internal_boundary,
+             "public_api_boundary",
+             "internal_boundary"
+           ] ->
         IO.puts(
           "  #{Format.loc(violation.file, violation.line)} #{violation.caller_module} -> #{violation.callee_module} #{violation.call} (#{violation.rule})"
         )

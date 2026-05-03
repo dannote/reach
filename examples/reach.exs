@@ -90,10 +90,11 @@
   tests: [
     hints: [
       {"lib/reach/visualize/**",
-       ["test/visualize/block_quality_test.exs", "test/visualize_test.exs"]},
-      {"lib/reach/frontend/**", ["test/ir/frontend_elixir_test.exs", "test/frontend"]},
-      {"lib/mix/tasks/**", ["test/cli"]},
-      {"lib/reach/otp/**", ["test/otp_test.exs"]}
+       ["test/reach/visualize/block_quality_test.exs", "test/reach/visualize/visualize_test.exs"]},
+      {"lib/reach/frontend/**",
+       ["test/reach/ir/frontend_elixir_test.exs", "test/reach/frontend"]},
+      {"lib/mix/tasks/**", ["test/reach/cli"]},
+      {"lib/reach/otp/**", ["test/reach/otp/otp_test.exs"]}
     ]
   ]
 ]

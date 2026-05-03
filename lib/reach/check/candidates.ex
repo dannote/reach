@@ -2,7 +2,7 @@ defmodule Reach.Check.Candidates do
   @moduledoc false
 
   alias Reach.Analysis
-  alias Reach.Check.{Architecture, Changed}
+  alias Reach.Check.{Architecture, Candidate, Changed}
   alias Reach.Config
   alias Reach.IR.Helpers, as: IRHelpers
   alias Reach.Project.Query
@@ -27,10 +27,10 @@ defmodule Reach.Check.Candidates do
 
   defp candidate_rank(candidate) do
     kind_rank = %{
-      "introduce_boundary" => 0,
-      "isolate_effects" => 1,
-      "extract_pure_region" => 2,
-      "break_cycle" => 3
+      introduce_boundary: 0,
+      isolate_effects: 1,
+      extract_pure_region: 2,
+      break_cycle: 3
     }
 
     risk_rank = %{high: 0, medium: 1, low: 2}
@@ -53,9 +53,9 @@ defmodule Reach.Check.Candidates do
     |> Enum.take(candidate_config.limits.per_kind)
     |> Enum.with_index(1)
     |> Enum.map(fn {cycle, index} ->
-      %{
+      Candidate.new(
         id: candidate_id("R3", index),
-        kind: "break_cycle",
+        kind: :break_cycle,
         target: Enum.join(cycle, " -> "),
         benefit: :high,
         risk: :medium,
@@ -72,7 +72,7 @@ defmodule Reach.Check.Candidates do
         modules: cycle,
         representative_calls:
           representative_component_calls(cycle, call_examples, candidate_config)
-      }
+      )
     end)
   end
 
@@ -187,9 +187,9 @@ defmodule Reach.Check.Candidates do
     |> Enum.map(fn {{func, effects}, index} ->
       id = {func.meta[:module], func.meta[:name], func.meta[:arity]}
 
-      %{
+      Candidate.new(
         id: candidate_id("R2", index),
-        kind: "isolate_effects",
+        kind: :isolate_effects,
         target: IRHelpers.func_id_to_string(id),
         file: func.source_span.file,
         line: func.source_span.start_line,
@@ -206,7 +206,7 @@ defmodule Reach.Check.Candidates do
         ],
         suggestion:
           "Split pure decision logic from side-effect execution while preserving effect order."
-      }
+      )
     end)
   end
 
@@ -230,9 +230,9 @@ defmodule Reach.Check.Candidates do
     |> Enum.take(candidate_config.limits.per_kind)
     |> Enum.with_index(1)
     |> Enum.map(fn {{func, branches, callers}, index} ->
-      %{
+      Candidate.new(
         id: candidate_id("R1", index),
-        kind: "extract_pure_region",
+        kind: :extract_pure_region,
         target: IRHelpers.func_id_to_string(function_id(func)),
         file: func.source_span.file,
         line: func.source_span.start_line,
@@ -254,7 +254,7 @@ defmodule Reach.Check.Candidates do
         ],
         suggestion:
           "Look for a single-entry/single-exit pure branch region before extracting. Do not extract by size alone."
-      }
+      )
     end)
   end
 
@@ -269,9 +269,9 @@ defmodule Reach.Check.Candidates do
     |> Enum.take(config.candidates.limits.per_kind)
     |> Enum.with_index(1)
     |> Enum.map(fn {violation, index} ->
-      %{
+      Candidate.new(
         id: candidate_id("R5", index),
-        kind: "introduce_boundary",
+        kind: :introduce_boundary,
         target: "#{violation.caller_layer} -> #{violation.callee_layer}",
         file: violation.file,
         line: violation.line,
@@ -288,7 +288,7 @@ defmodule Reach.Check.Candidates do
         ],
         suggestion:
           "Route this call through an allowed boundary or move the helper to an allowed lower layer."
-      }
+      )
     end)
   end
 
