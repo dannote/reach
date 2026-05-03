@@ -12,7 +12,8 @@ Key modules:
 - `Reach.Dominator` — immediate dominator/post-dominator, dominator tree, dominance frontier
 - `Reach.Effects` — per-call side-effect classification (pure/io/read/write/send/exception/nif/unknown)
 - `Reach.Visualize.ControlFlow` — CFG → visualization blocks/edges
-- `Reach.Visualize.Helpers` — source extraction, pattern rendering, line helpers
+- `Reach.Visualize.Source` — source extraction, highlighting, line helpers
+- `Reach.Visualize.Helpers` — IR label and pattern rendering helpers
 - `assets/js/components/ReachGraph.vue` — frontend (Vue Flow + ELK layout)
 
 ## CLI Architecture Rules

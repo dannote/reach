@@ -1,7 +1,8 @@
 defmodule Reach.Visualize.ControlFlow do
   @moduledoc false
 
-  alias Reach.{ControlFlow, IR, Visualize}
+  alias Reach.{ControlFlow, IR}
+  alias Reach.Visualize.Source
 
   import Reach.Visualize.Helpers
 
@@ -52,7 +53,7 @@ defmodule Reach.Visualize.ControlFlow do
     if func.meta[:language] == :javascript and func.meta[:source] do
       inject_js_source_cache(file, func.meta[:source], start_line)
     else
-      Visualize.ensure_def_cache(file)
+      Source.ensure_def_cache(file)
     end
 
     function_clauses =
@@ -89,7 +90,7 @@ defmodule Reach.Visualize.ControlFlow do
     func_end = func_end_line(func, file)
 
     if func_end <= func_start do
-      source = Visualize.extract_func_source(func)
+      source = Source.extract_func_source(func)
       fallback_single_block(func, source, func_start)
     else
       build_multi_clause_from_cfg(func, clauses, file, func_start, func_end)
@@ -105,7 +106,7 @@ defmodule Reach.Visualize.ControlFlow do
     ir_vertices = collect_ir_vertices(cfg, node_map, clause_ids, func_start)
 
     if ir_vertices == [] do
-      source = Visualize.extract_func_source(func)
+      source = Source.extract_func_source(func)
       fallback_single_block(func, source, func_start)
     else
       build_multi_clause_blocks(
@@ -238,7 +239,7 @@ defmodule Reach.Visualize.ControlFlow do
   end
 
   defp fallback_html(html, text) do
-    if source_blank?(html), do: Visualize.highlight_source(text), else: html
+    if source_blank?(html), do: Source.highlight_source(text), else: html
   end
 
   defp build_exit_edges(exit_targets, exit_id) do
@@ -261,7 +262,7 @@ defmodule Reach.Visualize.ControlFlow do
     func_end = func_end_line(func, file)
 
     if func_end <= func_start do
-      source = Visualize.extract_func_source(func)
+      source = Source.extract_func_source(func)
       fallback_single_block(func, source, func_start)
     else
       build_from_cfg(func, file, func_start, func_end)
@@ -284,7 +285,7 @@ defmodule Reach.Visualize.ControlFlow do
       |> Enum.sort_by(fn v -> span_field(Map.get(node_map, v), :start_line) || 0 end)
 
     if ir_vertices == [] do
-      source = Visualize.extract_func_source(func)
+      source = Source.extract_func_source(func)
       fallback_single_block(func, source, func_start)
     else
       vertex_ranges = compute_vertex_ranges(ir_vertices, node_map, func_start, func_end)
@@ -701,7 +702,7 @@ defmodule Reach.Visualize.ControlFlow do
         "#{func.meta[:name]}/#{func.meta[:arity]}",
         start_line,
         start_line,
-        Visualize.highlight_source(source, lang)
+        Source.highlight_source(source, lang)
       )
 
     {[node], []}
