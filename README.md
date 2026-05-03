@@ -177,6 +177,10 @@ mix hex.build
 
 `mix ci` includes formatting, JS checks, Credo/ExSlop, ExDNA duplication checks, architecture policy, Dialyzer, and tests.
 
+## Acknowledgements
+
+Some structural smell patterns were informed by public [Credence](https://github.com/Cinderella-Man/credence) rules. Reach implements them over its own IR/project model and keeps them advisory.
+
 ## License
 
 MIT. See [`LICENSE`](LICENSE).

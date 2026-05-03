@@ -31,6 +31,7 @@ defmodule Reach.SmellTest do
 
       assert Reach.Smell.Checks.DualKeyAccess in checks
       assert Reach.Smell.Checks.FixedShapeMap in checks
+      assert Reach.Smell.Checks.CollectionIdioms in checks
       assert Reach.Smell.Checks.ConfigPhase in checks
       assert Reach.Smell.Checks.EagerPattern in checks
       assert Reach.Smell.Checks.PipelineWaste in checks
@@ -209,7 +210,7 @@ defmodule Reach.SmellTest do
     end
   end
 
-  describe "Credence-inspired collection pipeline smells" do
+  describe "collection pipeline smells" do
     test "flags sort then reverse" do
       findings =
         run_smell_task("""
@@ -343,6 +344,75 @@ defmodule Reach.SmellTest do
         """)
 
       assert Enum.filter(findings, &(&1.kind == :dual_key_access)) == []
+    end
+  end
+
+  describe "collection idiom detection" do
+    test "flags redundant Enum.join empty separator" do
+      findings =
+        run_smell_task("""
+        defmodule CollectionIdioms do
+          def join(parts), do: Enum.join(parts, "")
+        end
+        """)
+
+      assert [%{kind: :suboptimal} = finding] =
+               Enum.filter(findings, &String.contains?(&1.message, "empty string separator"))
+
+      assert finding.message =~ "Enum.join/1"
+    end
+
+    test "flags String.graphemes counted through length or Enum.count" do
+      findings =
+        run_smell_task("""
+        defmodule CollectionIdioms do
+          def len(value), do: length(String.graphemes(value))
+          def count(value), do: value |> String.graphemes() |> Enum.count()
+        end
+        """)
+
+      matching = Enum.filter(findings, &String.contains?(&1.message, "String.length/1"))
+      assert length(matching) == 2
+    end
+
+    test "flags String.length one-character checks" do
+      findings =
+        run_smell_task("""
+        defmodule CollectionIdioms do
+          def one?(value), do: String.length(value) == 1
+          def not_one?(value), do: 1 != String.length(value)
+        end
+        """)
+
+      matching = Enum.filter(findings, &String.contains?(&1.message, "one character"))
+      assert length(matching) == 2
+    end
+
+    test "flags negative Enum.take" do
+      findings =
+        run_smell_task("""
+        defmodule CollectionIdioms do
+          def last_three(values), do: Enum.take(values, -3)
+          def last_two(values), do: values |> Enum.take(-2)
+        end
+        """)
+
+      matching = Enum.filter(findings, &String.contains?(&1.message, "takes from the end"))
+      assert length(matching) == 2
+    end
+
+    test "flags Integer.to_string to String.to_charlist digit extraction" do
+      findings =
+        run_smell_task("""
+        defmodule CollectionIdioms do
+          def digits(value), do: value |> Integer.to_string(2) |> String.to_charlist()
+        end
+        """)
+
+      assert [%{kind: :suboptimal} = finding] =
+               Enum.filter(findings, &String.contains?(&1.message, "intermediate binary"))
+
+      assert finding.message =~ "Integer.digits/2"
     end
   end
 
