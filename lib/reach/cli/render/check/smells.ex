@@ -16,7 +16,7 @@ defmodule Reach.CLI.Render.Check.Smells do
   def render(findings, "oneline", _command) do
     Enum.each(findings, fn finding ->
       IO.puts(
-        "#{finding.location}: #{Format.yellow(to_string(finding.kind))}: #{finding.message}"
+        "#{Format.location_text(finding.location)}: #{Format.yellow(to_string(finding.kind))}: #{finding.message}"
       )
     end)
   end
@@ -50,7 +50,7 @@ defmodule Reach.CLI.Render.Check.Smells do
   end
 
   defp render_finding(%Finding{kind: :fixed_shape_map} = finding) do
-    IO.puts("  #{finding.location}")
+    IO.puts("  #{Format.location_text(finding.location)}")
 
     summary =
       [
@@ -65,7 +65,7 @@ defmodule Reach.CLI.Render.Check.Smells do
   end
 
   defp render_finding(finding) do
-    IO.puts("  #{finding.location}")
+    IO.puts("  #{Format.location_text(finding.location)}")
     IO.puts("    #{Format.yellow(finding.message)}")
   end
 
@@ -79,7 +79,7 @@ defmodule Reach.CLI.Render.Check.Smells do
 
       locations ->
         IO.puts("    #{Format.faint("also:")}")
-        Enum.each(locations, &IO.puts("      #{&1}"))
+        Enum.each(locations, &IO.puts("      #{Format.location_text(&1)}"))
     end
   end
 
