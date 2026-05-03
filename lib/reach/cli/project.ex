@@ -114,7 +114,9 @@ defmodule Reach.CLI.Project do
     |> Enum.sort()
   end
 
-  defp compile(true) do
+  def compile(quiet? \\ false)
+
+  def compile(true) do
     shell = Mix.shell()
     Mix.shell(Mix.Shell.Quiet)
 
@@ -125,7 +127,7 @@ defmodule Reach.CLI.Project do
     end
   end
 
-  defp compile(false), do: Mix.Task.run("compile", ["--no-warnings-as-errors"])
+  def compile(false), do: Mix.Task.run("compile", ["--no-warnings-as-errors"])
 
   def function_index(project) do
     case Process.get({__MODULE__, :func_index}) do

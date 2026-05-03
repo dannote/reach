@@ -2,6 +2,7 @@ defmodule Reach.CLI.Format do
   @moduledoc false
 
   alias Reach.CLI.Project
+  alias Reach.IR.Helpers, as: IRHelpers
 
   # ── Color helpers ──
 
@@ -233,11 +234,7 @@ defmodule Reach.CLI.Format do
     end
   end
 
-  def call_name(node) do
-    mod = node.meta[:module]
-    fun = node.meta[:function]
-    if mod, do: "#{inspect(mod)}.#{fun}", else: to_string(fun)
-  end
+  def call_name(node), do: IRHelpers.call_name(node)
 
   defp maybe_add(map, _key, nil), do: map
   defp maybe_add(map, key, val), do: Map.put(map, key, jsonify(val))

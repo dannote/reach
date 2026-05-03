@@ -7,6 +7,12 @@ defmodule Reach.Check.Candidates do
   alias Reach.CLI.Project
 
   @note "Candidates are advisory. Reach reports graph/effect/architecture evidence; prove behavior preservation before editing."
+  @cycle_candidate_limit 20
+  @representative_call_limit 10
+  @representative_calls_per_edge 3
+  @mixed_effect_candidate_limit 20
+  @extract_region_candidate_limit 20
+  @boundary_candidate_limit 20
 
   def run(project, config, opts \\ []) do
     top = Keyword.get(opts, :top, 40)
@@ -52,7 +58,7 @@ defmodule Reach.Check.Candidates do
     |> Enum.map(&canonical_module_cycle/1)
     |> Enum.uniq()
     |> minimal_cycles()
-    |> Enum.take(20)
+    |> Enum.take(@cycle_candidate_limit)
     |> Enum.with_index(1)
     |> Enum.map(fn {cycle, index} ->
       %{
@@ -91,7 +97,7 @@ defmodule Reach.Check.Candidates do
     |> module_call_edges()
     |> Enum.group_by(&{inspect(&1.caller), inspect(&1.callee)})
     |> Map.new(fn {key, edges} ->
-      {key, Enum.take(edges, 3) |> Enum.map(&representative_call/1)}
+      {key, Enum.take(edges, @representative_calls_per_edge) |> Enum.map(&representative_call/1)}
     end)
   end
 
@@ -123,7 +129,7 @@ defmodule Reach.Check.Candidates do
     cycle
     |> cycle_pairs()
     |> Enum.flat_map(&Map.get(call_examples, &1, []))
-    |> Enum.take(10)
+    |> Enum.take(@representative_call_limit)
   end
 
   defp cycle_pairs(cycle) do
@@ -189,7 +195,7 @@ defmodule Reach.Check.Candidates do
     |> Enum.sort_by(fn {func, effects} ->
       {-length(effects), func.source_span.file, func.source_span.start_line}
     end)
-    |> Enum.take(20)
+    |> Enum.take(@mixed_effect_candidate_limit)
     |> Enum.with_index(1)
     |> Enum.map(fn {{func, effects}, index} ->
       id = {func.meta[:module], func.meta[:name], func.meta[:arity]}
@@ -231,7 +237,7 @@ defmodule Reach.Check.Candidates do
     |> Enum.sort_by(fn {func, branches, callers} ->
       {-branches * max(length(callers), 1), func.source_span.file, func.source_span.start_line}
     end)
-    |> Enum.take(20)
+    |> Enum.take(@extract_region_candidate_limit)
     |> Enum.with_index(1)
     |> Enum.map(fn {{func, branches, callers}, index} ->
       %{
@@ -266,7 +272,7 @@ defmodule Reach.Check.Candidates do
     layer_graph = Architecture.layer_graph(project, config)
 
     Architecture.dependency_violations(project, config, layer_graph)
-    |> Enum.take(20)
+    |> Enum.take(@boundary_candidate_limit)
     |> Enum.with_index(1)
     |> Enum.map(fn {violation, index} ->
       %{

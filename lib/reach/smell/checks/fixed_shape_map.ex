@@ -1,11 +1,11 @@
-defmodule Reach.CLI.Analyses.Smell.FixedShapeMap do
+defmodule Reach.Smell.Checks.FixedShapeMap do
   @moduledoc false
 
-  @behaviour Reach.CLI.Analyses.Smell.Check
+  @behaviour Reach.Smell.Check
 
-  alias Reach.CLI.Analyses.Smell.Finding
-  alias Reach.CLI.Format
   alias Reach.IR
+  alias Reach.Smell.Finding
+  alias Reach.Smell.Helpers
 
   @min_keys 3
   @min_occurrences 3
@@ -36,7 +36,7 @@ defmodule Reach.CLI.Analyses.Smell.FixedShapeMap do
       |> Enum.sort()
 
     if length(keys) >= @min_keys do
-      [%{keys: keys, location: Format.location(node)}]
+      [%{keys: keys, location: Helpers.location(node)}]
     else
       []
     end

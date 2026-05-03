@@ -1,11 +1,10 @@
-defmodule Reach.CLI.Analyses.Smell.EagerPattern do
+defmodule Reach.Smell.Checks.EagerPattern do
   @moduledoc false
 
-  use Reach.CLI.Analyses.Smell.Check
+  use Reach.Smell.Check
 
-  alias Reach.CLI.Analyses.Smell.Finding
-  alias Reach.CLI.Format
   alias Reach.IR
+  alias Reach.Smell.Finding
 
   defp findings(func) do
     func
@@ -89,7 +88,7 @@ defmodule Reach.CLI.Analyses.Smell.EagerPattern do
     Finding.new(
       kind: :eager_pattern,
       message: "Enum.map → List.first: builds entire list for one element. Use Enum.find_value/2",
-      location: Format.location(second)
+      location: Helpers.location(second)
     )
   end
 
@@ -98,7 +97,7 @@ defmodule Reach.CLI.Analyses.Smell.EagerPattern do
       kind: :eager_pattern,
       message:
         "Enum.sort → Enum.take(#{take_count(second)}): sorts entire list. Use Enum.min/max for one element or a partial top-k pass",
-      location: Format.location(second)
+      location: Helpers.location(second)
     )
   end
 
@@ -106,7 +105,7 @@ defmodule Reach.CLI.Analyses.Smell.EagerPattern do
     Finding.new(
       kind: :eager_pattern,
       message: "Enum.sort → Enum.reverse: use Enum.sort(enumerable, :desc) instead",
-      location: Format.location(second)
+      location: Helpers.location(second)
     )
   end
 
@@ -115,7 +114,7 @@ defmodule Reach.CLI.Analyses.Smell.EagerPattern do
       kind: :eager_pattern,
       message:
         "Enum.sort → Enum.at(#{take_count(second)}): full sort for one element. Use Enum.min/max or a selection pass",
-      location: Format.location(second)
+      location: Helpers.location(second)
     )
   end
 
@@ -132,7 +131,7 @@ defmodule Reach.CLI.Analyses.Smell.EagerPattern do
     Finding.new(
       kind: :eager_pattern,
       message: "Enum.drop → Enum.take: use Enum.slice/3 to express slicing intent",
-      location: Format.location(second)
+      location: Helpers.location(second)
     )
   end
 
@@ -141,7 +140,7 @@ defmodule Reach.CLI.Analyses.Smell.EagerPattern do
       kind: :eager_pattern,
       message:
         "Enum.take_while → count/length: allocates an intermediate list. Use Enum.all?/2 or Enum.reduce_while/3",
-      location: Format.location(second)
+      location: Helpers.location(second)
     )
   end
 
@@ -149,7 +148,7 @@ defmodule Reach.CLI.Analyses.Smell.EagerPattern do
     Finding.new(
       kind: :eager_pattern,
       message: "Enum.map → Enum.join: use Enum.map_join/3 when the intended result is a binary",
-      location: Format.location(second)
+      location: Helpers.location(second)
     )
   end
 

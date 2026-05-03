@@ -1,13 +1,13 @@
-defmodule Reach.CLI.Analyses.Smell.Check do
+defmodule Reach.Smell.Check do
   @moduledoc false
 
   @callback run(Reach.Project.t()) :: [map()]
 
   defmacro __using__(_opts) do
     quote do
-      @behaviour Reach.CLI.Analyses.Smell.Check
+      @behaviour Reach.Smell.Check
 
-      alias Reach.CLI.Analyses.Smell.Helpers
+      alias Reach.Smell.Helpers
 
       def run(project) do
         project

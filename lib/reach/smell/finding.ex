@@ -1,4 +1,4 @@
-defmodule Reach.CLI.Analyses.Smell.Finding do
+defmodule Reach.Smell.Finding do
   @moduledoc false
 
   @enforce_keys [:kind, :message, :location]

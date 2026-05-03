@@ -35,6 +35,11 @@ defmodule Reach.CLI.Analyses.Flow do
   alias Reach.CLI.Options
   alias Reach.CLI.Project
   alias Reach.IR
+  alias Reach.Trace.Pattern
+
+  @default_path_limit 50
+  @default_display_limit 30
+  @max_intermediate_nodes 10
 
   def run(args, cli_opts \\ []) do
     Options.run(args, @switches, @aliases, fn opts, _positional ->
@@ -71,8 +76,8 @@ defmodule Reach.CLI.Analyses.Flow do
   defp path_limit(opts) do
     cond do
       opts[:all] -> :all
-      is_integer(opts[:limit]) and opts[:limit] > 50 -> opts[:limit]
-      true -> 50
+      is_integer(opts[:limit]) and opts[:limit] > @default_path_limit -> opts[:limit]
+      true -> @default_path_limit
     end
   end
 
@@ -80,13 +85,13 @@ defmodule Reach.CLI.Analyses.Flow do
     cond do
       opts[:all] -> :all
       is_integer(opts[:limit]) and opts[:limit] > 0 -> opts[:limit]
-      true -> 30
+      true -> @default_display_limit
     end
   end
 
   defp analyze_taint(project, from_pattern, to_pattern, max_paths) do
-    sources = find_nodes(project, build_filter(from_pattern))
-    sinks = find_nodes(project, build_filter(to_pattern))
+    sources = find_nodes(project, Pattern.compile(from_pattern))
+    sinks = find_nodes(project, Pattern.compile(to_pattern))
 
     paths = find_taint_paths(project, sources, sinks, max_paths)
 
@@ -135,32 +140,6 @@ defmodule Reach.CLI.Analyses.Flow do
     end
   end
 
-  defp build_filter(pattern) when pattern in ["conn.params", "params"] do
-    fn node ->
-      node.type == :var and node.meta[:name] in [:params, :user_params, :body_params]
-    end
-  end
-
-  defp build_filter(pattern) when pattern in ["Repo", "Repo.query"] do
-    fn node ->
-      node.type == :call and
-        ((is_atom(node.meta[:module]) and to_string(node.meta[:module]) =~ "Repo") or
-           node.meta[:module] == Ecto.Adapters.SQL)
-    end
-  end
-
-  defp build_filter("System.cmd") do
-    fn node ->
-      node.type == :call and node.meta[:module] == System and node.meta[:function] == :cmd
-    end
-  end
-
-  defp build_filter(pattern) do
-    fn node ->
-      node.type == :call and to_string(node.meta[:function] || "") =~ pattern
-    end
-  end
-
   defp find_nodes(project, filter) do
     Map.values(project.nodes) |> Enum.filter(filter)
   end
@@ -205,7 +184,7 @@ defmodule Reach.CLI.Analyses.Flow do
         |> Enum.filter(& &1.source_span)
         |> Enum.sort_by(fn n -> {n.source_span[:file], n.source_span[:start_line]} end)
         |> Enum.uniq_by(fn n -> {n.source_span[:file], n.source_span[:start_line]} end)
-        |> Enum.take(10)
+        |> Enum.take(@max_intermediate_nodes)
 
       %{source: source, sink: sink, intermediate: path_nodes}
     else

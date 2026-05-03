@@ -1,11 +1,10 @@
-defmodule Reach.CLI.Analyses.Smell.StringBuilding do
+defmodule Reach.Smell.Checks.StringBuilding do
   @moduledoc false
 
-  use Reach.CLI.Analyses.Smell.Check
+  use Reach.Smell.Check
 
-  alias Reach.CLI.Analyses.Smell.Finding
-  alias Reach.CLI.Format
   alias Reach.IR
+  alias Reach.Smell.Finding
 
   defp findings(func) do
     all = IR.all_nodes(func)
@@ -44,7 +43,7 @@ defmodule Reach.CLI.Analyses.Smell.StringBuilding do
       Finding.new(
         kind: :string_building,
         message: message,
-        location: Format.location(node)
+        location: Helpers.location(node)
       )
     ]
   end
@@ -57,7 +56,7 @@ defmodule Reach.CLI.Analyses.Smell.StringBuilding do
         kind: :string_building,
         message:
           "Enum.map_join with string interpolation: builds N intermediate strings. Use Enum.map/2 returning iolists",
-        location: Format.location(call)
+        location: Helpers.location(call)
       )
     end)
   end
@@ -81,7 +80,7 @@ defmodule Reach.CLI.Analyses.Smell.StringBuilding do
         kind: :string_building,
         message:
           "String concatenation around Enum.join: wrap in a list instead — [\"<div>\", parts, \"</div>\"]",
-        location: Format.location(concat)
+        location: Helpers.location(concat)
       )
     end)
   end
@@ -97,7 +96,7 @@ defmodule Reach.CLI.Analyses.Smell.StringBuilding do
         kind: :string_building,
         message:
           "Enum.reduce building string with <>: O(n²) copying. Use iolists or Enum.map_join",
-        location: Format.location(reduce)
+        location: Helpers.location(reduce)
       )
     end)
   end

@@ -1,7 +1,7 @@
-defmodule Reach.CLI.Analyses.Smell.Registry do
+defmodule Reach.Smell.Registry do
   @moduledoc false
 
-  alias Reach.CLI.Analyses.Smell.Check
+  alias Reach.Smell.Check
 
   def checks do
     :reach

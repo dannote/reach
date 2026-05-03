@@ -27,7 +27,8 @@ defmodule Mix.Tasks.Reach.Check do
   alias Reach.Check.Architecture
   alias Reach.Check.Candidates
   alias Reach.Check.Changed
-  alias Reach.CLI.Analyses.{DeadCode, Smell}
+  alias Reach.Check.DeadCode
+  alias Reach.Check.Smells
   alias Reach.CLI.Format
   alias Reach.CLI.Pipe
   alias Reach.CLI.Project
@@ -65,7 +66,7 @@ defmodule Mix.Tasks.Reach.Check do
           DeadCode.run_opts(opts, positional, command: "reach.check")
 
         opts[:smells] ->
-          Smell.run_opts(opts, positional, command: "reach.check")
+          Smells.run_opts(opts, positional, command: "reach.check")
 
         opts[:candidates] ->
           render_candidates_placeholder(opts, positional)

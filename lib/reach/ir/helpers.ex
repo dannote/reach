@@ -36,6 +36,12 @@ defmodule Reach.IR.Helpers do
     end
   end
 
+  def call_name(%Node{} = node) do
+    mod = node.meta[:module]
+    fun = node.meta[:function]
+    if mod, do: "#{inspect(mod)}.#{fun}", else: to_string(fun)
+  end
+
   def module_from_path(path) do
     path
     |> Path.rootname()

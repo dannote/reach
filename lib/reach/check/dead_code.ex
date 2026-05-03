@@ -1,4 +1,4 @@
-defmodule Reach.CLI.Analyses.DeadCode do
+defmodule Reach.Check.DeadCode do
   @moduledoc """
   Finds dead code — pure expressions whose values are never used.
 
@@ -15,6 +15,7 @@ defmodule Reach.CLI.Analyses.DeadCode do
 
   alias Reach.CLI.Format
   alias Reach.CLI.Options
+  alias Reach.CLI.Project
 
   @switches [format: :string, path: :string]
   @aliases [f: :format]
@@ -27,7 +28,7 @@ defmodule Reach.CLI.Analyses.DeadCode do
   def run_opts(opts, positional \\ [], cli_opts \\ []) do
     format = opts[:format] || "text"
 
-    Mix.Task.run("compile", ["--no-warnings-as-errors"])
+    Project.compile(opts[:format] == "json")
 
     files = collect_files(opts[:path] || List.first(positional))
     unless format == "json", do: Mix.shell().info("Analyzing #{length(files)} file(s)...")

@@ -7,6 +7,8 @@ defmodule Reach.CLI.BoxartGraph do
   alias Reach.Visualize.ControlFlow
   alias Reach.Visualize.Helpers
 
+  @slice_node_render_limit 20
+
   @compile {:no_warn_undefined,
             [
               Boxart,
@@ -258,7 +260,7 @@ defmodule Reach.CLI.BoxartGraph do
       |> Enum.map(&Map.get(project.nodes, &1))
       |> Enum.reject(&is_nil/1)
       |> Enum.filter(& &1.source_span)
-      |> Enum.take(20)
+      |> Enum.take(@slice_node_render_limit)
 
     viz_graph =
       Enum.reduce(slice_nodes, Graph.new(), fn n, g ->

@@ -57,7 +57,7 @@ defmodule Mix.Tasks.Reach do
     Pipe.safely(fn ->
       {opts, files, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
 
-      Mix.Task.run("compile", ["--no-warnings-as-errors"])
+      Reach.CLI.Project.compile()
 
       format = opts[:format] || "html"
       output_dir = opts[:output] || "reach_report"

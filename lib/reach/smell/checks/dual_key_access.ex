@@ -1,11 +1,10 @@
-defmodule Reach.CLI.Analyses.Smell.DualKeyAccess do
+defmodule Reach.Smell.Checks.DualKeyAccess do
   @moduledoc false
 
-  use Reach.CLI.Analyses.Smell.Check
+  use Reach.Smell.Check
 
-  alias Reach.CLI.Analyses.Smell.Finding
-  alias Reach.CLI.Format
   alias Reach.IR
+  alias Reach.Smell.Finding
 
   defp findings(function) do
     function
@@ -33,7 +32,7 @@ defmodule Reach.CLI.Analyses.Smell.DualKeyAccess do
             variable: variable,
             key: key_name(key),
             key_type: key_type(key),
-            location: Format.location(node)
+            location: Helpers.location(node)
           }
         ]
 

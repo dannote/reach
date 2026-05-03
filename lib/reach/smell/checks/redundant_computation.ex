@@ -1,11 +1,10 @@
-defmodule Reach.CLI.Analyses.Smell.RedundantComputation do
+defmodule Reach.Smell.Checks.RedundantComputation do
   @moduledoc false
 
-  use Reach.CLI.Analyses.Smell.Check
+  use Reach.Smell.Check
 
-  alias Reach.CLI.Analyses.Smell.Finding
-  alias Reach.CLI.Format
   alias Reach.Effects
+  alias Reach.Smell.Finding
 
   @type_check_fns [
     :is_atom,
@@ -127,8 +126,8 @@ defmodule Reach.CLI.Analyses.Smell.RedundantComputation do
         Finding.new(
           kind: :redundant_computation,
           message:
-            "#{Format.call_name(left)} called twice with same args (line #{left.source_span[:start_line]} and #{right.source_span[:start_line]})",
-          location: Format.location(right)
+            "#{Helpers.call_name(left)} called twice with same args (line #{left.source_span[:start_line]} and #{right.source_span[:start_line]})",
+          location: Helpers.location(right)
         )
       ]
     else

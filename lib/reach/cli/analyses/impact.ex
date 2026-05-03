@@ -22,6 +22,9 @@ defmodule Reach.CLI.Analyses.Impact do
   alias Reach.CLI.Project
   alias Reach.IR
 
+  @default_return_dependent_limit 20
+  @default_dependency_node_limit 20
+
   def run(args, cli_opts \\ []) do
     {opts, target_args} = Options.parse(args, @switches, @aliases)
 
@@ -130,7 +133,7 @@ defmodule Reach.CLI.Analyses.Impact do
       if caller_node, do: return_deps_for_caller(caller_node, target_key, graph, nodes), else: []
     end)
     |> Enum.uniq_by(& &1.location)
-    |> Enum.take(20)
+    |> Enum.take(@default_return_dependent_limit)
   end
 
   defp return_deps_for_caller(caller_node, target_key, graph, nodes) do
@@ -153,7 +156,7 @@ defmodule Reach.CLI.Analyses.Impact do
     if Graph.has_vertex?(graph, call_site.id) do
       graph
       |> Graph.reachable([call_site.id])
-      |> Enum.take(20)
+      |> Enum.take(@default_dependency_node_limit)
       |> Enum.map(&Map.get(nodes, &1))
       |> Enum.reject(&is_nil/1)
       |> Enum.map(fn dep_node ->

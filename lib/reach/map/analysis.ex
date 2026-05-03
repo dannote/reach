@@ -10,6 +10,8 @@ defmodule Reach.Map.Analysis do
   alias Reach.IR
   alias Reach.IR.Helpers, as: IRHelpers
 
+  @xref_variable_sample_limit 5
+
   def summary(project, path) do
     funcs = function_defs(project, path)
     modules = module_defs(project, path)
@@ -455,7 +457,7 @@ defmodule Reach.Map.Analysis do
         |> Enum.flat_map(fn edge -> [edge.from_node, edge.to_node] end)
         |> Enum.reject(&is_nil/1)
         |> Enum.uniq()
-        |> Enum.take(5)
+        |> Enum.take(@xref_variable_sample_limit)
 
       %{
         from: func_id_tuple(from),

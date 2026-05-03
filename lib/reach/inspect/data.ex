@@ -6,6 +6,8 @@ defmodule Reach.Inspect.Data do
   alias Reach.Analysis
   alias Reach.IR
 
+  @default_edge_limit 200
+
   def summary(project, func, variable \\ nil) do
     nodes = IR.all_nodes(func)
     node_ids = MapSet.new(nodes, & &1.id)
@@ -34,7 +36,7 @@ defmodule Reach.Inspect.Data do
         MapSet.member?(node_ids, edge.v2) and
         (variable == nil or to_string(data_edge_label(edge)) == variable)
     end)
-    |> Enum.take(200)
+    |> Enum.take(@default_edge_limit)
     |> Enum.map(fn edge ->
       %{
         from: Map.get(nodes_by_id, edge.v1) |> compact_node_summary(),

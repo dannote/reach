@@ -1,7 +1,7 @@
 defmodule Reach.SmellTest do
   use ExUnit.Case, async: true
 
-  alias Reach.CLI.Analyses.Smell
+  alias Reach.Check.Smells
 
   defp project_from_string(code) do
     path = Path.join(System.tmp_dir!(), "smell_test_#{:erlang.unique_integer([:positive])}.ex")
@@ -15,7 +15,7 @@ defmodule Reach.SmellTest do
     project = project_from_string(code)
 
     ExUnit.CaptureIO.capture_io(fn ->
-      send(self(), {:findings, Smell.analyze(project)})
+      send(self(), {:findings, Smells.analyze(project)})
     end)
 
     receive do
@@ -27,13 +27,13 @@ defmodule Reach.SmellTest do
 
   describe "check registry" do
     test "auto-discovers behaviour modules" do
-      checks = Reach.CLI.Analyses.Smell.Registry.checks()
+      checks = Reach.Smell.Registry.checks()
 
-      assert Reach.CLI.Analyses.Smell.DualKeyAccess in checks
-      assert Reach.CLI.Analyses.Smell.FixedShapeMap in checks
-      assert Reach.CLI.Analyses.Smell.EagerPattern in checks
-      assert Reach.CLI.Analyses.Smell.PipelineWaste in checks
-      assert Reach.CLI.Analyses.Smell.ReverseAppend in checks
+      assert Reach.Smell.Checks.DualKeyAccess in checks
+      assert Reach.Smell.Checks.FixedShapeMap in checks
+      assert Reach.Smell.Checks.EagerPattern in checks
+      assert Reach.Smell.Checks.PipelineWaste in checks
+      assert Reach.Smell.Checks.ReverseAppend in checks
     end
   end
 

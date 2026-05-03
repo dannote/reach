@@ -1,4 +1,4 @@
-defmodule Reach.CLI.Analyses.Smell do
+defmodule Reach.Check.Smells do
   @moduledoc """
   Finds local structural and performance smells.
 
@@ -19,10 +19,12 @@ defmodule Reach.CLI.Analyses.Smell do
   @switches [format: :string, path: :string]
   @aliases [f: :format]
 
-  alias Reach.CLI.Analyses.Smell.Finding
   alias Reach.CLI.Format
   alias Reach.CLI.Options
   alias Reach.CLI.Project
+  alias Reach.Smell.Finding
+
+  @evidence_display_limit 4
 
   def run(args, cli_opts \\ []) do
     {opts, positional} = Options.parse(args, @switches, @aliases)
@@ -62,7 +64,7 @@ defmodule Reach.CLI.Analyses.Smell do
   def analyze(project), do: run_checks(project)
 
   defp run_checks(project),
-    do: Enum.flat_map(Reach.CLI.Analyses.Smell.Registry.checks(), & &1.run(project))
+    do: Enum.flat_map(Reach.Smell.Registry.checks(), & &1.run(project))
 
   # --- Rendering ---
 
@@ -117,7 +119,7 @@ defmodule Reach.CLI.Analyses.Smell do
   defp render_evidence(evidence, primary_location) when is_list(evidence) do
     evidence
     |> Enum.reject(&(&1 == primary_location))
-    |> Enum.take(4)
+    |> Enum.take(@evidence_display_limit)
     |> case do
       [] ->
         :ok

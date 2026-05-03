@@ -23,6 +23,8 @@ defmodule Reach.CLI.Analyses.Slice do
   alias Reach.CLI.Options
   alias Reach.CLI.Project
 
+  @default_statement_limit 30
+
   def run(args, cli_opts \\ []) do
     {opts, target_args} = Options.parse(args, @switches, @aliases)
 
@@ -46,7 +48,7 @@ defmodule Reach.CLI.Analyses.Slice do
     {node, target} = resolve_slice_target(project, raw_target)
 
     slice_ids = compute_slice(project.graph, node.id, forward?)
-    result = filter_and_format(project, slice_ids, var_name)
+    result = filter_and_format(project, slice_ids, var_name, statement_limit(opts))
 
     if opts[:graph] do
       BoxartGraph.require!()
@@ -145,7 +147,9 @@ defmodule Reach.CLI.Analyses.Slice do
     end
   end
 
-  defp filter_and_format(project, slice_ids, var_name) do
+  defp statement_limit(opts), do: Keyword.get(opts, :statement_limit, @default_statement_limit)
+
+  defp filter_and_format(project, slice_ids, var_name, limit) do
     slice_ids
     |> Enum.map(fn id -> Map.get(project.nodes, id) end)
     |> Enum.reject(&is_nil/1)
@@ -161,7 +165,7 @@ defmodule Reach.CLI.Analyses.Slice do
     end)
     |> Enum.sort_by(fn stmt -> {stmt.file, stmt.line} end)
     |> Enum.uniq_by(fn stmt -> {stmt.file, stmt.line} end)
-    |> Enum.take(30)
+    |> Enum.take(limit)
   end
 
   defp maybe_filter_variable(nodes, nil), do: nodes

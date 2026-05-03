@@ -1,12 +1,12 @@
-defmodule Reach.CLI.Analyses.Smell.PipelineWaste do
+defmodule Reach.Smell.Checks.PipelineWaste do
   @moduledoc false
 
-  @behaviour Reach.CLI.Analyses.Smell.Check
+  @behaviour Reach.Smell.Check
 
-  alias Reach.CLI.Analyses.Smell.Finding
-  alias Reach.CLI.Format
   alias Reach.Effects
   alias Reach.IR
+  alias Reach.Smell.Finding
+  alias Reach.Smell.Helpers
 
   @impl true
   def run(project) do
@@ -62,7 +62,7 @@ defmodule Reach.CLI.Analyses.Smell.PipelineWaste do
     Finding.new(
       kind: :redundant_traversal,
       message: "Enum.reverse → Enum.reverse is a no-op",
-      location: Format.location(node)
+      location: Helpers.location(node)
     )
   end
 
@@ -70,7 +70,7 @@ defmodule Reach.CLI.Analyses.Smell.PipelineWaste do
     Finding.new(
       kind: :suboptimal,
       message: "Enum.filter → Enum.count: use Enum.count/2 instead",
-      location: Format.location(node)
+      location: Helpers.location(node)
     )
   end
 
@@ -78,7 +78,7 @@ defmodule Reach.CLI.Analyses.Smell.PipelineWaste do
     Finding.new(
       kind: :suboptimal,
       message: "Enum.map → Enum.count: use Enum.count/2 with transform",
-      location: Format.location(node)
+      location: Helpers.location(node)
     )
   end
 
@@ -86,7 +86,7 @@ defmodule Reach.CLI.Analyses.Smell.PipelineWaste do
     Finding.new(
       kind: :suboptimal,
       message: "Enum.map → Enum.map: consider fusing into one pass",
-      location: Format.location(node)
+      location: Helpers.location(node)
     )
   end
 
@@ -94,7 +94,7 @@ defmodule Reach.CLI.Analyses.Smell.PipelineWaste do
     Finding.new(
       kind: :suboptimal,
       message: "Enum.filter → Enum.filter: combine predicates into one pass",
-      location: Format.location(node)
+      location: Helpers.location(node)
     )
   end
 

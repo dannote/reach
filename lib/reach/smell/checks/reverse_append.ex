@@ -1,11 +1,10 @@
-defmodule Reach.CLI.Analyses.Smell.ReverseAppend do
+defmodule Reach.Smell.Checks.ReverseAppend do
   @moduledoc false
 
-  use Reach.CLI.Analyses.Smell.Check
+  use Reach.Smell.Check
 
-  alias Reach.CLI.Analyses.Smell.Finding
-  alias Reach.CLI.Format
   alias Reach.IR
+  alias Reach.Smell.Finding
 
   defp findings(func) do
     func
@@ -15,7 +14,7 @@ defmodule Reach.CLI.Analyses.Smell.ReverseAppend do
       Finding.new(
         kind: :suboptimal,
         message: "Enum.reverse(list) ++ tail traverses twice. Use Enum.reverse(list, tail)",
-        location: Format.location(node)
+        location: Helpers.location(node)
       )
     end)
   end
