@@ -3,25 +3,23 @@ defmodule Reach.SmellTest do
 
   alias Reach.Check.Smells
 
-  defp project_from_string(code) do
+  defp run_smell_task(code, config \\ []) do
     path = Path.join(System.tmp_dir!(), "smell_test_#{:erlang.unique_integer([:positive])}.ex")
     File.write!(path, code)
     project = Reach.Project.from_sources([path])
-    File.rm(path)
-    project
-  end
 
-  defp run_smell_task(code, config \\ []) do
-    project = project_from_string(code)
+    try do
+      ExUnit.CaptureIO.capture_io(fn ->
+        send(self(), {:findings, Smells.run(project, config)})
+      end)
 
-    ExUnit.CaptureIO.capture_io(fn ->
-      send(self(), {:findings, Smells.run(project, config)})
-    end)
-
-    receive do
-      {:findings, findings} -> findings
+      receive do
+        {:findings, findings} -> findings
+      after
+        1000 -> []
+      end
     after
-      1000 -> []
+      File.rm(path)
     end
   end
 
@@ -33,6 +31,7 @@ defmodule Reach.SmellTest do
       assert Reach.Smell.Checks.FixedShapeMap in checks
       assert Reach.Smell.Checks.BehaviourCandidate in checks
       assert Reach.Smell.Checks.CollectionIdioms in checks
+      assert Reach.Smell.Checks.CloneConsistency in checks
       assert Reach.Smell.Checks.ConfigPhase in checks
       assert Reach.Smell.Checks.EagerPattern in checks
       assert Reach.Smell.Checks.PipelineWaste in checks
@@ -345,6 +344,60 @@ defmodule Reach.SmellTest do
         """)
 
       assert Enum.filter(findings, &(&1.kind == :dual_key_access)) == []
+    end
+  end
+
+  describe "clone consistency detection" do
+    test "flags return contract drift in similar functions" do
+      findings =
+        run_smell_task(
+          """
+          defmodule DriftA do
+            def fetch(value) do
+              normalized = normalize(value)
+              {:ok, normalized}
+            end
+
+            defp normalize(value), do: value
+          end
+
+          defmodule DriftB do
+            def fetch(value) do
+              normalized = normalize(value)
+              normalized
+            end
+
+            defp normalize(value), do: value
+          end
+          """,
+          clone_analysis: [min_mass: 5, min_similarity: 0.8]
+        )
+
+      assert Enum.any?(findings, &(&1.kind == :return_contract_drift))
+    end
+
+    test "flags map contract drift across similar functions" do
+      findings =
+        run_smell_task(
+          """
+          defmodule ContractA do
+            def extract(params) do
+              id = Map.get(params, "id")
+              {:ok, id}
+            end
+          end
+
+          defmodule ContractB do
+            def extract(params) do
+              id = Map.get(params, :id)
+              {:ok, id}
+            end
+          end
+          """,
+          clone_analysis: [min_mass: 5, min_similarity: 0.8]
+        )
+
+      assert Enum.any?(findings, &(&1.kind == :map_contract_drift))
     end
   end
 

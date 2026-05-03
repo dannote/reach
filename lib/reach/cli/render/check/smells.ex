@@ -36,12 +36,18 @@ defmodule Reach.CLI.Render.Check.Smells do
       render_group(Map.get(grouped, :eager_pattern, []), "Eager where lazy suffices")
       render_group(Map.get(grouped, :string_building, []), "String building (use iolists)")
       render_group(Map.get(grouped, :config_phase, []), "Compile-time vs runtime config")
+      render_group(structural_consistency(grouped), "Structural consistency")
       render_group(Map.get(grouped, :behaviour_candidate, []), "Behaviour candidates")
       render_group(Map.get(grouped, :dual_key_access, []), "Loose map contracts")
       render_group(Map.get(grouped, :fixed_shape_map, []), "Repeated map shapes")
 
       IO.puts("#{length(findings)} finding(s)\n")
     end
+  end
+
+  defp structural_consistency(grouped) do
+    [:return_contract_drift, :side_effect_order_drift, :map_contract_drift, :validation_drift]
+    |> Enum.flat_map(&Map.get(grouped, &1, []))
   end
 
   defp render_group([], _title), do: nil
