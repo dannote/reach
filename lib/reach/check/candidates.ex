@@ -4,7 +4,7 @@ defmodule Reach.Check.Candidates do
   alias Reach.Analysis
   alias Reach.Check.{Architecture, Changed}
   alias Reach.CLI.Format
-  alias Reach.CLI.Project
+  alias Reach.Project.Query
 
   @note "Candidates are advisory. Reach reports graph/effect/architecture evidence; prove behavior preservation before editing."
   @cycle_candidate_limit 20
@@ -228,7 +228,7 @@ defmodule Reach.Check.Candidates do
     |> Map.values()
     |> Enum.filter(&(&1.type == :function_def and &1.source_span))
     |> Enum.map(fn func ->
-      {func, Changed.branch_count(func), Project.callers(project, function_id(func), 1)}
+      {func, Changed.branch_count(func), Query.callers(project, function_id(func), 1)}
     end)
     |> Enum.filter(fn {_func, branches, callers} -> branches >= 8 and callers != [] end)
     |> Enum.reject(fn {func, _branches, _callers} ->

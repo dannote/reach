@@ -3,8 +3,8 @@ defmodule Reach.Check.Changed do
 
   alias Reach.Check.Architecture
   alias Reach.CLI.Format
-  alias Reach.CLI.Project
   alias Reach.IR
+  alias Reach.Project.Query
 
   def run(project, config, opts \\ []) do
     base = Keyword.get(opts, :base) || default_base_ref()
@@ -53,7 +53,7 @@ defmodule Reach.Check.Changed do
     |> Enum.flat_map(fn {file, ranges} ->
       ranges
       |> Enum.flat_map(fn {first, last} -> first..last end)
-      |> Enum.map(&Project.find_function_at_location(project, file, &1))
+      |> Enum.map(&Query.find_function_at_location(project, file, &1))
       |> Enum.reject(&is_nil/1)
     end)
     |> Enum.uniq_by(&{&1.meta[:module], &1.meta[:name], &1.meta[:arity]})
@@ -164,8 +164,8 @@ defmodule Reach.Check.Changed do
 
   defp function_summary(project, func, config) do
     id = {func.meta[:module], func.meta[:name], func.meta[:arity]}
-    direct_callers = Project.callers(project, id, 1)
-    transitive_callers = Project.callers(project, id, 4)
+    direct_callers = Query.callers(project, id, 1)
+    transitive_callers = Query.callers(project, id, 4)
     effects = Architecture.function_effects(func)
     branches = branch_count(func)
     {risk, reasons} = change_risk(func, direct_callers, transitive_callers, effects, branches)

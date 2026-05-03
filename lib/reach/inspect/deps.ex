@@ -3,13 +3,13 @@ defmodule Reach.Inspect.Deps do
   Builds dependency summaries for one target function.
   """
 
-  alias Reach.CLI.Project
+  alias Reach.Project.Query
 
   def analyze(project, target, depth) do
     %{
       target: target,
-      callers: Project.callers(project, target, 1),
-      callees: Project.callees(project, target, depth),
+      callers: Query.callers(project, target, 1),
+      callees: Query.callees(project, target, depth),
       shared_state_writers: find_shared_state(project, target)
     }
   end

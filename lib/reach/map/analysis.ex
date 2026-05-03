@@ -3,12 +3,12 @@ defmodule Reach.Map.Analysis do
 
   alias Reach.Analysis
   alias Reach.CLI.Format
-  alias Reach.CLI.Project
   alias Reach.ControlFlow
   alias Reach.Dominator
   alias Reach.Effects
   alias Reach.IR
   alias Reach.IR.Helpers, as: IRHelpers
+  alias Reach.Project.Query
 
   @xref_variable_sample_limit 5
 
@@ -134,7 +134,7 @@ defmodule Reach.Map.Analysis do
   defp function_defs(project, path) do
     project.nodes
     |> Map.values()
-    |> Enum.filter(&(&1.type == :function_def and Project.file_matches?(span_file(&1), path)))
+    |> Enum.filter(&(&1.type == :function_def and Query.file_matches?(span_file(&1), path)))
   end
 
   defp call_nodes(project, path, module_filter) do
@@ -142,14 +142,14 @@ defmodule Reach.Map.Analysis do
 
     project.nodes
     |> Map.values()
-    |> Enum.filter(&(&1.type == :call and Project.file_matches?(span_file(&1), path)))
+    |> Enum.filter(&(&1.type == :call and Query.file_matches?(span_file(&1), path)))
     |> filter_by_module(module_nodes, module_filter)
   end
 
   defp module_defs(project, path) do
     project.nodes
     |> Map.values()
-    |> Enum.filter(&(&1.type == :module_def and Project.file_matches?(span_file(&1), path)))
+    |> Enum.filter(&(&1.type == :module_def and Query.file_matches?(span_file(&1), path)))
   end
 
   defp module_metrics(project, path) do
@@ -249,7 +249,7 @@ defmodule Reach.Map.Analysis do
   defp direct_caller_counts(call_graph) do
     call_graph
     |> Graph.edges()
-    |> Enum.filter(&(Project.mfa?(&1.v1) and Project.mfa?(&1.v2)))
+    |> Enum.filter(&(Query.mfa?(&1.v1) and Query.mfa?(&1.v2)))
     |> Enum.reduce(%{}, fn edge, acc ->
       Map.update(acc, edge.v2, MapSet.new([edge.v1]), &MapSet.put(&1, edge.v1))
     end)

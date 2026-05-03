@@ -4,13 +4,13 @@ defmodule Reach.Inspect.Candidates do
   """
 
   alias Reach.Analysis
-  alias Reach.CLI.Project
   alias Reach.Effects
   alias Reach.IR
+  alias Reach.Project.Query
 
   def find(project, mfa, func) do
     non_pure_effects = function_effect_atoms(func) -- [:pure, :unknown, :exception]
-    callers = Project.callers(project, mfa, 1)
+    callers = Query.callers(project, mfa, 1)
     branch_count = branch_count(func)
 
     []

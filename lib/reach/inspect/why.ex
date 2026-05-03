@@ -2,8 +2,8 @@ defmodule Reach.Inspect.Why do
   @moduledoc false
 
   alias Reach.CLI.Format
-  alias Reach.CLI.Project
   alias Reach.IR
+  alias Reach.Project.Query
 
   def result(project, source_raw, target_raw, max_depth) do
     source = resolve_why_target(project, source_raw)
@@ -69,7 +69,7 @@ defmodule Reach.Inspect.Why do
 
     case shortest_call_path(
            project.call_graph,
-           Project.all_variants(project.call_graph, source),
+           Query.all_variants(project.call_graph, source),
            MapSet.new(targets),
            max_depth
          ) do
@@ -127,17 +127,17 @@ defmodule Reach.Inspect.Why do
 
   defp source_variants(call_graph, {module, _fun, _arity} = mfa) when module != nil do
     call_graph
-    |> Project.all_variants(mfa)
+    |> Query.all_variants(mfa)
     |> Enum.sort_by(&if(&1 == mfa, do: 0, else: 1))
   end
 
-  defp source_variants(call_graph, mfa), do: Project.all_variants(call_graph, mfa)
+  defp source_variants(call_graph, mfa), do: Query.all_variants(call_graph, mfa)
 
   defp target_variants(call_graph, {module, _fun, _arity} = mfa) when module != nil do
-    if Graph.has_vertex?(call_graph, mfa), do: [mfa], else: Project.all_variants(call_graph, mfa)
+    if Graph.has_vertex?(call_graph, mfa), do: [mfa], else: Query.all_variants(call_graph, mfa)
   end
 
-  defp target_variants(call_graph, mfa), do: Project.all_variants(call_graph, mfa)
+  defp target_variants(call_graph, mfa), do: Query.all_variants(call_graph, mfa)
 
   defp shortest_call_path(graph, sources, targets, max_depth) do
     sources
@@ -178,19 +178,19 @@ defmodule Reach.Inspect.Why do
 
   defp path_depth(path), do: path |> Enum.reduce(0, fn _node, count -> count + 1 end)
 
-  defp why_vertex?(vertex), do: Project.mfa?(vertex) or is_atom(vertex)
+  defp why_vertex?(vertex), do: Query.mfa?(vertex) or is_atom(vertex)
 
   defp resolve_why_target(project, raw) do
     cond do
-      Project.parse_file_line(raw) != nil ->
-        {file, line} = Project.parse_file_line(raw)
+      Query.parse_file_line(raw) != nil ->
+        {file, line} = Query.parse_file_line(raw)
 
-        case Project.find_function_at_location(project, file, line) do
+        case Query.find_function_at_location(project, file, line) do
           nil -> nil
           func -> function_target({func.meta[:module], func.meta[:name], func.meta[:arity]})
         end
 
-      mfa = Project.resolve_target(project, raw) ->
+      mfa = Query.resolve_target(project, raw) ->
         function_target(mfa)
 
       module = resolve_module(project, raw) ->
@@ -271,7 +271,7 @@ defmodule Reach.Inspect.Why do
 
   defp function_path_node(project, mfa) do
     display_mfa = canonical_mfa(project, mfa)
-    func = Project.find_function(project, display_mfa) || Project.find_function(project, mfa)
+    func = Query.find_function(project, display_mfa) || Query.find_function(project, mfa)
 
     %{
       function: Format.func_id_to_string(display_mfa),
@@ -305,7 +305,7 @@ defmodule Reach.Inspect.Why do
   defp representative_call_evidence(project, from, to) do
     source = canonical_mfa(project, from)
 
-    with func when not is_nil(func) <- Project.find_function(project, source),
+    with func when not is_nil(func) <- Query.find_function(project, source),
          call when not is_nil(call) <- Enum.find(IR.all_nodes(func), &call_matches_mfa?(&1, to)) do
       [
         evidence_from_call(call,
