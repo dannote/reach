@@ -53,6 +53,22 @@ defmodule Reach.ProgramFactsOracleTest do
     :allowed_effect_violation
   ]
 
+  @metamorphic_policies [
+    :linear_call_chain,
+    :branching_call_graph,
+    :assignment_chain,
+    :pipeline_data_flow,
+    :pure,
+    :io_effect
+  ]
+
+  @metamorphic_transforms [
+    :add_dead_pure_statement,
+    :reorder_independent_assignments,
+    :split_module_files,
+    :add_alias_and_rewrite_remote_call
+  ]
+
   test "direct API discovers generated call graph oracle edges" do
     for {policy, index} <- Enum.with_index(@call_graph_policies, 1) do
       program = ProgramFacts.generate!(policy: policy, seed: 1_300 + index, depth: 4, width: 3)
@@ -120,6 +136,42 @@ defmodule Reach.ProgramFactsOracleTest do
     end
   end
 
+  test "direct API handles all policies at boundary sizes" do
+    sizes = [{1, 1}, {6, 4}]
+
+    for policy <- ProgramFacts.policies(), {depth, width} <- sizes do
+      program =
+        ProgramFacts.generate!(
+          policy: policy,
+          seed: 2_000 + depth + width,
+          depth: depth,
+          width: width
+        )
+
+      Assertions.assert_modules_discovered(program)
+      assert program.files != []
+    end
+  end
+
+  property "metamorphic transforms preserve declared oracle facts" do
+    check all(
+            program <-
+              ProgramFacts.StreamData.program(
+                policies: @metamorphic_policies,
+                seed_range: 100..140,
+                depth_range: 2..5,
+                width_range: 2..4
+              ),
+            transform <- StreamData.member_of(@metamorphic_transforms),
+            max_runs: 16
+          ) do
+      transformed = ProgramFacts.Transform.apply!(program, transform)
+      ProgramFacts.Metamorphic.assert_preserved!(program, transformed)
+
+      assert_preserved_oracles(transformed)
+    end
+  end
+
   property "direct API loads generated ProgramFacts oracle samples" do
     check all(
             program <-
@@ -134,5 +186,29 @@ defmodule Reach.ProgramFactsOracleTest do
       Assertions.assert_modules_discovered(program)
       Assertions.assert_call_edges_discovered(program)
     end
+  end
+
+  defp assert_preserved_oracles(program) do
+    preserved = preserved_facts(program)
+
+    if :modules in preserved, do: Assertions.assert_modules_discovered(program)
+    if :call_edges in preserved, do: Assertions.assert_call_edges_discovered(program)
+
+    if :data_flows in preserved and program.facts.data_flows != [],
+      do: Assertions.assert_data_flow_visible(program)
+
+    if :effects in preserved and program.facts.effects != [],
+      do: Assertions.assert_effects_discovered(program)
+
+    if :branches in preserved and program.facts.branches != [],
+      do: Assertions.assert_branches_visible(program)
+  end
+
+  defp preserved_facts(program) do
+    program.metadata
+    |> Map.get(:transforms, [])
+    |> List.wrap()
+    |> Enum.flat_map(&Map.get(&1, :preserves, []))
+    |> Enum.uniq()
   end
 end

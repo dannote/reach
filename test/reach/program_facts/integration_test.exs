@@ -218,6 +218,44 @@ defmodule Reach.ProgramFactsIntegrationTest do
     end
   end
 
+  test "feedback-directed generated samples keep canonical JSON commands stable", %{root: root} do
+    search =
+      ProgramFacts.Search.run(
+        iterations: 12,
+        seed: 2_500,
+        policies: ProgramFacts.policies(),
+        layouts: @layout_policies,
+        scoring: [:new_features, :graph_complexity, :cycles, :long_paths]
+      )
+
+    assert search.coverage.program_count > 0
+    assert search.coverage.feature_count > 0
+
+    for program <- Enum.take(search.programs, 6) do
+      {_ok, dir, _program} = ProgramFacts.Project.write_tmp!(program, root: root)
+
+      in_project(dir, fn ->
+        assert_json_command(ReachMap, ["--format", "json"], "reach.map")
+        assert_json_command(ReachMap, ["--effects", "--format", "json"], "reach.map")
+        assert_json_command(ReachMap, ["--depth", "--format", "json", "--top", "10"], "reach.map")
+
+        assert_json_command(
+          ReachTrace,
+          ["--variable", "input", "--format", "json"],
+          "reach.trace"
+        )
+
+        assert_json_command(ReachCheck, ["--smells", "--format", "json"], "reach.check")
+
+        assert_json_command(
+          ReachCheck,
+          ["--candidates", "--format", "json", "--top", "5"],
+          "reach.check"
+        )
+      end)
+    end
+  end
+
   property "generated ProgramFacts samples can be loaded as Reach projects", %{root: root} do
     check all(
             program <-
@@ -258,6 +296,13 @@ defmodule Reach.ProgramFactsIntegrationTest do
       File.cd!(previous)
       Process.delete({Reach.CLI.Project, :func_index})
     end
+  end
+
+  defp assert_json_command(task, args, command) do
+    output = capture_io(fn -> task.run(args) end)
+    data = decode_json(output)
+    assert data["command"] == command
+    data
   end
 
   defp decode_json(output) do
