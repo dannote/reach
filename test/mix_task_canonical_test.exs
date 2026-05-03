@@ -169,6 +169,27 @@ defmodule Mix.Tasks.Reach.CanonicalTest do
     assert offenders == []
   end
 
+  test "canonical command modules keep rendering in render layer" do
+    forbidden = ~r/IO\.puts|Format\.render|Jason\.encode!/
+
+    allowed = MapSet.new(["lib/reach/cli/commands/map.ex", "lib/reach/cli/commands/report.ex"])
+
+    offenders =
+      "lib/reach/cli/commands/**/*.ex"
+      |> Path.wildcard()
+      |> Enum.reject(&MapSet.member?(allowed, &1))
+      |> Enum.flat_map(fn file ->
+        file
+        |> File.read!()
+        |> String.split("\n")
+        |> Enum.with_index(1)
+        |> Enum.filter(fn {line, _line_number} -> line =~ forbidden end)
+        |> Enum.map(fn {_line, line_number} -> "#{file}:#{line_number}" end)
+      end)
+
+    assert offenders == []
+  end
+
   test "reach.check emits graph-backed candidates as pure json" do
     output = capture_io(fn -> Check.run(["--candidates", "--format", "json"]) end)
 
