@@ -8,8 +8,6 @@ defmodule Reach.Check.Candidates do
 
   @note "Candidates are advisory. Reach reports graph/effect/architecture evidence; prove behavior preservation before editing."
   @cycle_candidate_limit 20
-  @cycle_search_depth 5
-  @cycle_neighbor_limit 12
   @representative_call_limit 10
   @representative_calls_per_edge 3
   @mixed_effect_candidate_limit 20
@@ -55,11 +53,7 @@ defmodule Reach.Check.Candidates do
     call_examples = module_call_examples(project)
 
     deps
-    |> cycle_search_starts()
-    |> Enum.flat_map(&walk_module_cycle(deps, &1, &1, [], @cycle_search_depth, 0))
-    |> Enum.map(&canonical_module_cycle/1)
-    |> Enum.uniq()
-    |> minimal_cycles()
+    |> module_cycle_components()
     |> Enum.take(@cycle_candidate_limit)
     |> Enum.with_index(1)
     |> Enum.map(fn {cycle, index} ->
@@ -80,7 +74,7 @@ defmodule Reach.Check.Candidates do
         suggestion:
           "Move shared code to a lower-level module or route calls through an existing boundary.",
         modules: cycle,
-        representative_calls: representative_cycle_calls(cycle, call_examples)
+        representative_calls: representative_component_calls(cycle, call_examples)
       }
     end)
   end
@@ -127,25 +121,33 @@ defmodule Reach.Check.Candidates do
     end)
   end
 
-  defp representative_cycle_calls(cycle, call_examples) do
-    cycle
-    |> cycle_pairs()
-    |> Enum.flat_map(&Map.get(call_examples, &1, []))
+  defp representative_component_calls(cycle, call_examples) do
+    cycle_modules = MapSet.new(cycle)
+
+    call_examples
+    |> Enum.flat_map(fn {{caller, callee}, examples} ->
+      if MapSet.member?(cycle_modules, caller) and MapSet.member?(cycle_modules, callee) do
+        examples
+      else
+        []
+      end
+    end)
     |> Enum.take(@representative_call_limit)
   end
 
-  defp cycle_pairs(cycle) do
-    cycle
-    |> Enum.zip(tl(cycle) ++ [hd(cycle)])
-    |> Enum.flat_map(fn {left, right} -> [{left, right}, {right, left}] end)
-    |> Enum.uniq()
-  end
+  defp module_cycle_components(deps) do
+    graph =
+      Enum.reduce(deps, Graph.new(type: :directed), fn {module, module_deps}, graph ->
+        Enum.reduce(module_deps, Graph.add_vertex(graph, module), fn dep, graph ->
+          Graph.add_edge(graph, module, dep)
+        end)
+      end)
 
-  defp cycle_search_starts(deps) do
-    deps
-    |> Map.keys()
-    |> Enum.sort_by(&inspect/1)
-    |> Enum.take(@cycle_candidate_limit * 4)
+    graph
+    |> Graph.strong_components()
+    |> Enum.filter(&match?([_, _ | _], &1))
+    |> Enum.map(&canonical_module_cycle/1)
+    |> Enum.sort_by(&{length(&1), &1})
   end
 
   defp representative_call(%{caller: caller, callee: callee, node: node}) do
@@ -160,41 +162,10 @@ defmodule Reach.Check.Candidates do
     }
   end
 
-  defp walk_module_cycle(_deps, _start, _current, _path, max_depth, depth)
-       when depth >= max_depth,
-       do: []
-
-  defp walk_module_cycle(deps, start, current, path, max_depth, depth) do
-    deps
-    |> Map.get(current, [])
-    |> Enum.take(@cycle_neighbor_limit)
-    |> Enum.flat_map(fn next ->
-      cond do
-        next == start and path != [] -> [Enum.reverse([current | path])]
-        next in path -> []
-        true -> walk_module_cycle(deps, start, next, [current | path], max_depth, depth + 1)
-      end
-    end)
-  end
-
   defp canonical_module_cycle(cycle) do
     cycle
     |> Enum.map(&inspect/1)
     |> Enum.sort()
-  end
-
-  defp minimal_cycles(cycles) do
-    sorted = Enum.sort_by(cycles, &length/1)
-
-    Enum.reduce(sorted, [], fn cycle, kept ->
-      cycle_set = MapSet.new(cycle)
-
-      if Enum.any?(kept, &MapSet.subset?(MapSet.new(&1), cycle_set)) do
-        kept
-      else
-        kept ++ [cycle]
-      end
-    end)
   end
 
   defp mixed_effect_candidates(project) do
