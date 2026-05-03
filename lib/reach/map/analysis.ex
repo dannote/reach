@@ -102,7 +102,7 @@ defmodule Reach.Map.Analysis do
       |> Graph.edges()
       |> Enum.filter(&Analysis.data_edge?/1)
 
-    func_index = build_func_index(project)
+    func_index = Query.function_index(project).node_to_function
     edge_counts = data_edge_counts(data_edges, func_index)
     top = opts[:top] || 20
 
@@ -469,27 +469,6 @@ defmodule Reach.Map.Analysis do
     end)
     |> Enum.sort_by(& &1.edges, :desc)
     |> Enum.take(top)
-  end
-
-  defp build_func_index(project) do
-    project
-    |> module_defs(nil)
-    |> Enum.reduce(%{}, &index_module_functions/2)
-  end
-
-  defp index_module_functions(module, acc) do
-    module
-    |> IR.all_nodes()
-    |> Enum.filter(&(&1.type == :function_def))
-    |> Enum.reduce(acc, &index_function_nodes/2)
-  end
-
-  defp index_function_nodes(func, acc) do
-    id = {func.meta[:module], func.meta[:name], func.meta[:arity]}
-
-    func
-    |> IR.all_nodes()
-    |> Enum.reduce(acc, fn node, index -> Map.put_new(index, node.id, id) end)
   end
 
   defp normalize_label({label, _}), do: label

@@ -148,6 +148,18 @@ defmodule Reach.Project.Query do
   def mfa?({m, f, a}) when is_atom(m) and is_atom(f) and is_number(a), do: true
   def mfa?(_), do: false
 
+  def all_variants(%Reach.Project{} = project, {nil, fun, arity}) do
+    named_mod = Map.get(function_index(project).named_modules, {fun, arity})
+
+    [{nil, fun, arity}, {named_mod, fun, arity}]
+    |> Enum.uniq()
+    |> Enum.filter(&Graph.has_vertex?(project.call_graph, &1))
+  end
+
+  def all_variants(%Reach.Project{} = project, {mod, fun, arity}) do
+    all_variants(project.call_graph, {mod, fun, arity})
+  end
+
   def all_variants(cg, {nil, fun, arity}) do
     named_mod = find_named_module(cg, fun, arity)
 
@@ -192,7 +204,18 @@ defmodule Reach.Project.Query do
         {file, Enum.sort_by(functions, fn node -> node.source_span[:start_line] end)}
       end)
 
-    %{by_name_arity: by_name_arity, by_module: by_module, by_file: by_file, all: func_defs}
+    node_to_function = build_node_to_function_index(project)
+
+    named_modules = named_modules(project.call_graph)
+
+    %{
+      by_name_arity: by_name_arity,
+      by_module: by_module,
+      by_file: by_file,
+      node_to_function: node_to_function,
+      named_modules: named_modules,
+      all: func_defs
+    }
   end
 
   defp find_function_node(index, nil, fun, arity) do
@@ -332,11 +355,48 @@ defmodule Reach.Project.Query do
   end
 
   defp find_named_module(cg, fun, arity) do
-    Graph.vertices(cg)
-    |> Enum.find_value(fn
-      {m, ^fun, ^arity} when is_atom(m) and m != nil -> m
-      _ -> nil
+    cg
+    |> named_modules()
+    |> Map.get({fun, arity})
+  end
+
+  defp named_modules(cg) do
+    cg
+    |> Graph.vertices()
+    |> Enum.reduce(%{}, fn
+      {module, function, arity}, acc when is_atom(module) and not is_nil(module) ->
+        Map.put_new(acc, {function, arity}, module)
+
+      _vertex, acc ->
+        acc
     end)
+  end
+
+  defp build_node_to_function_index(project) do
+    project.nodes
+    |> Map.values()
+    |> Enum.filter(&node_to_function_root?/1)
+    |> Enum.reduce(%{}, &index_node_function/2)
+  end
+
+  defp node_to_function_root?(%{type: :module_def}), do: true
+  defp node_to_function_root?(%{type: :function_def, meta: %{module: nil}}), do: true
+  defp node_to_function_root?(_node), do: false
+
+  defp index_node_function(root, acc), do: index_node_function(root, nil, acc)
+
+  defp index_node_function(%{type: :function_def} = node, _current_function, acc) do
+    function_id = {node.meta[:module], node.meta[:name], node.meta[:arity]}
+    index_node_descendants(node, function_id, acc)
+  end
+
+  defp index_node_function(node, current_function, acc) do
+    index_node_descendants(node, current_function, acc)
+  end
+
+  defp index_node_descendants(node, current_function, acc) do
+    acc = if current_function, do: Map.put_new(acc, node.id, current_function), else: acc
+    Enum.reduce(node.children, acc, &index_node_function(&1, current_function, &2))
   end
 
   defp do_find_callers(_cg, [], _depth, _visited, acc), do: Enum.reverse(acc)
