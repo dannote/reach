@@ -111,7 +111,7 @@ defmodule Reach.CloneAnalysis.ExDNA do
   defp function_effects(function) do
     function
     |> IR.all_nodes()
-    |> Enum.map(&Effects.classify/1)
+    |> Enum.map(&node_effect/1)
     |> Enum.uniq()
     |> Enum.sort()
   end
@@ -122,8 +122,8 @@ defmodule Reach.CloneAnalysis.ExDNA do
     function
     |> IR.all_nodes()
     |> Enum.filter(&(&1.type == :call))
-    |> Enum.map(fn node -> {Effects.classify(node), call_signature(node)} end)
-    |> Enum.reject(fn {effect, _call} -> effect == :pure end)
+    |> Enum.map(fn node -> {node_effect(node), call_signature(node)} end)
+    |> Enum.reject(fn {effect, _call} -> effect in [:pure, :unknown] end)
   end
 
   defp calls(nil), do: []
@@ -163,6 +163,8 @@ defmodule Reach.CloneAnalysis.ExDNA do
     |> calls()
     |> Enum.filter(&validation_call?/1)
   end
+
+  defp node_effect(node), do: Effects.classify(node)
 
   defp call_signature(%{meta: meta}) do
     {Map.get(meta, :module), Map.get(meta, :function), Map.get(meta, :arity)}

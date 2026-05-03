@@ -398,6 +398,58 @@ defmodule Reach.SmellTest do
 
       assert Enum.any?(findings, &(&1.kind == :map_contract_drift))
     end
+
+    test "flags side-effect order drift across similar functions" do
+      findings =
+        run_smell_task(
+          """
+          defmodule EffectA do
+            def persist(path, value) do
+              File.write!(path, value)
+              send(self(), value)
+              :ok
+            end
+          end
+
+          defmodule EffectB do
+            def persist(path, value) do
+              send(self(), value)
+              File.write!(path, value)
+              :ok
+            end
+          end
+          """,
+          clone_analysis: [min_mass: 5, min_similarity: 0.6]
+        )
+
+      assert Enum.any?(findings, &(&1.kind == :side_effect_order_drift))
+    end
+
+    test "flags validation drift before write effects" do
+      findings =
+        run_smell_task(
+          """
+          defmodule ValidationA do
+            def create(path, body) do
+              body = validate_required(body)
+              File.write!(path, body)
+              {:ok, body}
+            end
+          end
+
+          defmodule ValidationB do
+            def create(path, body) do
+              body = normalize(body)
+              File.write!(path, body)
+              {:ok, body}
+            end
+          end
+          """,
+          clone_analysis: [min_mass: 5, min_similarity: 0.8]
+        )
+
+      assert Enum.any?(findings, &(&1.kind == :validation_drift))
+    end
   end
 
   describe "behaviour candidate detection" do

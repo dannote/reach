@@ -138,7 +138,8 @@ defmodule Reach.CLI.Render.Check do
     |> render_omitted_summary()
   end
 
-  defp render_representative_calls(%{representative_calls: calls}) when calls != [] do
+  defp render_representative_calls(%{representative_calls: calls})
+       when is_list(calls) and calls != [] do
     IO.puts("    representative calls:")
 
     Enum.each(calls, fn call ->

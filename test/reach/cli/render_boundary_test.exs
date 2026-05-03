@@ -64,6 +64,25 @@ defmodule Reach.CLI.RenderBoundaryTest do
     assert offenders == []
   end
 
+  test "framework-specific policy stays out of generic smell and clone analysis" do
+    forbidden =
+      ~r/\b(Ecto|Repo|Oban|Phoenix|Ash|Jido|LiveView)\b|insert_all|update_all|delete_all|validate_required/
+
+    offenders =
+      ["lib/reach/smell/**/*.ex", "lib/reach/clone_analysis/**/*.ex"]
+      |> Enum.flat_map(&Path.wildcard/1)
+      |> Enum.flat_map(fn file ->
+        file
+        |> File.read!()
+        |> String.split("\n")
+        |> Enum.with_index(1)
+        |> Enum.filter(fn {line, _line_number} -> line =~ forbidden end)
+        |> Enum.map(fn {_line, line_number} -> "#{file}:#{line_number}" end)
+      end)
+
+    assert offenders == []
+  end
+
   test "canonical command modules keep rendering in render layer" do
     forbidden = ~r/IO\.puts|Format\.render|Jason\.encode!/
 
