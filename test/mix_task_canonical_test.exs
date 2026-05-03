@@ -151,7 +151,7 @@ defmodule Mix.Tasks.Reach.CanonicalTest do
 
   test "canonical tasks do not call removed Reach mix tasks internally" do
     forbidden =
-      ~r/TaskRunner\.run|Mix\.Tasks\.Reach\..*\.run|Mix\.Task\.run\("reach|Reach\.CLI\.TaskRunner|Deprecation\.delegated/
+      ~r/TaskRunner\.run|Mix\.Tasks\.Reach\..*\.run|Mix\.Task\.run\("reach|Reach\.CLI\.TaskRunner|Reach\.CLI\.Analyses|Deprecation\.delegated/
 
     files = Path.wildcard("lib/**/*.ex")
 

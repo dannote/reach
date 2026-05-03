@@ -76,7 +76,7 @@ Use this responsibility split when refactoring or adding features:
 | `Reach.OTP.*` | OTP/process/domain analysis | CLI rendering |
 | `Reach.Visualize.*` | graph/HTML/web visualization | CLI command orchestration |
 
-Current transitional modules under `Reach.CLI.Analyses.*` are legacy extraction targets. Do not add new analysis there; move logic toward the domain/command/render split above.
+`Reach.CLI.Analyses.*` must not exist; add command orchestration under `Reach.CLI.Commands.*` and domain logic under the appropriate `Reach.*` subsystem.
 
 ## Constants and Limits
 
