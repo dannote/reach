@@ -25,7 +25,8 @@ defmodule Mix.Tasks.Reach.Trace do
 
   use Mix.Task
 
-  alias Reach.CLI.Analyses.{Flow, Slice}
+  alias Reach.CLI.Commands.Trace
+  alias Reach.CLI.Options
   alias Reach.CLI.Pipe
 
   @shortdoc "Trace data flow, taint paths, and slices"
@@ -48,38 +49,8 @@ defmodule Mix.Tasks.Reach.Trace do
   @impl Mix.Task
   def run(args) do
     Pipe.safely(fn ->
-      {opts, positional, _} = OptionParser.parse(args, switches: @switches, aliases: @aliases)
-
-      case trace_action(opts, positional) do
-        :flow ->
-          Flow.run_opts(opts, command: "reach.trace")
-
-        {:slice, target, direction} ->
-          opts = Keyword.put(opts, :forward, Keyword.fetch!(direction, :forward?))
-          Slice.run_target(target, opts, command: "reach.trace")
-
-        :error ->
-          Mix.raise("Provide --from/--to, --variable, --backward TARGET, or --forward TARGET")
-      end
+      {opts, positional} = Options.parse(args, @switches, @aliases)
+      Trace.run(opts, positional)
     end)
-  end
-
-  defp trace_action(opts, positional) do
-    [
-      {flow_trace?(opts, positional), :flow},
-      {opts[:backward], {:slice, opts[:backward], forward?: false}},
-      {opts[:forward], {:slice, opts[:forward], forward?: true}},
-      {positional != [], {:slice, List.first(positional), forward?: false}}
-    ]
-    |> Enum.find_value(:error, fn
-      {nil, _action} -> nil
-      {false, _action} -> nil
-      {_enabled, action} -> action
-    end)
-  end
-
-  defp flow_trace?(opts, positional) do
-    opts[:from] || opts[:to] || (opts[:variable] && opts[:in]) ||
-      (opts[:variable] && positional == [])
   end
 end
