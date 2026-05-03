@@ -55,9 +55,12 @@ defmodule Reach.CLI.Commands.Trace.Flow do
   end
 
   defp analyze(project, opts) do
+    source = opts[:from]
+    sink = opts[:to]
+
     cond do
-      opts[:from] && opts[:to] ->
-        Flow.analyze_taint(project, opts[:from], opts[:to], path_limit(opts))
+      source && sink ->
+        Flow.analyze_taint(project, source, sink, path_limit(opts))
 
       opts[:variable] ->
         Flow.analyze_variable(project, opts[:variable], opts[:in])

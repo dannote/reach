@@ -108,13 +108,15 @@ defmodule Reach.CLI.Commands.Inspect do
   end
 
   defp context_text_data(project, mfa, func, opts) do
+    depth = opts[:depth]
+
     %{
       mfa: mfa,
       func: func,
       data: Data.summary(project, func, opts[:variable]),
       direct_callers: Query.callers(project, mfa, 1),
-      transitive_callers: Query.callers(project, mfa, opts[:depth] || 4),
-      callees: Query.callees(project, mfa, opts[:depth] || 3)
+      transitive_callers: Query.callers(project, mfa, depth || 4),
+      callees: Query.callees(project, mfa, depth || 3)
     }
   end
 

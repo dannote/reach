@@ -320,7 +320,7 @@ if Code.ensure_loaded?(QuickBEAM) do
           translate_op(op, nodes, stack, ctx, counter, file, line)
         end)
 
-      {Enum.reverse(nodes) ++ Enum.reverse(stack), stack}
+      {Enum.reverse(nodes, Enum.reverse(stack)), stack}
     end
 
     defp pop_condition([top | rest]), do: {top, rest}

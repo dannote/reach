@@ -29,7 +29,7 @@ defmodule Reach.CLI.Commands.OTP.Concurrency do
   def run_opts(opts, cli_opts \\ []) do
     format = opts[:format] || "text"
 
-    project = Project.load(quiet: opts[:format] == "json")
+    project = Project.load(quiet: format == "json")
     result = Concurrency.analyze(project)
 
     ConcurrencyRender.render(result, format, command(cli_opts))

@@ -119,8 +119,9 @@ defmodule Reach.Frontend.Elixir do
   defp translate({:defmodule, meta, [alias_ast, [do: body]]}, counter, file) do
     prev_aliases = Process.get(:reach_alias_map, %{})
     prev_imports = Process.get(:reach_import_map, %{})
+    module = module_name(alias_ast)
 
-    aliases = collect_aliases(body, module_name(alias_ast))
+    aliases = collect_aliases(body, module)
     imports = collect_imports(body)
 
     Process.put(:reach_alias_map, Map.merge(prev_aliases, aliases))
@@ -135,7 +136,7 @@ defmodule Reach.Frontend.Elixir do
     %Node{
       id: Counter.next(counter),
       type: :module_def,
-      meta: %{name: module_name(alias_ast)},
+      meta: %{name: module},
       children: [merged_body],
       source_span: span_from_meta(meta, file)
     }

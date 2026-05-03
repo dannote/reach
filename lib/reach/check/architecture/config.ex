@@ -36,12 +36,13 @@ defmodule Reach.Check.Architecture.Config do
     defstruct [:path, :message]
 
     def to_violation(%__MODULE__{path: path, message: message}) do
-      key = path |> List.wrap() |> Enum.map_join(".", &to_string/1)
+      wrapped_path = List.wrap(path)
+      key = Enum.map_join(wrapped_path, ".", &to_string/1)
 
       %{
         type: "config_error",
         key: key,
-        path: Enum.map(List.wrap(path), &to_string/1),
+        path: Enum.map(wrapped_path, &to_string/1),
         message: message
       }
     end

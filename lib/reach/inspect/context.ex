@@ -9,19 +9,21 @@ defmodule Reach.Inspect.Context do
   alias Reach.Project.Query
 
   def build(project, mfa, func, opts \\ []) do
-    depth = opts[:depth] || 3
+    configured_depth = opts[:depth]
+    depth = configured_depth || 3
+    direct_callers = Query.callers(project, mfa, 1)
 
     %{
       target: mfa,
       location: location(func),
       effects: effects(func),
       deps: %{
-        callers: Query.callers(project, mfa, 1),
+        callers: direct_callers,
         callees: Query.callees(project, mfa, depth)
       },
       impact: %{
-        direct_callers: Query.callers(project, mfa, 1),
-        transitive_callers: Query.callers(project, mfa, opts[:depth] || 4)
+        direct_callers: direct_callers,
+        transitive_callers: Query.callers(project, mfa, configured_depth || 4)
       },
       data: Data.summary(project, func, opts[:variable])
     }

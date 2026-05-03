@@ -140,12 +140,14 @@ defmodule Reach.Check.Candidates do
   end
 
   defp representative_call(%{caller: caller, callee: callee, node: node}) do
+    callee_name = inspect(callee)
+
     %{
       caller_module: inspect(caller),
-      callee_module: inspect(callee),
+      callee_module: callee_name,
       file: node.source_span && node.source_span.file,
       line: node.source_span && node.source_span.start_line,
-      call: "#{inspect(callee)}.#{node.meta[:function]}/#{node.meta[:arity]}"
+      call: "#{callee_name}.#{node.meta[:function]}/#{node.meta[:arity]}"
     }
   end
 

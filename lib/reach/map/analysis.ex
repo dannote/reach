@@ -43,15 +43,17 @@ defmodule Reach.Map.Analysis do
   def section_data(project, :coupling, opts, path) do
     coupling = coupling_metrics(project, path)
 
+    top = opts[:top]
+
     modules =
       coupling.modules
       |> maybe_filter_orphans(opts[:orphans])
       |> sort_coupling(opts[:sort])
-      |> Enum.take(opts[:top] || 50)
+      |> Enum.take(top || 50)
 
     %{
       modules: modules,
-      cycles: coupling.cycles |> Enum.take(opts[:top] || 20)
+      cycles: coupling.cycles |> Enum.take(top || 20)
     }
   end
 
