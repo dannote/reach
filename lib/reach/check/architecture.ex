@@ -1,7 +1,7 @@
 defmodule Reach.Check.Architecture do
   @moduledoc false
 
-  alias Reach.Check.Architecture.Config
+  alias Reach.Config
   alias Reach.Effects
   alias Reach.IR
 
@@ -344,27 +344,21 @@ defmodule Reach.Check.Architecture do
 
   defp layer_cycle_violations(%{adjacency: adjacency}) do
     adjacency
-    |> Map.keys()
-    |> Enum.flat_map(&walk_layer_cycle(adjacency, &1, &1, [], 0))
-    |> Enum.map(&canonical_cycle/1)
-    |> Enum.uniq()
+    |> layer_cycle_components()
     |> Enum.map(fn cycle -> %{type: "layer_cycle", layers: cycle} end)
   end
 
-  defp walk_layer_cycle(_adjacency, start, current, path, depth) when depth > 8 do
-    if current == start and path != [], do: [Enum.reverse(path)], else: []
-  end
-
-  defp walk_layer_cycle(adjacency, start, current, path, depth) do
+  defp layer_cycle_components(adjacency) do
     adjacency
-    |> Map.get(current, MapSet.new())
-    |> Enum.flat_map(fn next ->
-      cond do
-        next == start and path != [] -> [Enum.reverse([current | path])]
-        next in path -> []
-        true -> walk_layer_cycle(adjacency, start, next, [current | path], depth + 1)
-      end
+    |> Enum.reduce(Graph.new(type: :directed), fn {layer, deps}, graph ->
+      Enum.reduce(deps, Graph.add_vertex(graph, layer), fn dep, graph ->
+        Graph.add_edge(graph, layer, dep)
+      end)
     end)
+    |> Graph.strong_components()
+    |> Enum.filter(&match?([_, _ | _], &1))
+    |> Enum.map(&canonical_cycle/1)
+    |> Enum.sort_by(&{length(&1), &1})
   end
 
   defp canonical_cycle(cycle) do

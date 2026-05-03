@@ -11,11 +11,11 @@ defmodule Reach.SmellTest do
     project
   end
 
-  defp run_smell_task(code) do
+  defp run_smell_task(code, config \\ []) do
     project = project_from_string(code)
 
     ExUnit.CaptureIO.capture_io(fn ->
-      send(self(), {:findings, Smells.analyze(project)})
+      send(self(), {:findings, Smells.run(project, config)})
     end)
 
     receive do
@@ -373,6 +373,26 @@ defmodule Reach.SmellTest do
         """)
 
       assert Enum.filter(findings, &(&1.kind == :fixed_shape_map)) == []
+    end
+
+    test "uses configured thresholds and evidence limit" do
+      findings =
+        run_smell_task(
+          """
+          defmodule RepeatedSmallShapes do
+            def a, do: %{id: 1, kind: :a}
+            def b, do: %{id: 2, kind: :b}
+          end
+          """,
+          smells: [fixed_shape_map: [min_keys: 2, min_occurrences: 2, evidence_limit: 1]]
+        )
+
+      assert [%{kind: :fixed_shape_map} = finding] =
+               Enum.filter(findings, &(&1.kind == :fixed_shape_map))
+
+      assert finding.keys == ["id", "kind"]
+      assert finding.occurrences == 2
+      assert length(finding.evidence) == 1
     end
   end
 

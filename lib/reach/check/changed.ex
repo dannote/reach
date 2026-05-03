@@ -2,7 +2,7 @@ defmodule Reach.Check.Changed do
   @moduledoc false
 
   alias Reach.Check.Architecture
-  alias Reach.Check.Architecture.Config
+  alias Reach.Config
   alias Reach.IR
   alias Reach.IR.Helpers, as: IRHelpers
   alias Reach.Project.Query
@@ -170,7 +170,10 @@ defmodule Reach.Check.Changed do
     transitive_callers = Query.callers(project, id, 4)
     effects = Architecture.function_effects(func)
     branches = branch_count(func)
-    {risk, reasons} = change_risk(func, direct_callers, transitive_callers, effects, branches)
+    thresholds = config.risk.changed
+
+    {risk, reasons} =
+      change_risk(func, direct_callers, transitive_callers, effects, branches, thresholds)
 
     %{
       id: IRHelpers.func_id_to_string(id),
@@ -195,27 +198,30 @@ defmodule Reach.Check.Changed do
       )
   end
 
-  defp change_risk(func, direct_callers, transitive_callers, effects, branches) do
+  defp change_risk(func, direct_callers, transitive_callers, effects, branches, thresholds) do
     reasons =
       []
-      |> maybe_reason(length(direct_callers) >= 5, "many direct callers")
-      |> maybe_reason(length(transitive_callers) >= 10, "wide transitive impact")
-      |> maybe_reason(branches >= 8, "branch-heavy function")
+      |> maybe_reason(
+        length(direct_callers) >= thresholds.many_direct_callers,
+        "many direct callers"
+      )
+      |> maybe_reason(
+        length(transitive_callers) >= thresholds.wide_transitive_callers,
+        "wide transitive impact"
+      )
+      |> maybe_reason(branches >= thresholds.branch_heavy, "branch-heavy function")
       |> maybe_reason(multiple?(effects -- [:pure]), "mixed side effects")
       |> maybe_reason(core_module?(func.meta[:module]), "core Reach module")
 
     risk =
       cond do
-        at_least_three?(reasons) -> :high
+        length(reasons) >= thresholds.high_risk_reason_count -> :high
         reasons != [] -> :medium
         true -> :low
       end
 
     {risk, reasons}
   end
-
-  defp at_least_three?([_, _, _ | _]), do: true
-  defp at_least_three?(_reasons), do: false
 
   defp multiple?([]), do: false
   defp multiple?([_one]), do: false

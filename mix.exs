@@ -99,7 +99,6 @@ defmodule Reach.MixProject do
       "guides/validation.md",
       "guides/recipes.md",
       "guides/contributing.md",
-      "CONFIG.md": [title: "Configuration Reference"],
       "CHANGELOG.md": [title: "Changelog"],
       LICENSE: [title: "License"]
     ]
@@ -109,7 +108,7 @@ defmodule Reach.MixProject do
     [
       Introduction: ["guides/overview.md", "guides/installation.md", "guides/quickstart.md"],
       "Canonical CLI": ["guides/cli.md", "guides/json-output.md"],
-      Configuration: ["guides/configuration.md", "CONFIG.md"],
+      Configuration: ["guides/configuration.md"],
       Concepts: ["guides/concepts.md"],
       Validation: ["guides/validation.md"],
       Recipes: ["guides/recipes.md"],
@@ -163,8 +162,7 @@ defmodule Reach.MixProject do
     [
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
-      files:
-        ~w(lib priv examples guides mix.exs README.md CHANGELOG.md CONFIG.md LICENSE .formatter.exs)
+      files: ~w(lib priv examples guides mix.exs README.md CHANGELOG.md LICENSE .formatter.exs)
     ]
   end
 end

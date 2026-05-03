@@ -60,6 +60,33 @@
     internal: [],
     internal_callers: []
   ],
+  risk: [
+    changed: [
+      many_direct_callers: 5,
+      wide_transitive_callers: 10,
+      branch_heavy: 8,
+      high_risk_reason_count: 3
+    ]
+  ],
+  candidates: [
+    thresholds: [
+      mixed_effect_count: 2,
+      branchy_function_branches: 8,
+      high_risk_direct_callers: 4
+    ],
+    limits: [
+      per_kind: 20,
+      representative_calls: 10,
+      representative_calls_per_edge: 3
+    ]
+  ],
+  smells: [
+    fixed_shape_map: [
+      min_keys: 3,
+      min_occurrences: 3,
+      evidence_limit: 10
+    ]
+  ],
   tests: [
     hints: [
       {"lib/reach/visualize/**",

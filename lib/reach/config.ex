@@ -1,4 +1,4 @@
-defmodule Reach.Check.Architecture.Config do
+defmodule Reach.Config do
   @moduledoc false
 
   defmodule Deps do
@@ -31,6 +31,50 @@ defmodule Reach.Check.Architecture.Config do
     defstruct forbidden_modules: [], forbidden_files: []
   end
 
+  defmodule Risk do
+    @moduledoc false
+    defstruct changed: nil
+  end
+
+  defmodule Risk.Changed do
+    @moduledoc false
+    defstruct many_direct_callers: 5,
+              wide_transitive_callers: 10,
+              branch_heavy: 8,
+              high_risk_reason_count: 3
+  end
+
+  defmodule Candidates do
+    @moduledoc false
+    defstruct thresholds: nil, limits: nil
+  end
+
+  defmodule Candidates.Thresholds do
+    @moduledoc false
+    defstruct mixed_effect_count: 2,
+              branchy_function_branches: 8,
+              high_risk_direct_callers: 4
+  end
+
+  defmodule Candidates.Limits do
+    @moduledoc false
+    defstruct per_kind: 20,
+              representative_calls: 10,
+              representative_calls_per_edge: 3
+  end
+
+  defmodule Smells do
+    @moduledoc false
+    defstruct fixed_shape_map: nil
+  end
+
+  defmodule Smells.FixedShapeMap do
+    @moduledoc false
+    defstruct min_keys: 3,
+              min_occurrences: 3,
+              evidence_limit: 10
+  end
+
   defmodule Error do
     @moduledoc false
     defstruct [:path, :message]
@@ -54,7 +98,10 @@ defmodule Reach.Check.Architecture.Config do
             effects: nil,
             boundaries: nil,
             tests: nil,
-            source: nil
+            source: nil,
+            risk: nil,
+            candidates: nil,
+            smells: nil
 
   @top_level_keys [
     :layers,
@@ -64,6 +111,9 @@ defmodule Reach.Check.Architecture.Config do
     :boundaries,
     :tests,
     :source,
+    :risk,
+    :candidates,
+    :smells,
     :forbidden_deps,
     :allowed_effects,
     :forbidden_calls,
@@ -99,7 +149,10 @@ defmodule Reach.Check.Architecture.Config do
         effects: config.effects || %Effects{},
         boundaries: config.boundaries || %Boundaries{},
         tests: config.tests || %Tests{},
-        source: config.source || %Source{}
+        source: config.source || %Source{},
+        risk: normalize_risk(config.risk),
+        candidates: normalize_candidates(config.candidates),
+        smells: normalize_smells(config.smells)
     }
   end
 
@@ -118,9 +171,62 @@ defmodule Reach.Check.Architecture.Config do
       source: %Source{
         forbidden_modules: nested(config, [:source, :forbidden_modules], :forbidden_modules, []),
         forbidden_files: nested(config, [:source, :forbidden_files], :forbidden_files, [])
+      },
+      risk: %Risk{
+        changed: %Risk.Changed{
+          many_direct_callers: nested(config, [:risk, :changed, :many_direct_callers], nil, 5),
+          wide_transitive_callers:
+            nested(config, [:risk, :changed, :wide_transitive_callers], nil, 10),
+          branch_heavy: nested(config, [:risk, :changed, :branch_heavy], nil, 8),
+          high_risk_reason_count:
+            nested(config, [:risk, :changed, :high_risk_reason_count], nil, 3)
+        }
+      },
+      candidates: %Candidates{
+        thresholds: %Candidates.Thresholds{
+          mixed_effect_count:
+            nested(config, [:candidates, :thresholds, :mixed_effect_count], nil, 2),
+          branchy_function_branches:
+            nested(config, [:candidates, :thresholds, :branchy_function_branches], nil, 8),
+          high_risk_direct_callers:
+            nested(config, [:candidates, :thresholds, :high_risk_direct_callers], nil, 4)
+        },
+        limits: %Candidates.Limits{
+          per_kind: nested(config, [:candidates, :limits, :per_kind], nil, 20),
+          representative_calls:
+            nested(config, [:candidates, :limits, :representative_calls], nil, 10),
+          representative_calls_per_edge:
+            nested(config, [:candidates, :limits, :representative_calls_per_edge], nil, 3)
+        }
+      },
+      smells: %Smells{
+        fixed_shape_map: %Smells.FixedShapeMap{
+          min_keys: nested(config, [:smells, :fixed_shape_map, :min_keys], nil, 3),
+          min_occurrences: nested(config, [:smells, :fixed_shape_map, :min_occurrences], nil, 3),
+          evidence_limit: nested(config, [:smells, :fixed_shape_map, :evidence_limit], nil, 10)
+        }
       }
     }
   end
+
+  defp normalize_risk(%Risk{} = risk), do: %{risk | changed: risk.changed || %Risk.Changed{}}
+  defp normalize_risk(_risk), do: %Risk{}
+
+  defp normalize_candidates(%Candidates{} = candidates) do
+    %{
+      candidates
+      | thresholds: candidates.thresholds || %Candidates.Thresholds{},
+        limits: candidates.limits || %Candidates.Limits{}
+    }
+  end
+
+  defp normalize_candidates(_candidates), do: %Candidates{}
+
+  defp normalize_smells(%Smells{} = smells) do
+    %{smells | fixed_shape_map: smells.fixed_shape_map || %Smells.FixedShapeMap{}}
+  end
+
+  defp normalize_smells(_smells), do: %Smells{fixed_shape_map: %Smells.FixedShapeMap{}}
 
   def errors(config) when is_list(config) do
     if Keyword.keyword?(config) do
@@ -192,6 +298,91 @@ defmodule Reach.Check.Architecture.Config do
       "expected list of {path_glob, test_paths}"
     )
     |> check(config, [:source], &valid_group?/1, "expected keyword list")
+    |> check(config, [:risk], &valid_group?/1, "expected keyword list")
+    |> check(config, [:risk, :changed], &valid_group?/1, "expected keyword list")
+    |> check(
+      config,
+      [:risk, :changed, :many_direct_callers],
+      &valid_positive_integer?/1,
+      "expected positive integer"
+    )
+    |> check(
+      config,
+      [:risk, :changed, :wide_transitive_callers],
+      &valid_positive_integer?/1,
+      "expected positive integer"
+    )
+    |> check(
+      config,
+      [:risk, :changed, :branch_heavy],
+      &valid_positive_integer?/1,
+      "expected positive integer"
+    )
+    |> check(
+      config,
+      [:risk, :changed, :high_risk_reason_count],
+      &valid_positive_integer?/1,
+      "expected positive integer"
+    )
+    |> check(config, [:candidates], &valid_group?/1, "expected keyword list")
+    |> check(config, [:smells], &valid_group?/1, "expected keyword list")
+    |> check(config, [:smells, :fixed_shape_map], &valid_group?/1, "expected keyword list")
+    |> check(
+      config,
+      [:smells, :fixed_shape_map, :min_keys],
+      &valid_positive_integer?/1,
+      "expected positive integer"
+    )
+    |> check(
+      config,
+      [:smells, :fixed_shape_map, :min_occurrences],
+      &valid_positive_integer?/1,
+      "expected positive integer"
+    )
+    |> check(
+      config,
+      [:smells, :fixed_shape_map, :evidence_limit],
+      &valid_positive_integer?/1,
+      "expected positive integer"
+    )
+    |> check(config, [:candidates, :thresholds], &valid_group?/1, "expected keyword list")
+    |> check(
+      config,
+      [:candidates, :thresholds, :mixed_effect_count],
+      &valid_positive_integer?/1,
+      "expected positive integer"
+    )
+    |> check(
+      config,
+      [:candidates, :thresholds, :branchy_function_branches],
+      &valid_positive_integer?/1,
+      "expected positive integer"
+    )
+    |> check(
+      config,
+      [:candidates, :thresholds, :high_risk_direct_callers],
+      &valid_positive_integer?/1,
+      "expected positive integer"
+    )
+    |> check(config, [:candidates, :limits], &valid_group?/1, "expected keyword list")
+    |> check(
+      config,
+      [:candidates, :limits, :per_kind],
+      &valid_positive_integer?/1,
+      "expected positive integer"
+    )
+    |> check(
+      config,
+      [:candidates, :limits, :representative_calls],
+      &valid_positive_integer?/1,
+      "expected positive integer"
+    )
+    |> check(
+      config,
+      [:candidates, :limits, :representative_calls_per_edge],
+      &valid_positive_integer?/1,
+      "expected positive integer"
+    )
     |> check(
       config,
       [:source, :forbidden_modules],
@@ -264,6 +455,30 @@ defmodule Reach.Check.Architecture.Config do
     |> unknown_nested_key_errors(config, [:boundaries], [:public, :internal, :internal_callers])
     |> unknown_nested_key_errors(config, [:tests], [:hints])
     |> unknown_nested_key_errors(config, [:source], [:forbidden_modules, :forbidden_files])
+    |> unknown_nested_key_errors(config, [:risk], [:changed])
+    |> unknown_nested_key_errors(config, [:risk, :changed], [
+      :many_direct_callers,
+      :wide_transitive_callers,
+      :branch_heavy,
+      :high_risk_reason_count
+    ])
+    |> unknown_nested_key_errors(config, [:candidates], [:thresholds, :limits])
+    |> unknown_nested_key_errors(config, [:candidates, :thresholds], [
+      :mixed_effect_count,
+      :branchy_function_branches,
+      :high_risk_direct_callers
+    ])
+    |> unknown_nested_key_errors(config, [:candidates, :limits], [
+      :per_kind,
+      :representative_calls,
+      :representative_calls_per_edge
+    ])
+    |> unknown_nested_key_errors(config, [:smells], [:fixed_shape_map])
+    |> unknown_nested_key_errors(config, [:smells, :fixed_shape_map], [
+      :min_keys,
+      :min_occurrences,
+      :evidence_limit
+    ])
   end
 
   defp check(errors, config, path, validator, message) do
@@ -316,6 +531,7 @@ defmodule Reach.Check.Architecture.Config do
   end
 
   defp valid_group?(value), do: Keyword.keyword?(value)
+  defp valid_positive_integer?(value), do: is_integer(value) and value > 0
 
   defp valid_layers?(value) when is_list(value) do
     Enum.all?(value, fn

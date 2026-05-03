@@ -40,6 +40,7 @@ defmodule Reach.CLI.Commands.Inspect do
   alias Reach.CLI.Commands.Trace.Slice
   alias Reach.CLI.Project
   alias Reach.CLI.Render.Inspect, as: InspectRender
+  alias Reach.Config
   alias Reach.Inspect.{Candidates, Context, Data, Why}
   alias Reach.IR.Helpers, as: IRHelpers
   alias Reach.Project.Query
@@ -200,8 +201,13 @@ defmodule Reach.CLI.Commands.Inspect do
     {mfa, func} = resolve_function!(project, target)
     target_string = IRHelpers.func_id_to_string(mfa)
 
+    candidate_config = inspect_config().candidates
+
     candidates =
-      Enum.map(Candidates.find(project, mfa, func), &Map.put(&1, :target, target_string))
+      Enum.map(
+        Candidates.find(project, mfa, func, candidate_config),
+        &Map.put(&1, :target, target_string)
+      )
 
     result = %{
       command: "reach.inspect",
@@ -211,5 +217,14 @@ defmodule Reach.CLI.Commands.Inspect do
     }
 
     InspectRender.render_candidates(result, opts[:format] || "text")
+  end
+
+  defp inspect_config do
+    if File.exists?(".reach.exs") do
+      {config, _binding} = Code.eval_file(".reach.exs")
+      Config.normalize(config)
+    else
+      Config.normalize([])
+    end
   end
 end

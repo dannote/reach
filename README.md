@@ -124,7 +124,7 @@ Reach reads `.reach.exs` for architecture and change-safety policy:
 ]
 ```
 
-Start from [`examples/reach.exs`](examples/reach.exs). See [`CONFIG.md`](CONFIG.md) for the full reference and the [configuration guide](guides/configuration.md) for narrative examples.
+Start from [`examples/reach.exs`](examples/reach.exs). See the [configuration guide](guides/configuration.md) for the full reference and narrative examples.
 
 ## Library API
 

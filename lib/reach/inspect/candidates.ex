@@ -4,23 +4,25 @@ defmodule Reach.Inspect.Candidates do
   """
 
   alias Reach.Analysis
+  alias Reach.Config
   alias Reach.Effects
   alias Reach.IR
   alias Reach.Project.Query
 
-  def find(project, mfa, func) do
+  def find(project, mfa, func, candidate_config \\ %Config.Candidates{}) do
+    candidate_config = Config.normalize(%Config{candidates: candidate_config}).candidates
     non_pure_effects = function_effect_atoms(func) -- [:pure, :unknown, :exception]
     callers = Query.callers(project, mfa, 1)
     branch_count = branch_count(func)
 
     []
-    |> maybe_candidate(isolate_effects_candidate(func, non_pure_effects))
-    |> maybe_candidate(extract_region_candidate(func, branch_count, callers))
+    |> maybe_candidate(isolate_effects_candidate(func, non_pure_effects, candidate_config))
+    |> maybe_candidate(extract_region_candidate(func, branch_count, callers, candidate_config))
   end
 
-  defp isolate_effects_candidate(func, effects) do
+  defp isolate_effects_candidate(func, effects, candidate_config) do
     cond do
-      length(effects) < 2 ->
+      length(effects) < candidate_config.thresholds.mixed_effect_count ->
         nil
 
       Analysis.expected_effect_boundary?(func) ->
@@ -49,17 +51,26 @@ defmodule Reach.Inspect.Candidates do
     end
   end
 
-  defp extract_region_candidate(_func, branch_count, _callers) when branch_count < 4,
-    do: nil
+  defp extract_region_candidate(func, branch_count, callers, candidate_config) do
+    if branch_count < candidate_config.thresholds.branchy_function_branches do
+      nil
+    else
+      do_extract_region_candidate(func, branch_count, callers, candidate_config)
+    end
+  end
 
-  defp extract_region_candidate(func, branch_count, callers) do
+  defp do_extract_region_candidate(func, branch_count, callers, candidate_config) do
     %{
       id: "R1-001",
       kind: "extract_pure_region",
       file: func.source_span && func.source_span.file,
       line: func.source_span && func.source_span.start_line,
       benefit: :medium,
-      risk: if(length(callers) > 3, do: :high, else: :medium),
+      risk:
+        if(length(callers) >= candidate_config.thresholds.high_risk_direct_callers,
+          do: :high,
+          else: :medium
+        ),
       confidence: :medium,
       actionability: :needs_region_proof,
       evidence: ["branchy_function", "caller_impact"],

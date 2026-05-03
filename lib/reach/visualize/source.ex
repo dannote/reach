@@ -4,6 +4,7 @@ defmodule Reach.Visualize.Source do
   alias Reach.Frontend.Gleam
 
   @def_cache_key :reach_def_end_cache
+  @fallback_function_line_span 50
   @js_extensions [".js", ".ts", ".tsx", ".jsx"]
   @source_extensions [".ex", ".exs", ".erl", ".hrl", ".gleam"] ++ @js_extensions
 
@@ -155,7 +156,7 @@ defmodule Reach.Visualize.Source do
       _ ->
         if file, do: ensure_def_cache(file)
         start = span_field(func, :start_line)
-        fallback = file_line_count(file) || (start || 1) + 50
+        fallback = file_line_count(file) || (start || 1) + @fallback_function_line_span
         line_map = Process.get(@def_cache_key, %{}) |> Map.get(file, %{})
         Map.get(line_map, start) || find_nearest_end(line_map, start) || fallback
     end
