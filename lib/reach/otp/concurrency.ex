@@ -3,19 +3,20 @@ defmodule Reach.OTP.Concurrency do
 
   alias Reach.IR
   alias Reach.IR.Helpers, as: IRHelpers
+  alias Reach.OTP.Concurrency.Result
 
   def analyze(project) do
     nodes = Map.values(project.nodes)
     graph = project.graph
     edges = Graph.edges(graph)
 
-    %{
+    Result.new(
       tasks: find_tasks(nodes),
       monitors: find_monitors(nodes),
       spawns: find_spawns(nodes),
       supervisors: find_supervisors(nodes),
       concurrency_edges: classify_concurrency_edges(edges)
-    }
+    )
   end
 
   defp find_tasks(nodes) do

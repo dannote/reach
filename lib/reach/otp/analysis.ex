@@ -2,6 +2,7 @@ defmodule Reach.OTP.Analysis do
   @moduledoc false
 
   alias Reach.IR
+  alias Reach.OTP.Analysis.{Behaviour, MissingHandler, Result, StateTransform, Supervisor}
   alias Reach.OTP.CrossProcess
   alias Reach.OTP.DeadReply
   alias Reach.OTP.GenStatem
@@ -18,7 +19,7 @@ defmodule Reach.OTP.Analysis do
     dead_replies = DeadReply.find_dead_replies(nodes, all_nodes: all_ir)
     cross_process = CrossProcess.find_cross_process_coupling(nodes, all_nodes: all_ir)
 
-    %{
+    Result.new(
       behaviours: behaviours,
       state_machines: state_machines,
       hidden_coupling: hidden_coupling,
@@ -26,7 +27,7 @@ defmodule Reach.OTP.Analysis do
       supervision: supervision,
       dead_replies: dead_replies,
       cross_process: cross_process
-    }
+    )
   end
 
   defp find_gen_servers(nodes, scope) do
@@ -40,12 +41,12 @@ defmodule Reach.OTP.Analysis do
       if map_size(callbacks) > 0 do
         state_transforms = analyze_state_transforms(callbacks)
 
-        %{
+        Behaviour.new(
           module: mod,
           behaviour: detect_behaviour(callbacks),
           callbacks: callbacks,
           state_transforms: state_transforms
-        }
+        )
       end
     end)
     |> Enum.reject(&is_nil/1)
@@ -121,11 +122,11 @@ defmodule Reach.OTP.Analysis do
       state_param = find_state_param(node, arity)
       action = infer_state_action(node, state_param)
 
-      %{
+      StateTransform.new(
         callback: {name, arity},
         action: action,
         location: location(node)
-      }
+      )
     end)
   end
 
@@ -292,7 +293,7 @@ defmodule Reach.OTP.Analysis do
     |> Enum.reject(fn n -> has_catch_all and not literal_atom_msg?(n) end)
     |> Enum.filter(&unmatched_send?(&1, handles))
     |> Enum.map(fn n ->
-      %{location: location(n), message: n.meta[:function]}
+      MissingHandler.new(location: location(n), message: n.meta[:function])
     end)
   end
 
@@ -384,7 +385,12 @@ defmodule Reach.OTP.Analysis do
       end)
       |> Enum.map(fn n ->
         children = extract_supervisor_children(n)
-        %{module: module_for_node(nodes, n), location: location(n), children: children}
+
+        Supervisor.new(
+          module: module_for_node(nodes, n),
+          location: location(n),
+          children: children
+        )
       end)
 
     inline_supervisors =
@@ -400,7 +406,7 @@ defmodule Reach.OTP.Analysis do
         mod =
           if parent, do: module_for_node(nodes, parent), else: find_enclosing_module(nodes, n.id)
 
-        %{module: mod, location: location(n), children: children}
+        Supervisor.new(module: mod, location: location(n), children: children)
       end)
 
     init_supervisors

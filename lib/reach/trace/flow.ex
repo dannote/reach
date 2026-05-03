@@ -3,6 +3,7 @@ defmodule Reach.Trace.Flow do
 
   alias Reach.IR
   alias Reach.Project.Query
+  alias Reach.Trace.Flow.{Path, Result}
   alias Reach.Trace.Pattern
 
   @max_intermediate_nodes 10
@@ -13,7 +14,7 @@ defmodule Reach.Trace.Flow do
 
     paths = find_taint_paths(project, sources, sinks, max_paths)
 
-    %{type: :taint, from: from_pattern, to: to_pattern, paths: paths}
+    Result.new(type: :taint, from: from_pattern, to: to_pattern, paths: paths)
   end
 
   def analyze_variable(project, var_name, scope) do
@@ -35,7 +36,7 @@ defmodule Reach.Trace.Flow do
       end)
       |> Enum.sort_by(&location_key/1)
 
-    %{type: :variable, variable: var_name, definitions: definitions, uses: uses}
+    Result.new(type: :variable, variable: var_name, definitions: definitions, uses: uses)
   end
 
   defp resolve_scope_nodes(project, nil), do: Map.values(project.nodes)
@@ -104,9 +105,9 @@ defmodule Reach.Trace.Flow do
         |> Enum.uniq_by(fn node -> {node.source_span[:file], node.source_span[:start_line]} end)
         |> Enum.take(@max_intermediate_nodes)
 
-      %{source: source, sink: sink, intermediate: path_nodes}
+      Path.new(source: source, sink: sink, intermediate: path_nodes)
     else
-      %{source: source, sink: sink, intermediate: []}
+      Path.new(source: source, sink: sink, intermediate: [])
     end
   end
 

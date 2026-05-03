@@ -25,7 +25,13 @@ defmodule Reach.CLI.RenderBoundaryTest do
     forbidden = ~r/(type|kind):\s*"/
 
     offenders =
-      ["lib/reach/check/**/*.ex", "lib/reach/inspect/**/*.ex"]
+      [
+        "lib/reach/check/**/*.ex",
+        "lib/reach/inspect/**/*.ex",
+        "lib/reach/trace/**/*.ex",
+        "lib/reach/otp/**/*.ex",
+        "lib/reach/map/**/*.ex"
+      ]
       |> Enum.flat_map(&Path.wildcard/1)
       |> Enum.flat_map(fn file ->
         file
@@ -33,6 +39,25 @@ defmodule Reach.CLI.RenderBoundaryTest do
         |> String.split("\n")
         |> Enum.with_index(1)
         |> Enum.filter(fn {line, _line_number} -> line =~ forbidden end)
+        |> Enum.map(fn {_line, line_number} -> "#{file}:#{line_number}" end)
+      end)
+
+    assert offenders == []
+  end
+
+  test "only Reach.Config loads .reach.exs files" do
+    offenders =
+      "lib/reach/**/*.ex"
+      |> Path.wildcard()
+      |> Enum.reject(&(&1 == "lib/reach/config.ex"))
+      |> Enum.flat_map(fn file ->
+        file
+        |> File.read!()
+        |> String.split("\n")
+        |> Enum.with_index(1)
+        |> Enum.filter(fn {line, _line_number} ->
+          line =~ ~r/Code\.eval_file\("\.reach\.exs"\)|File\.exists\?\("\.reach\.exs"\)/
+        end)
         |> Enum.map(fn {_line, line_number} -> "#{file}:#{line_number}" end)
       end)
 

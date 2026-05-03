@@ -2,6 +2,7 @@ defmodule Reach.Trace.Slice do
   @moduledoc false
 
   alias Reach.Project.Query
+  alias Reach.Trace.Slice.{Result, Statement}
 
   def compute(project, node, opts \\ []) do
     forward? = Keyword.get(opts, :forward, false)
@@ -11,11 +12,11 @@ defmodule Reach.Trace.Slice do
     slice_ids = slice_ids(project.graph, node.id, forward?)
     statements = statements(project, slice_ids, var_name, limit)
 
-    %{
+    Result.new(
       node: node,
       direction: if(forward?, do: :forward, else: :backward),
       statements: statements
-    }
+    )
   end
 
   def find_node_at_location(project, file, line) do
@@ -76,12 +77,12 @@ defmodule Reach.Trace.Slice do
     |> Enum.filter(& &1.source_span)
     |> maybe_filter_variable(var_name)
     |> Enum.map(fn node ->
-      %{
+      Statement.new(
         file: node.source_span[:file],
         line: node.source_span[:start_line],
         description: describe_node(node),
         type: node.type
-      }
+      )
     end)
     |> Enum.sort_by(fn statement -> {statement.file, statement.line} end)
     |> Enum.uniq_by(fn statement -> {statement.file, statement.line} end)
