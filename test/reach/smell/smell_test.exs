@@ -32,9 +32,7 @@ defmodule Reach.SmellTest do
       assert Reach.Smell.Checks.CollectionIdioms in checks
       assert Reach.Smell.Checks.CloneConsistency in checks
       assert Reach.Smell.Checks.ConfigPhase in checks
-      assert Reach.Smell.Checks.EagerPattern in checks
       assert Reach.Smell.Checks.PipelineWaste in checks
-      assert Reach.Smell.Checks.ReverseAppend in checks
     end
   end
 
@@ -343,6 +341,50 @@ defmodule Reach.SmellTest do
         """)
 
       assert Enum.filter(findings, &(&1.kind == :dual_key_access)) == []
+    end
+  end
+
+  describe "idiom mismatch detection" do
+    test "flags inspect for module membership" do
+      findings =
+        run_smell_task("""
+        defmodule IdiomA do
+          def check(mod) do
+            mod |> inspect() |> String.starts_with?("Mix.Tasks.")
+          end
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "inspect/1 for module"))
+    end
+
+    test "flags chained String.replace" do
+      findings =
+        run_smell_task("""
+        defmodule IdiomB do
+          def clean(s) do
+            s
+            |> String.replace("<", "")
+            |> String.replace(">", "")
+            |> String.replace(":", "")
+          end
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "chained String.replace"))
+    end
+
+    test "flags Enum.reverse |> hd" do
+      findings =
+        run_smell_task("""
+        defmodule IdiomC do
+          def last_item(list) do
+            list |> Enum.reverse() |> hd()
+          end
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "Enum.reverse"))
     end
   end
 

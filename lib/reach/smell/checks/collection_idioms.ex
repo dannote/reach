@@ -89,6 +89,95 @@ defmodule Reach.Smell.Checks.CollectionIdioms do
     end
   end
 
+  defp finding_for(%{type: :call, meta: %{module: nil, function: :hd, arity: 1}} = node) do
+    if reverse_child?(node) do
+      [
+        finding(
+          :suboptimal,
+          "Enum.reverse/1 |> hd() traverses the list twice; use List.last/1",
+          node
+        )
+      ]
+    else
+      []
+    end
+  end
+
+  defp finding_for(%{type: :call, meta: %{module: List, function: :first, arity: 1}} = node) do
+    if reverse_child?(node) do
+      [
+        finding(
+          :suboptimal,
+          "Enum.reverse/1 |> List.first/1 traverses the list twice; use List.last/1",
+          node
+        )
+      ]
+    else
+      []
+    end
+  end
+
+  defp finding_for(%{type: :binary_op, meta: %{operator: :++}, source_span: span} = node)
+       when not is_nil(span) do
+    case node.children do
+      [%{type: :call, meta: %{module: Enum, function: :reverse, arity: 1}}, _tail] ->
+        [
+          finding(
+            :suboptimal,
+            "Enum.reverse(list) ++ tail traverses twice; use Enum.reverse(list, tail)",
+            node
+          )
+        ]
+
+      _ ->
+        []
+    end
+  end
+
+  defp finding_for(
+         %{type: :call, meta: %{module: String, function: :starts_with?, arity: 2}} = node
+       ) do
+    if inspect_pipe_source?(node) do
+      [
+        finding(
+          :suboptimal,
+          "inspect/1 for module/atom membership is fragile; use Module.split/1 or direct atom comparison",
+          node
+        )
+      ]
+    else
+      []
+    end
+  end
+
+  defp finding_for(%{type: :call, meta: %{module: String, function: :contains?, arity: 2}} = node) do
+    if inspect_pipe_source?(node) do
+      [
+        finding(
+          :suboptimal,
+          "inspect/1 for type checking is fragile; compare atoms or use Module.split/1",
+          node
+        )
+      ]
+    else
+      []
+    end
+  end
+
+  defp finding_for(%{type: :call, meta: %{module: String, function: :replace, arity: 3}} = node) do
+    if chained_replace_sibling?(node) do
+      [
+        finding(
+          :suboptimal,
+          "chained String.replace/3 with single-char literals; use a single Regex.replace/3 or String.replace/3 with a regex",
+          node
+        )
+      ]
+    else
+      []
+    end
+  end
+
   defp finding_for(_node), do: []
 
   defp empty_string_arg?(%{children: children}, index) do
@@ -141,6 +230,32 @@ defmodule Reach.Smell.Checks.CollectionIdioms do
 
   defp call_label(%{meta: %{module: Enum, function: :count}}), do: "Enum.count/1"
   defp call_label(%{meta: %{module: nil, function: :length}}), do: "length/1"
+
+  defp reverse_child?(%{
+         children: [%{type: :call, meta: %{module: Enum, function: :reverse}} | _]
+       }),
+       do: true
+
+  defp reverse_child?(%{children: [%{type: :call, meta: %{function: :reverse}} | _]}), do: true
+  defp reverse_child?(_node), do: false
+
+  defp inspect_pipe_source?(%{children: [%{type: :call, meta: %{function: :inspect}} | _]}),
+    do: true
+
+  defp inspect_pipe_source?(%{meta: %{desugared_from: :pipe}, children: children}) do
+    Enum.any?(children, fn
+      %{type: :call, meta: %{function: :inspect}} -> true
+      _ -> false
+    end)
+  end
+
+  defp inspect_pipe_source?(_node), do: false
+
+  defp chained_replace_sibling?(%{children: [source | _]}) do
+    match?(%{type: :call, meta: %{module: String, function: :replace}}, source)
+  end
+
+  defp chained_replace_sibling?(_node), do: false
 
   defp finding(kind, message, node) do
     Finding.new(kind: kind, message: message, location: Helpers.location(node))
