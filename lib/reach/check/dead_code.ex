@@ -6,7 +6,12 @@ defmodule Reach.Check.DeadCode do
   alias Reach.Check.DeadCode.Finding
 
   def collect_files(nil) do
-    Path.wildcard("lib/**/*.ex") ++ Path.wildcard("src/**/*.erl")
+    config = Mix.Project.config()
+    elixirc = config[:elixirc_paths] || ["lib"]
+    erlc = config[:erlc_paths] || ["src"]
+
+    Enum.flat_map(elixirc, &Path.wildcard(Path.join(&1, "**/*.ex"))) ++
+      Enum.flat_map(erlc, &Path.wildcard(Path.join(&1, "**/*.erl")))
   end
 
   def collect_files(path) do

@@ -320,22 +320,21 @@ defmodule Reach.Check.Changed do
   defp test_paths_for_source(nil), do: []
 
   defp test_paths_for_source(file) do
-    cond do
-      String.starts_with?(file, "lib/mix/tasks/") ->
-        task = file |> Path.basename(".ex") |> String.replace(".", "_")
+    test_dirs = Mix.Project.config()[:test_paths] || ["test"]
 
-        [
-          "test/reach/cli/legacy/#{task}_test.exs",
-          "test/reach/cli/legacy/mix_task_#{String.replace(task, "reach_", "")}_test.exs",
-          "test/reach/cli/canonical_tasks_test.exs"
-        ]
+    source_roots()
+    |> Enum.find_value(fn root ->
+      if String.starts_with?(file, root <> "/") do
+        relative = String.replace_prefix(file, root <> "/", "")
+        base = Path.rootname(relative)
+        Enum.map(test_dirs, &Path.join(&1, base <> "_test.exs"))
+      end
+    end)
+    |> List.wrap()
+  end
 
-      String.starts_with?(file, "lib/") ->
-        base = file |> String.replace_prefix("lib/", "") |> Path.rootname()
-        ["test/#{base}_test.exs", "test/reach/#{base}_test.exs"]
-
-      true ->
-        []
-    end
+  defp source_roots do
+    config = Mix.Project.config()
+    (config[:elixirc_paths] || ["lib"]) ++ (config[:erlc_paths] || ["src"])
   end
 end

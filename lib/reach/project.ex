@@ -105,12 +105,15 @@ defmodule Reach.Project do
   defp discovered_child_roots(root_elixirc, root_erlc) do
     root_set = MapSet.new(root_elixirc ++ root_erlc)
 
+    deps_path = Mix.Project.config()[:deps_path] || "deps"
+    build_path = Mix.Project.build_path()
+
     ["apps/*/lib", "apps/*/src", "*/lib", "*/src"]
     |> Enum.flat_map(&Path.wildcard/1)
     |> Enum.reject(fn path ->
       Path.dirname(path) in root_set or
-        String.starts_with?(path, "deps/") or
-        String.starts_with?(path, "_build/")
+        String.starts_with?(path, deps_path <> "/") or
+        String.starts_with?(path, build_path <> "/")
     end)
     |> Enum.group_by(&Path.dirname/1)
     |> Enum.map(fn {_parent, dirs} ->
