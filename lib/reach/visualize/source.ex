@@ -2,10 +2,10 @@ defmodule Reach.Visualize.Source do
   @moduledoc false
 
   alias Reach.Frontend.Gleam
+  alias Reach.IR.Helpers, as: IRHelpers
 
   @def_cache_key :reach_def_end_cache
   @fallback_function_line_span 50
-  @js_extensions Reach.IR.Helpers.javascript_extensions()
   @source_extensions Reach.IR.Helpers.source_extensions()
 
   def ensure_def_cache(file) do
@@ -177,7 +177,7 @@ defmodule Reach.Visualize.Source do
 
   defp lang_for_file(file) when is_binary(file) do
     case Process.get({:reach_file_lang, file}) do
-      nil -> if Path.extname(file) in @js_extensions, do: :javascript, else: :elixir
+      nil -> IRHelpers.language_from_path(file)
       lang -> lang
     end
   end

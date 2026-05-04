@@ -29,22 +29,35 @@ defmodule Reach.IR.Helpers do
 
   @elixir_extensions [".ex", ".exs"]
   @erlang_extensions [".erl", ".hrl"]
-  @javascript_extensions [".js", ".ts", ".tsx", ".jsx", ".mjs"]
-  @gleam_extensions [".gleam"]
 
   def elixir_extensions, do: @elixir_extensions
   def erlang_extensions, do: @erlang_extensions
-  def javascript_extensions, do: @javascript_extensions
 
-  def source_extensions,
-    do: @elixir_extensions ++ @erlang_extensions ++ @gleam_extensions ++ @javascript_extensions
+  def source_extensions do
+    @elixir_extensions ++ @erlang_extensions ++ frontend_extensions()
+  end
 
   def language_from_path(path) do
-    case Path.extname(path) do
-      ext when ext in @erlang_extensions -> :erlang
-      ext when ext in @gleam_extensions -> :gleam
-      ext when ext in @javascript_extensions -> :javascript
-      _ -> :elixir
+    ext = Path.extname(path)
+
+    cond do
+      ext in @erlang_extensions -> :erlang
+      match_frontend?(Reach.Frontend.Gleam, ext) -> :gleam
+      match_frontend?(Reach.Frontend.JavaScript, ext) -> :javascript
+      true -> :elixir
+    end
+  end
+
+  defp match_frontend?(module, ext) do
+    Code.ensure_loaded?(module) and function_exported?(module, :extensions, 0) and
+      ext in module.extensions()
+  end
+
+  defp frontend_extensions do
+    for module <- [Reach.Frontend.Gleam, Reach.Frontend.JavaScript],
+        Code.ensure_loaded?(module) and function_exported?(module, :extensions, 0),
+        ext <- module.extensions() do
+      ext
     end
   end
 

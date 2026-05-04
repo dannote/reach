@@ -12,6 +12,8 @@ if Code.ensure_loaded?(QuickBEAM) do
     alias Reach.IR.{Counter, Node}
     import Reach.IR.Helpers, only: [mark_as_definitions: 1]
 
+    def extensions, do: [".js", ".ts", ".tsx", ".jsx", ".mjs"]
+
     @spec parse(String.t(), keyword()) :: {:ok, [Node.t()]} | {:error, term()}
     def parse(source, opts \\ []) do
       file = Keyword.get(opts, :file, "nofile")
