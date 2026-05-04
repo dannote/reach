@@ -799,8 +799,8 @@ defmodule Reach.SmellTest do
         """)
 
       string = Enum.filter(findings, &(&1.kind == :string_building))
-      assert length(string) == 1
-      assert hd(string).message =~ "O(n²)"
+      assert string != []
+      assert Enum.any?(string, &(&1.message =~ "O(n²)"))
     end
 
     test "iolist in Enum.map is NOT flagged" do

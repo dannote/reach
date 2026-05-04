@@ -86,4 +86,10 @@ defmodule Reach.Smell.Checks.PipelineWaste do
     :eager_pattern,
     "Enum.map → Enum.join: use Enum.map_join/3"
   )
+
+  smell(
+    ~p[_ |> (fn _ -> _ end).()],
+    :suboptimal,
+    "anonymous fn applied with .() in pipe; use then/2 instead"
+  )
 end

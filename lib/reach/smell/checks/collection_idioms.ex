@@ -92,4 +92,34 @@ defmodule Reach.Smell.Checks.CollectionIdioms do
     :suboptimal,
     "chained String.replace/3; use a single String.replace/3 with a regex"
   )
+
+  smell(
+    ~p[Map.keys(_) |> Enum.map(_)],
+    :suboptimal,
+    "Map.keys/1 → Enum.map: iterate the map directly as {key, value} pairs"
+  )
+
+  smell(
+    ~p[Map.keys(_) |> Enum.filter(_)],
+    :suboptimal,
+    "Map.keys/1 → Enum.filter: iterate the map directly as {key, value} pairs"
+  )
+
+  smell(
+    ~p[Map.keys(_) |> Enum.each(_)],
+    :suboptimal,
+    "Map.keys/1 → Enum.each: iterate the map directly as {key, value} pairs"
+  )
+
+  smell(
+    ~p[Map.keys(_) |> Enum.flat_map(_)],
+    :suboptimal,
+    "Map.keys/1 → Enum.flat_map: iterate the map directly as {key, value} pairs"
+  )
+
+  smell(
+    ~p[List.to_tuple(_) |> elem(_)],
+    :suboptimal,
+    "List.to_tuple/1 → elem/2 allocates a full copy; use Enum.at/2 or pattern matching"
+  )
 end
