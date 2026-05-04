@@ -1,20 +1,9 @@
 defmodule Reach.Smell.Checks.PipelineWaste do
   @moduledoc false
 
-  @behaviour Reach.Smell.Check
+  use Reach.Smell.Check
 
   alias Reach.Effects
-  alias Reach.IR
-  alias Reach.Smell.Finding
-  alias Reach.Smell.Helpers
-
-  @impl true
-  def run(project) do
-    project.nodes
-    |> Map.values()
-    |> Enum.filter(&(&1.type == :function_def))
-    |> Enum.flat_map(&findings/1)
-  end
 
   defp findings(func) do
     all_nodes = IR.all_nodes(func)
@@ -139,101 +128,78 @@ defmodule Reach.Smell.Checks.PipelineWaste do
   defp non_negative_drop?(_call), do: true
 
   defp smell_for_pattern(:reverse_reverse, node) do
-    Finding.new(
-      kind: :redundant_traversal,
-      message: "Enum.reverse → Enum.reverse is a no-op",
-      location: Helpers.location(node)
-    )
+    finding(:redundant_traversal, "Enum.reverse → Enum.reverse is a no-op", node)
   end
 
   defp smell_for_pattern(:filter_count, node) do
-    Finding.new(
-      kind: :suboptimal,
-      message: "Enum.filter → Enum.count: use Enum.count/2 instead",
-      location: Helpers.location(node)
-    )
+    finding(:suboptimal, "Enum.filter → Enum.count: use Enum.count/2 instead", node)
   end
 
   defp smell_for_pattern(:map_count, node) do
-    Finding.new(
-      kind: :suboptimal,
-      message: "Enum.map → Enum.count: use Enum.count/2 with transform",
-      location: Helpers.location(node)
-    )
+    finding(:suboptimal, "Enum.map → Enum.count: use Enum.count/2 with transform", node)
   end
 
   defp smell_for_pattern(:map_map, node) do
-    Finding.new(
-      kind: :suboptimal,
-      message: "Enum.map → Enum.map: consider fusing into one pass",
-      location: Helpers.location(node)
-    )
+    finding(:suboptimal, "Enum.map → Enum.map: consider fusing into one pass", node)
   end
 
   defp smell_for_pattern(:filter_filter, node) do
-    Finding.new(
-      kind: :suboptimal,
-      message: "Enum.filter → Enum.filter: combine predicates into one pass",
-      location: Helpers.location(node)
-    )
+    finding(:suboptimal, "Enum.filter → Enum.filter: combine predicates into one pass", node)
   end
 
   defp smell_for_pattern(:map_first, node) do
-    Finding.new(
-      kind: :eager_pattern,
-      message: "Enum.map → List.first: builds entire list for one element. Use Enum.find_value/2",
-      location: Helpers.location(node)
+    finding(
+      :eager_pattern,
+      "Enum.map → List.first: builds entire list for one element. Use Enum.find_value/2",
+      node
     )
   end
 
   defp smell_for_pattern(:sort_take, node) do
-    Finding.new(
-      kind: :eager_pattern,
-      message:
-        "Enum.sort → Enum.take: sorts entire list. Use Enum.min/max for one element or a partial top-k pass",
-      location: Helpers.location(node)
+    finding(
+      :eager_pattern,
+      "Enum.sort → Enum.take: sorts entire list. Use Enum.min/max for one element or a partial top-k pass",
+      node
     )
   end
 
   defp smell_for_pattern(:sort_reverse, node) do
-    Finding.new(
-      kind: :eager_pattern,
-      message: "Enum.sort → Enum.reverse: use Enum.sort(enumerable, :desc) instead",
-      location: Helpers.location(node)
+    finding(
+      :eager_pattern,
+      "Enum.sort → Enum.reverse: use Enum.sort(enumerable, :desc) instead",
+      node
     )
   end
 
   defp smell_for_pattern(:sort_at, node) do
-    Finding.new(
-      kind: :eager_pattern,
-      message:
-        "Enum.sort → Enum.at: full sort for one element. Use Enum.min/max or a selection pass",
-      location: Helpers.location(node)
+    finding(
+      :eager_pattern,
+      "Enum.sort → Enum.at: full sort for one element. Use Enum.min/max or a selection pass",
+      node
     )
   end
 
   defp smell_for_pattern(:drop_take, node) do
-    Finding.new(
-      kind: :eager_pattern,
-      message: "Enum.drop → Enum.take: use Enum.slice/3 to express slicing intent",
-      location: Helpers.location(node)
+    finding(
+      :eager_pattern,
+      "Enum.drop → Enum.take: use Enum.slice/3 to express slicing intent",
+      node
     )
   end
 
   defp smell_for_pattern(:take_while_count, node) do
-    Finding.new(
-      kind: :eager_pattern,
-      message:
-        "Enum.take_while → count/length: allocates an intermediate list. Use Enum.reduce_while/3",
-      location: Helpers.location(node)
+    finding(
+      :eager_pattern,
+      "Enum.take_while → count/length: allocates an intermediate list. Use Enum.reduce_while/3",
+      node
     )
   end
 
   defp smell_for_pattern(:map_join, node) do
-    Finding.new(
-      kind: :eager_pattern,
-      message: "Enum.map → Enum.join: use Enum.map_join/3 when the intended result is a binary",
-      location: Helpers.location(node)
+    finding(
+      :eager_pattern,
+      "Enum.map → Enum.join: use Enum.map_join/3 when the intended result is a binary",
+      node
     )
   end
 
@@ -256,11 +222,10 @@ defmodule Reach.Smell.Checks.PipelineWaste do
     with %{meta: %{function: :map, module: Enum}} = map_call <- find_piped_producer(join, calls),
          true <- callback_builds_strings?(map_call) do
       [
-        Finding.new(
-          kind: :string_building,
-          message:
-            "Enum.map(& \"...#{}\"\) |> Enum.join: builds intermediate strings. Return iolists from map and pass to IO directly",
-          location: Helpers.location(join)
+        finding(
+          :string_building,
+          "Enum.map(& \"...#{}\"\) |> Enum.join: builds intermediate strings. Return iolists from map and pass to IO directly",
+          join
         )
       ]
     else
@@ -272,11 +237,10 @@ defmodule Reach.Smell.Checks.PipelineWaste do
     calls
     |> Enum.filter(&(enum_call?(&1, :map_join) and callback_builds_strings?(&1)))
     |> Enum.map(fn call ->
-      Finding.new(
-        kind: :string_building,
-        message:
-          "Enum.map_join with string interpolation: builds N intermediate strings. Use Enum.map/2 returning iolists",
-        location: Helpers.location(call)
+      finding(
+        :string_building,
+        "Enum.map_join with string interpolation: builds N intermediate strings. Use Enum.map/2 returning iolists",
+        call
       )
     end)
   end
@@ -296,11 +260,10 @@ defmodule Reach.Smell.Checks.PipelineWaste do
     concat_ids_with_join
     |> Enum.reject(&(&1.id in nested_ids))
     |> Enum.map(fn concat ->
-      Finding.new(
-        kind: :string_building,
-        message:
-          "String concatenation around Enum.join: wrap in a list instead — [\"<div>\", parts, \"</div>\"]",
-        location: Helpers.location(concat)
+      finding(
+        :string_building,
+        "String concatenation around Enum.join: wrap in a list instead — [\"<div>\", parts, \"</div>\"]",
+        concat
       )
     end)
   end
@@ -312,11 +275,10 @@ defmodule Reach.Smell.Checks.PipelineWaste do
         callback_uses_string_concat?(reduce)
     end)
     |> Enum.map(fn reduce ->
-      Finding.new(
-        kind: :string_building,
-        message:
-          "Enum.reduce building string with <>: O(n²) copying. Use iolists or Enum.map_join",
-        location: Helpers.location(reduce)
+      finding(
+        :string_building,
+        "Enum.reduce building string with <>: O(n²) copying. Use iolists or Enum.map_join",
+        reduce
       )
     end)
   end

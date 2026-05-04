@@ -3,13 +3,9 @@ defmodule Reach.Smell.Checks.CollectionIdioms do
 
   use Reach.Smell.Check
 
-  alias Reach.IR
-  alias Reach.Smell.Finding
-
   defp findings(function) do
     function
-    |> IR.all_nodes()
-    |> Enum.filter(& &1.source_span)
+    |> sourced_nodes()
     |> Enum.flat_map(&finding_for/1)
   end
 
@@ -256,8 +252,4 @@ defmodule Reach.Smell.Checks.CollectionIdioms do
   end
 
   defp chained_replace_sibling?(_node), do: false
-
-  defp finding(kind, message, node) do
-    Finding.new(kind: kind, message: message, location: Helpers.location(node))
-  end
 end

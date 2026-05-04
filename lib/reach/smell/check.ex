@@ -7,13 +7,26 @@ defmodule Reach.Smell.Check do
     quote do
       @behaviour Reach.Smell.Check
 
-      alias Reach.Smell.Helpers
+      alias Reach.IR
+      alias Reach.Smell.{Finding, Helpers}
 
       def run(project) do
         project
         |> Helpers.function_defs()
         |> Enum.flat_map(&findings/1)
       end
+
+      defp sourced_nodes(function) do
+        function
+        |> IR.all_nodes()
+        |> Enum.filter(& &1.source_span)
+      end
+
+      defp finding(kind, message, node) do
+        Finding.new(kind: kind, message: message, location: Helpers.location(node))
+      end
+
+      defoverridable run: 1
     end
   end
 end

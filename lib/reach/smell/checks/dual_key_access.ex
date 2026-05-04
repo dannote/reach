@@ -3,9 +3,6 @@ defmodule Reach.Smell.Checks.DualKeyAccess do
 
   use Reach.Smell.Check
 
-  alias Reach.IR
-  alias Reach.Smell.Finding
-
   defp findings(function) do
     function
     |> IR.all_nodes()
@@ -15,7 +12,7 @@ defmodule Reach.Smell.Checks.DualKeyAccess do
       key_types = accesses |> Enum.map(& &1.key_type) |> MapSet.new()
 
       if MapSet.subset?(MapSet.new([:atom, :string]), key_types) do
-        [finding(variable, key, accesses)]
+        [dual_key_finding(variable, key, accesses)]
       else
         []
       end
@@ -43,7 +40,7 @@ defmodule Reach.Smell.Checks.DualKeyAccess do
 
   defp key_access(_node), do: []
 
-  defp finding(variable, key, accesses) do
+  defp dual_key_finding(variable, key, accesses) do
     locations = accesses |> Enum.map(& &1.location) |> Enum.uniq()
 
     Finding.new(
