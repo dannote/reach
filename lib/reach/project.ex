@@ -204,17 +204,15 @@ defmodule Reach.Project do
   end
 
   defp chop_in_graph(graph, source_id, sink_id) do
-    fwd =
-      if Graph.has_vertex?(graph, source_id),
-        do: Graph.reachable(graph, [source_id]) |> MapSet.new(),
-        else: MapSet.new()
+    fwd = graph |> Graph.reachable([source_id]) |> MapSet.new()
 
     bwd =
       if Graph.has_vertex?(graph, sink_id),
-        do: Graph.reaching(graph, [sink_id]) |> MapSet.new(),
+        do: graph |> Graph.reaching([sink_id]) |> MapSet.new(),
         else: MapSet.new()
 
-    MapSet.intersection(fwd, bwd)
+    fwd
+    |> MapSet.intersection(bwd)
     |> MapSet.delete(source_id)
     |> MapSet.delete(sink_id)
     |> MapSet.to_list()
@@ -230,7 +228,7 @@ defmodule Reach.Project do
   defp matches_kv?(node, {:module, mod}), do: node.meta[:module] == mod
   defp matches_kv?(node, {:function, fun}), do: node.meta[:function] == fun
   defp matches_kv?(node, {:arity, arity}), do: node.meta[:arity] == arity
-  defp matches_kv?(_, _), do: true
+  defp matches_kv?(_node, _unknown_filter), do: false
 
   defp matches_filter?(node, filter) when is_list(filter),
     do: Enum.all?(filter, &matches_kv?(node, &1))
@@ -239,32 +237,11 @@ defmodule Reach.Project do
 
   # --- Private ---
 
-  defp parse_files(paths, _opts) do
-    counter = Counter.new()
+  defp parse_files(paths, opts) do
+    counter = Keyword.get_lazy(opts, :counter, &Counter.new/0)
 
     paths
-    |> Task.async_stream(
-      fn path ->
-        language = language_from_path(path)
-        module_name = module_from_path(path)
-
-        result =
-          case language do
-            :gleam -> Frontend.Gleam.parse_file(path, file: path)
-            :erlang -> Frontend.Erlang.parse_file(path, file: path)
-            :javascript -> parse_js_file(path, counter)
-            :elixir -> parse_elixir_file(path, counter)
-          end
-
-        case result do
-          {:ok, ir_nodes} ->
-            mod = module_name || extract_module_name(ir_nodes)
-            {mod, path, ir_nodes}
-
-          {:error, _} ->
-            nil
-        end
-      end,
+    |> Task.async_stream(&parse_path(&1, counter),
       max_concurrency: System.schedulers_online(),
       ordered: false
     )
@@ -273,6 +250,24 @@ defmodule Reach.Project do
       {:ok, result} -> [result]
     end)
   end
+
+  defp parse_path(path, counter) do
+    language = language_from_path(path)
+    module_name = module_from_path(path)
+
+    case parse_language(language, path, counter) do
+      {:ok, ir_nodes} ->
+        {module_name || extract_module_name(ir_nodes), path, ir_nodes}
+
+      {:error, _} ->
+        nil
+    end
+  end
+
+  defp parse_language(:gleam, path, _counter), do: Frontend.Gleam.parse_file(path, file: path)
+  defp parse_language(:erlang, path, _counter), do: Frontend.Erlang.parse_file(path, file: path)
+  defp parse_language(:javascript, path, counter), do: parse_js_file(path, counter)
+  defp parse_language(:elixir, path, counter), do: parse_elixir_file(path, counter)
 
   defp parse_elixir_file(path, counter) do
     case File.read(path) do
