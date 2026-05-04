@@ -45,10 +45,7 @@ defmodule Reach.Visualize.Source do
 
   def highlight_source(source, lang) do
     if Code.ensure_loaded?(Makeup) do
-      source
-      |> Makeup.highlight(lexer_opts(lang))
-      |> String.replace(~r{^<pre class="highlight"><code>}, "")
-      |> String.replace(~r{</code></pre>$}, "")
+      Makeup.highlight_inner_html(source, lexer_opts(lang))
     else
       nil
     end
