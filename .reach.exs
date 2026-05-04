@@ -117,7 +117,15 @@
   ],
   calls: [
     forbidden: [
-      {"Reach.CLI.Commands.*", ["IO.puts", "Jason.encode!", "Reach.CLI.Format.render"]}
+      {"Reach.CLI.Commands.*", ["IO.puts", "Jason.encode!", "Reach.CLI.Format.render"]},
+      {"Reach.CLI.Commands.*", ["Mix.Task.run"]},
+      {"Reach.CLI.Commands.*", ["Mix.Tasks.Reach.*"]},
+      {"Reach.Check.*", ["Mix.Task.run"]},
+      {"Reach.Inspect.*", ["Mix.Task.run"]},
+      {"Reach.Trace.*", ["Mix.Task.run"]},
+      {"Reach.Map.*", ["Mix.Task.run"]},
+      {"Reach.OTP.*", ["Mix.Task.run"]},
+      {"Reach.Smell.*", ["Mix.Task.run"]}
     ]
   ],
   effects: [
