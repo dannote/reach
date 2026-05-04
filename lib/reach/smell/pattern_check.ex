@@ -25,18 +25,32 @@ defmodule Reach.Smell.PatternCheck do
         file = module.source_span && module.source_span[:file]
 
         if file && File.regular?(file) do
-          zipper =
-            file
-            |> File.read!()
-            |> Sourceror.parse_string!()
-            |> Sourceror.Zipper.zip()
-
+          zipper = cached_zipper(file)
           find_pattern_smells(zipper, file) ++ find_query_smells(zipper, file)
         else
           []
         end
       rescue
         _ -> []
+      end
+
+      defp cached_zipper(file) do
+        key = {:reach_smell_zipper, file}
+
+        case Process.get(key) do
+          nil ->
+            zipper =
+              file
+              |> File.read!()
+              |> Sourceror.parse_string!()
+              |> Sourceror.Zipper.zip()
+
+            Process.put(key, zipper)
+            zipper
+
+          zipper ->
+            zipper
+        end
       end
     end
   end
@@ -68,27 +82,23 @@ defmodule Reach.Smell.PatternCheck do
     quote do
       defp find_pattern_smells(zipper, file) do
         Enum.flat_map(@smell_patterns, fn {pattern, kind, message} ->
-          match_pattern(zipper, pattern, kind, message, file)
+          zipper
+          |> ExAST.Patcher.find_all(pattern)
+          |> Enum.map(fn match ->
+            line = (match.range && match.range.start[:line]) || 0
+            Reach.Smell.Finding.new(kind: kind, message: message, location: "#{file}:#{line}")
+          end)
         end)
       end
 
       defp find_query_smells(zipper, file) do
         Enum.flat_map(@smell_query_names, fn {fun_name, kind, message} ->
-          match_pattern(zipper, apply(__MODULE__, fun_name, []), kind, message, file)
-        end)
-      end
-
-      defp match_pattern(zipper, pattern, kind, message, file) do
-        zipper
-        |> ExAST.Patcher.find_all(pattern)
-        |> Enum.map(fn match ->
-          line = (match.range && match.range.start[:line]) || 0
-
-          Reach.Smell.Finding.new(
-            kind: kind,
-            message: message,
-            location: "#{file}:#{line}"
-          )
+          zipper
+          |> ExAST.Patcher.find_all(apply(__MODULE__, fun_name, []))
+          |> Enum.map(fn match ->
+            line = (match.range && match.range.start[:line]) || 0
+            Reach.Smell.Finding.new(kind: kind, message: message, location: "#{file}:#{line}")
+          end)
         end)
       end
     end
