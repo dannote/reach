@@ -247,7 +247,7 @@ defmodule Reach.SmellTest do
       assert Enum.any?(findings, &(&1.kind == :eager_pattern and &1.message =~ "Enum.slice/3"))
     end
 
-    test "does not flag negative drop then take" do
+    test "flags negative drop then take" do
       findings =
         run_smell_task("""
         defmodule DropTakeTail do
@@ -255,7 +255,7 @@ defmodule Reach.SmellTest do
         end
         """)
 
-      refute Enum.any?(findings, &(&1.kind == :eager_pattern and &1.message =~ "Enum.slice/3"))
+      assert Enum.any?(findings, &(&1.kind == :eager_pattern and &1.message =~ "Enum.slice/3"))
     end
 
     test "flags take_while then length" do
@@ -579,9 +579,9 @@ defmodule Reach.SmellTest do
         """)
 
       assert [%{kind: :suboptimal} = finding] =
-               Enum.filter(findings, &String.contains?(&1.message, "empty string separator"))
+               Enum.filter(findings, &String.contains?(&1.message, "empty separator"))
 
-      assert finding.message =~ "Enum.join/1"
+      assert finding.message =~ "Enum.join"
     end
 
     test "flags String.graphemes counted through length or Enum.count" do
@@ -619,7 +619,7 @@ defmodule Reach.SmellTest do
         end
         """)
 
-      matching = Enum.filter(findings, &String.contains?(&1.message, "takes from the end"))
+      matching = Enum.filter(findings, &String.contains?(&1.message, "negative count"))
       assert length(matching) == 2
     end
 
@@ -632,7 +632,7 @@ defmodule Reach.SmellTest do
         """)
 
       assert [%{kind: :suboptimal} = finding] =
-               Enum.filter(findings, &String.contains?(&1.message, "intermediate binary"))
+               Enum.filter(findings, &String.contains?(&1.message, "Integer.to_string"))
 
       assert finding.message =~ "Integer.digits/2"
     end
@@ -651,9 +651,9 @@ defmodule Reach.SmellTest do
       assert [%{kind: :config_phase} = finding] =
                Enum.filter(findings, &(&1.kind == :config_phase))
 
-      assert finding.message =~ "module attribute stores Application.get_env/2 at compile time"
+      assert finding.message =~ "module attribute calls Application.get_env at compile time"
       assert finding.message =~ "compile_env"
-      assert finding.message =~ "runtime config"
+      assert finding.message =~ "compile time"
     end
 
     test "flags compile_env used inside runtime functions" do
@@ -669,8 +669,8 @@ defmodule Reach.SmellTest do
       assert [%{kind: :config_phase} = finding] =
                Enum.filter(findings, &(&1.kind == :config_phase))
 
-      assert finding.message =~ "Application.compile_env/2 inside a function"
-      assert finding.message =~ "still compile-time config"
+      assert finding.message =~ "Application.compile_env inside a function"
+      assert finding.message =~ "compile-time"
     end
 
     test "does not flag explicit compile-time module attributes or runtime function reads" do

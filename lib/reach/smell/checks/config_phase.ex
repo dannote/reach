@@ -1,81 +1,47 @@
 defmodule Reach.Smell.Checks.ConfigPhase do
   @moduledoc false
 
-  @behaviour Reach.Smell.Check
+  use Reach.Smell.PatternCheck
 
-  alias Reach.IR
-  alias Reach.Smell.Finding
-  alias Reach.Smell.Helpers
+  smell(
+    ~p[@_ Application.get_env(_, _)],
+    :config_phase,
+    "module attribute calls Application.get_env at compile time; use Application.compile_env or read at runtime"
+  )
 
-  @runtime_env_functions [:get_env, :fetch_env, :fetch_env!]
-  @compile_env_functions [:compile_env, :compile_env!]
+  smell(
+    ~p[@_ Application.fetch_env(_, _)],
+    :config_phase,
+    "module attribute calls Application.fetch_env at compile time; use Application.compile_env or read at runtime"
+  )
 
-  @impl true
-  def run(project) do
-    project.nodes
-    |> Map.values()
-    |> Enum.filter(&(&1.type == :module_def))
-    |> Enum.flat_map(&module_findings/1)
-  end
+  smell(
+    ~p[@_ Application.fetch_env!(_, _)],
+    :config_phase,
+    "module attribute calls Application.fetch_env! at compile time; use Application.compile_env! or read at runtime"
+  )
 
-  defp module_findings(module) do
-    runtime_env_module_attributes(module) ++ compile_env_function_calls(module)
-  end
+  smell(
+    from(~p[Application.compile_env(_, _)]) |> where(inside("def _ do ... end")),
+    :config_phase,
+    "Application.compile_env inside a function is still compile-time; use Application.get_env for runtime config"
+  )
 
-  defp runtime_env_module_attributes(module) do
-    module
-    |> module_body_nodes()
-    |> Enum.filter(&module_attribute?/1)
-    |> Enum.flat_map(fn attribute ->
-      attribute
-      |> IR.all_nodes()
-      |> Enum.filter(&application_env_call?(&1, @runtime_env_functions))
-      |> Enum.map(&runtime_env_attribute_finding(attribute, &1))
-    end)
-  end
+  smell(
+    from(~p[Application.compile_env!(_, _)]) |> where(inside("def _ do ... end")),
+    :config_phase,
+    "Application.compile_env! inside a function is still compile-time; use Application.fetch_env! for runtime config"
+  )
 
-  defp compile_env_function_calls(module) do
-    module
-    |> IR.all_nodes()
-    |> Enum.filter(&(&1.type == :function_def))
-    |> Enum.flat_map(fn function ->
-      function
-      |> IR.all_nodes()
-      |> Enum.filter(&application_env_call?(&1, @compile_env_functions))
-      |> Enum.map(&compile_env_function_finding/1)
-    end)
-  end
+  smell(
+    from(~p[Application.compile_env(_, _, _)]) |> where(inside("def _ do ... end")),
+    :config_phase,
+    "Application.compile_env inside a function is still compile-time; use Application.get_env for runtime config"
+  )
 
-  defp module_body_nodes(%{children: [%{type: :block, children: children}]}), do: children
-  defp module_body_nodes(%{children: children}), do: children
-
-  defp module_attribute?(%{type: :call, meta: %{function: :@, arity: 1}}), do: true
-  defp module_attribute?(_node), do: false
-
-  defp application_env_call?(
-         %{type: :call, meta: %{module: Application, function: function}},
-         functions
-       ),
-       do: function in functions
-
-  defp application_env_call?(_node, _functions), do: false
-
-  defp runtime_env_attribute_finding(attribute, env_call) do
-    Finding.new(
-      kind: :config_phase,
-      message:
-        "module attribute stores Application.#{env_call.meta.function}/#{env_call.meta.arity} at compile time; use Application.compile_env for compile-time config or read Application env inside a function for runtime config",
-      location: Helpers.location(attribute),
-      evidence: [Helpers.location(env_call)]
-    )
-  end
-
-  defp compile_env_function_finding(env_call) do
-    Finding.new(
-      kind: :config_phase,
-      message:
-        "Application.#{env_call.meta.function}/#{env_call.meta.arity} inside a function is still compile-time config; use Application.get_env/fetch_env when the value must change at runtime",
-      location: Helpers.location(env_call)
-    )
-  end
+  smell(
+    from(~p[Application.compile_env!(_, _, _)]) |> where(inside("def _ do ... end")),
+    :config_phase,
+    "Application.compile_env! inside a function is still compile-time; use Application.fetch_env! for runtime config"
+  )
 end
