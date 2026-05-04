@@ -54,7 +54,10 @@ defmodule Reach.CLI.Commands.Trace do
   end
 
   defp flow_trace?(opts, positional) do
-    opts[:from] || opts[:to] || (opts[:variable] && opts[:in]) ||
-      (opts[:variable] && positional == [])
+    not slice_mode?(opts) and
+      (opts[:from] || opts[:to] || (opts[:variable] && opts[:in]) ||
+         (opts[:variable] && positional == []))
   end
+
+  defp slice_mode?(opts), do: opts[:backward] != nil or opts[:forward] != nil
 end
