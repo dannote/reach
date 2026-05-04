@@ -2,6 +2,7 @@ defmodule Reach.Smell.Finding do
   @moduledoc false
 
   @enforce_keys [:kind, :message, :location]
+  @derive Jason.Encoder
   defstruct [
     :kind,
     :message,
@@ -17,6 +18,4 @@ defmodule Reach.Smell.Finding do
   def new(attrs) when is_list(attrs) or is_map(attrs) do
     struct!(__MODULE__, attrs)
   end
-
-  def to_map(%__MODULE__{} = finding), do: Reach.StructMap.compact(finding)
 end

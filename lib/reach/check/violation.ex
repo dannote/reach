@@ -1,6 +1,7 @@
 defmodule Reach.Check.Violation do
   @moduledoc false
 
+  @derive Jason.Encoder
   defstruct [
     :type,
     :caller_module,
@@ -23,10 +24,4 @@ defmodule Reach.Check.Violation do
   ]
 
   def new(attrs) when is_list(attrs) or is_map(attrs), do: struct!(__MODULE__, attrs)
-
-  def to_map(%__MODULE__{} = violation), do: Reach.StructMap.compact(violation)
-end
-
-defimpl Jason.Encoder, for: Reach.Check.Violation do
-  def encode(violation, opts), do: Jason.Encode.map(Reach.Check.Violation.to_map(violation), opts)
 end

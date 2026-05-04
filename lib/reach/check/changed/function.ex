@@ -1,6 +1,7 @@
 defmodule Reach.Check.Changed.Function do
   @moduledoc false
 
+  @derive Jason.Encoder
   defstruct [
     :id,
     :file,
@@ -17,10 +18,4 @@ defmodule Reach.Check.Changed.Function do
   ]
 
   def new(attrs), do: struct!(__MODULE__, attrs)
-  def to_map(%__MODULE__{} = function), do: Reach.StructMap.compact(function)
-end
-
-defimpl Jason.Encoder, for: Reach.Check.Changed.Function do
-  def encode(function, opts),
-    do: Jason.Encode.map(Reach.Check.Changed.Function.to_map(function), opts)
 end

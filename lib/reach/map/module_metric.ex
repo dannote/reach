@@ -1,5 +1,6 @@
 defmodule Reach.Map.ModuleMetric do
   @moduledoc false
+  @derive Jason.Encoder
   defstruct [
     :name,
     :file,
@@ -19,9 +20,4 @@ defmodule Reach.Map.ModuleMetric do
   ]
 
   def new(attrs), do: struct!(__MODULE__, attrs)
-  def to_map(%__MODULE__{} = value), do: Reach.StructMap.compact(value)
-end
-
-defimpl Jason.Encoder, for: Reach.Map.ModuleMetric do
-  def encode(value, opts), do: Jason.Encode.map(Reach.Map.ModuleMetric.to_map(value), opts)
 end

@@ -7,7 +7,7 @@ defmodule Reach.CLI.Render.Check.Smells do
   @evidence_display_limit 4
 
   def render(findings, "json", command) do
-    Format.render(%{findings: Enum.map(findings, &Finding.to_map/1)}, command,
+    Format.render(%{findings: findings}, command,
       format: "json",
       pretty: true
     )

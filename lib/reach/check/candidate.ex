@@ -1,6 +1,7 @@
 defmodule Reach.Check.Candidate do
   @moduledoc false
 
+  @derive Jason.Encoder
   defstruct [
     :id,
     :kind,
@@ -23,10 +24,4 @@ defmodule Reach.Check.Candidate do
   ]
 
   def new(attrs) when is_list(attrs) or is_map(attrs), do: struct!(__MODULE__, attrs)
-
-  def to_map(%__MODULE__{} = candidate), do: Reach.StructMap.compact(candidate)
-end
-
-defimpl Jason.Encoder, for: Reach.Check.Candidate do
-  def encode(candidate, opts), do: Jason.Encode.map(Reach.Check.Candidate.to_map(candidate), opts)
 end
