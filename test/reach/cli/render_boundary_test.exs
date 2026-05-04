@@ -89,6 +89,29 @@ defmodule Reach.CLI.RenderBoundaryTest do
     assert offenders == []
   end
 
+  test "optional language frontends stay out of generic project/IR code" do
+    forbidden = ~r/Frontend\.Gleam|Frontend\.JavaScript/
+
+    offenders =
+      [
+        "lib/reach/project.ex",
+        "lib/reach/ir/helpers.ex",
+        "lib/reach/ir/node.ex",
+        "lib/reach/ir.ex"
+      ]
+      |> Enum.flat_map(&Path.wildcard/1)
+      |> Enum.flat_map(fn file ->
+        file
+        |> File.read!()
+        |> String.split("\n")
+        |> Enum.with_index(1)
+        |> Enum.filter(fn {line, _line_number} -> line =~ forbidden end)
+        |> Enum.map(fn {_line, line_number} -> "#{file}:#{line_number}" end)
+      end)
+
+    assert offenders == []
+  end
+
   test "canonical command modules keep rendering in render layer" do
     forbidden = ~r/IO\.puts|Format\.render|Jason\.encode!/
 

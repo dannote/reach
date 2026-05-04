@@ -23,7 +23,7 @@ defmodule Reach.Project do
   alias Reach.{DependencySummary, Frontend, IR}
   alias Reach.IR.Counter
 
-  import Reach.IR.Helpers, only: [language_from_path: 1, module_from_path: 1]
+  import Reach.IR.Helpers, only: [module_from_path: 1]
 
   @type t :: %__MODULE__{
           modules: %{module() => map()},
@@ -252,35 +252,14 @@ defmodule Reach.Project do
   end
 
   defp parse_path(path, counter) do
-    language = language_from_path(path)
     module_name = module_from_path(path)
 
-    case parse_language(language, path, counter) do
+    case Frontend.parse_file(path, file: path, counter: counter) do
       {:ok, ir_nodes} ->
         {module_name || extract_module_name(ir_nodes), path, ir_nodes}
 
       {:error, _} ->
         nil
-    end
-  end
-
-  defp parse_language(:gleam, path, _counter), do: Frontend.Gleam.parse_file(path, file: path)
-  defp parse_language(:erlang, path, _counter), do: Frontend.Erlang.parse_file(path, file: path)
-  defp parse_language(:javascript, path, counter), do: parse_js_file(path, counter)
-  defp parse_language(:elixir, path, counter), do: parse_elixir_file(path, counter)
-
-  defp parse_elixir_file(path, counter) do
-    case File.read(path) do
-      {:ok, source} -> Frontend.Elixir.parse(source, file: path, counter: counter)
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
-  defp parse_js_file(path, counter) do
-    if Code.ensure_loaded?(Frontend.JavaScript) do
-      Frontend.JavaScript.parse_file(path, counter: counter)
-    else
-      {:error, :quickbeam_not_available}
     end
   end
 

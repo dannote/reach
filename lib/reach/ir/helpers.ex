@@ -27,39 +27,8 @@ defmodule Reach.IR.Helpers do
     Enum.any?(children, &var_used_in_subtree?(&1, target))
   end
 
-  @elixir_extensions [".ex", ".exs"]
-  @erlang_extensions [".erl", ".hrl"]
-
-  def elixir_extensions, do: @elixir_extensions
-  def erlang_extensions, do: @erlang_extensions
-
-  def source_extensions do
-    @elixir_extensions ++ @erlang_extensions ++ frontend_extensions()
-  end
-
-  def language_from_path(path) do
-    ext = Path.extname(path)
-
-    cond do
-      ext in @erlang_extensions -> :erlang
-      match_frontend?(Reach.Frontend.Gleam, ext) -> :gleam
-      match_frontend?(Reach.Frontend.JavaScript, ext) -> :javascript
-      true -> :elixir
-    end
-  end
-
-  defp match_frontend?(module, ext) do
-    Code.ensure_loaded?(module) and function_exported?(module, :extensions, 0) and
-      ext in module.extensions()
-  end
-
-  defp frontend_extensions do
-    for module <- [Reach.Frontend.Gleam, Reach.Frontend.JavaScript],
-        Code.ensure_loaded?(module) and function_exported?(module, :extensions, 0),
-        ext <- module.extensions() do
-      ext
-    end
-  end
+  defdelegate language_from_path(path), to: Reach.Frontend
+  defdelegate source_extensions(), to: Reach.Frontend
 
   def location(%Node{} = node) do
     case node.source_span do
