@@ -64,29 +64,85 @@ defmodule Reach.Project do
   @doc """
   Builds a project graph from the current Mix project.
 
-  Analyzes all `.ex` files in `lib/`, all `.erl` files in `src/`, umbrella
-  application sources under `apps/*/lib` and `apps/*/src`, and package-style
-  top-level application directories such as `nx/lib`.
+  Uses `Mix.Project.config()` to discover source paths via `:elixirc_paths`
+  and `:erlc_paths`. Umbrella children are included automatically.
   """
   @spec from_mix_project(keyword()) :: t()
   def from_mix_project(opts \\ []) do
-    elixir_files =
-      ["lib/**/*.ex", "apps/*/lib/**/*.ex", "*/lib/**/*.ex"]
-      |> Enum.flat_map(&Path.wildcard/1)
-      |> reject_generated_source_paths()
-
-    erlang_files =
-      ["src/**/*.erl", "apps/*/src/**/*.erl", "*/src/**/*.erl"]
-      |> Enum.flat_map(&Path.wildcard/1)
-      |> reject_generated_source_paths()
-
-    from_sources(Enum.uniq(elixir_files ++ erlang_files), opts)
+    source_roots()
+    |> Enum.flat_map(&source_files/1)
+    |> Enum.uniq()
+    |> Enum.sort()
+    |> from_sources(opts)
   end
 
-  defp reject_generated_source_paths(paths) do
-    Enum.reject(paths, fn path ->
-      String.starts_with?(path, "deps/") or String.starts_with?(path, "_build/")
+  defp source_roots do
+    config = Mix.Project.config()
+    elixirc = config[:elixirc_paths] || ["lib"]
+    erlc = config[:erlc_paths] || ["src"]
+
+    case Mix.Project.apps_paths(config) do
+      nil ->
+        [{elixirc, erlc} | discovered_child_roots(elixirc, erlc)]
+
+      apps_paths ->
+        children =
+          Enum.map(apps_paths, fn {_app, app_path} ->
+            child_config = app_mix_config(app_path)
+            child_elixirc = child_config[:elixirc_paths] || ["lib"]
+            child_erlc = child_config[:erlc_paths] || ["src"]
+
+            {
+              Enum.map(child_elixirc, &Path.join(app_path, &1)),
+              Enum.map(child_erlc, &Path.join(app_path, &1))
+            }
+          end)
+
+        [{elixirc, erlc} | children]
+    end
+  end
+
+  defp discovered_child_roots(root_elixirc, root_erlc) do
+    root_set = MapSet.new(root_elixirc ++ root_erlc)
+
+    ["apps/*/lib", "apps/*/src", "*/lib", "*/src"]
+    |> Enum.flat_map(&Path.wildcard/1)
+    |> Enum.reject(fn path ->
+      Path.dirname(path) in root_set or
+        String.starts_with?(path, "deps/") or
+        String.starts_with?(path, "_build/")
     end)
+    |> Enum.group_by(&Path.dirname/1)
+    |> Enum.map(fn {_parent, dirs} ->
+      elixirc = Enum.filter(dirs, &String.ends_with?(&1, "/lib"))
+      erlc = Enum.filter(dirs, &String.ends_with?(&1, "/src"))
+      {elixirc, erlc}
+    end)
+  end
+
+  defp app_mix_config(app_path) do
+    mix_file = Path.join(app_path, "mix.exs")
+
+    if File.regular?(mix_file) do
+      [{module, _}] = Code.compile_file(mix_file)
+      module.project()
+    else
+      []
+    end
+  rescue
+    _ -> []
+  end
+
+  defp source_files({elixirc_paths, erlc_paths}) do
+    elixir_files =
+      elixirc_paths
+      |> Enum.flat_map(&Path.wildcard(Path.join(&1, "**/*.ex")))
+
+    erlang_files =
+      erlc_paths
+      |> Enum.flat_map(&Path.wildcard(Path.join(&1, "**/*.erl")))
+
+    elixir_files ++ erlang_files
   end
 
   @doc """
