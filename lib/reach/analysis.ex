@@ -23,14 +23,22 @@ defmodule Reach.Analysis do
   ]
 
   def expected_effect_boundary?(func) do
-    callback? = {func.meta[:name], func.meta[:arity]} in @effect_boundary_callbacks
-    mix_task? = func.meta[:module] |> inspect() |> String.starts_with?("Mix.Tasks.")
-
-    mix_task_file? =
-      func.source_span && String.starts_with?(func.source_span.file || "", "lib/mix/tasks/")
-
-    callback? or mix_task? or mix_task_file?
+    {func.meta[:name], func.meta[:arity]} in @effect_boundary_callbacks or
+      mix_task_module?(func.meta[:module]) or
+      mix_task_file?(func.source_span)
   end
+
+  defp mix_task_module?(nil), do: false
+
+  defp mix_task_module?(module) when is_atom(module) do
+    case Module.split(module) do
+      ["Mix", "Tasks" | _] -> true
+      _ -> false
+    end
+  end
+
+  defp mix_task_file?(nil), do: false
+  defp mix_task_file?(%{file: file}), do: String.starts_with?(file || "", "lib/mix/tasks/")
 
   def data_edge?(%Graph.Edge{label: {:data, _}}), do: true
 

@@ -21,14 +21,8 @@ defmodule Reach.CloneAnalysis do
     end
   end
 
-  defp do_analyze(project, config) do
-    case config.provider do
-      :ex_dna -> ExDNA.analyze(project, config)
-      nil -> []
-      false -> []
-      _unknown -> []
-    end
-  end
+  defp do_analyze(project, %{provider: :ex_dna} = config), do: ExDNA.analyze(project, config)
+  defp do_analyze(_project, _config), do: []
 
   defp project_fingerprint(project) do
     project.nodes

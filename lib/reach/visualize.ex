@@ -56,11 +56,11 @@ defmodule Reach.Visualize do
       |> MapSet.new()
 
     raw_edges = Graph.edges(call_graph)
+    plugins = Reach.Plugin.detect()
 
-    # Filter: remove noise
     clean_edges =
       raw_edges
-      |> Enum.reject(&garbage_call?/1)
+      |> Enum.reject(&garbage_call?(&1, plugins))
       |> Enum.map(fn e ->
         # Resolve nil module to the detected module
         src = resolve_nil_module(e.v1, module_name)
@@ -168,25 +168,14 @@ defmodule Reach.Visualize do
   defp func_key(%{type: :fn}), do: nil
   defp func_key(_), do: nil
 
-  defp garbage_call?(edge) do
+  @noise_functions MapSet.new([:!, :&&, :||, :|>, :"~~~", :not, :and, :or, :in, :\\])
+
+  defp garbage_call?(edge, plugins) do
     {_target_module, target_function, _target_arity} = edge.v2
 
-    cond do
-      Reach.Plugin.ignore_call_edge?(Reach.Plugin.detect(), edge) ->
-        true
-
-      target_function == :\\ ->
-        true
-
-      target_function in [:!, :&&, :||, :|>, :"~~~", :not, :and, :or, :in] ->
-        true
-
-      not is_atom(elem(edge.v2, 0)) ->
-        true
-
-      true ->
-        false
-    end
+    not is_atom(elem(edge.v2, 0)) or
+      target_function in @noise_functions or
+      Reach.Plugin.ignore_call_edge?(plugins, edge)
   end
 
   defp resolve_nil_module({nil, func, arity}, module_name),
@@ -209,13 +198,7 @@ defmodule Reach.Visualize do
   defp safe_name(name) when is_atom(name), do: name |> Atom.to_string() |> sanitize_id()
   defp safe_name(name), do: name |> to_string() |> sanitize_id()
 
-  defp sanitize_id(s) do
-    s
-    |> String.replace("<", "")
-    |> String.replace(">", "")
-    |> String.replace("\"", "")
-    |> String.replace(":", "")
-  end
+  defp sanitize_id(s), do: String.replace(s, ~r/[<>":]/, "")
 
   defp display_module(:"<javascript>"), do: "JavaScript"
   defp display_module(mod), do: safe_module_name(mod)

@@ -276,8 +276,8 @@ defmodule Reach.ControlFlow do
     {graph, exit_groups |> Enum.reverse() |> List.flatten()}
   end
 
-  defp last_exit([exit]), do: exit
-  defp last_exit([_exit | rest]), do: last_exit(rest)
+  defp last_exit([single]), do: single
+  defp last_exit([_ | rest]), do: last_exit(rest)
 
   defp build_sequential(graph, nodes, [current | extra]) do
     build_sequential(graph, nodes, current, extra)

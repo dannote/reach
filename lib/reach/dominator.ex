@@ -11,11 +11,7 @@ defmodule Reach.Dominator do
     vertices = reverse_postorder(graph, root)
     index = vertices |> Enum.with_index() |> Map.new()
 
-    # Initialize: every node's idom is undefined except root
-    idom = %{root => root}
-
-    idom = iterate(graph, vertices, index, idom)
-    idom
+    iterate(graph, vertices, index, %{root => root})
   end
 
   @doc """

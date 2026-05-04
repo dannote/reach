@@ -51,11 +51,9 @@ defmodule Reach.DependencySummary do
     |> IR.all_nodes()
     |> Enum.filter(&(&1.type == :clause and &1.meta[:kind] == :function_clause))
     |> Enum.flat_map(fn clause ->
-      clause.children
-      |> Enum.reverse()
-      |> case do
+      case clause.children do
         [] -> []
-        [last | _rest] -> [last]
+        children -> [Enum.at(children, -1)]
       end
     end)
   end

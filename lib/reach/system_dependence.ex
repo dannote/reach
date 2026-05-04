@@ -342,11 +342,9 @@ defmodule Reach.SystemDependence do
         node.type == :clause and node.meta[:kind] == :function_clause
       end)
       |> Enum.flat_map(fn clause ->
-        clause.children
-        |> Enum.reverse()
-        |> case do
+        case clause.children do
           [] -> []
-          [last | _rest] -> [last]
+          children -> [Enum.at(children, -1)]
         end
       end)
 

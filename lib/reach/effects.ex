@@ -89,29 +89,37 @@ defmodule Reach.Effects do
     :quote
   ]
 
-  @spec classify(Node.t()) :: effect()
-  def classify(%Node{type: :literal}), do: :pure
-  def classify(%Node{type: :var}), do: :pure
-  def classify(%Node{type: :pin}), do: :pure
-  def classify(%Node{type: :tuple}), do: :pure
-  def classify(%Node{type: :list}), do: :pure
-  def classify(%Node{type: :cons}), do: :pure
-  def classify(%Node{type: :map}), do: :pure
-  def classify(%Node{type: :map_field}), do: :pure
-  def classify(%Node{type: :struct}), do: :pure
-  def classify(%Node{type: :match}), do: :pure
-  def classify(%Node{type: :block}), do: :pure
-  def classify(%Node{type: :guard}), do: :pure
-  def classify(%Node{type: :clause}), do: :pure
-  def classify(%Node{type: :case}), do: :pure
-  def classify(%Node{type: :fn}), do: :pure
-  def classify(%Node{type: :entry}), do: :pure
-  def classify(%Node{type: :exit}), do: :pure
-  def classify(%Node{type: :module_def}), do: :pure
-  def classify(%Node{type: :function_def}), do: :pure
+  @pure_node_types [
+    :literal,
+    :var,
+    :pin,
+    :tuple,
+    :list,
+    :cons,
+    :map,
+    :map_field,
+    :struct,
+    :match,
+    :block,
+    :guard,
+    :clause,
+    :case,
+    :fn,
+    :entry,
+    :exit,
+    :module_def,
+    :function_def,
+    :binary_op,
+    :unary_op,
+    :access,
+    :dispatch,
+    :generator,
+    :filter,
+    :comprehension
+  ]
 
-  def classify(%Node{type: :binary_op}), do: :pure
-  def classify(%Node{type: :unary_op}), do: :pure
+  @spec classify(Node.t()) :: effect()
+  def classify(%Node{type: type}) when type in @pure_node_types, do: :pure
 
   def classify(%Node{type: :receive}), do: :receive
 
