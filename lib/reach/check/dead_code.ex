@@ -10,16 +10,15 @@ defmodule Reach.Check.DeadCode do
     elixirc = config[:elixirc_paths] || ["lib"]
     erlc = config[:erlc_paths] || ["src"]
 
-    Enum.flat_map(elixirc, &Path.wildcard(Path.join(&1, "**/*.ex"))) ++
-      Enum.flat_map(erlc, &Path.wildcard(Path.join(&1, "**/*.erl")))
+    glob(elixirc, ".ex") ++ glob(erlc, ".erl")
   end
 
   def collect_files(path) do
-    if File.dir?(path) do
-      Path.wildcard(Path.join(path, "**/*.ex"))
-    else
-      [path]
-    end
+    if File.dir?(path), do: glob([path], ".ex"), else: [path]
+  end
+
+  defp glob(paths, ext) do
+    Enum.flat_map(paths, &Path.wildcard(Path.join(&1, "**/*#{ext}")))
   end
 
   def run(files) do

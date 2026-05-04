@@ -27,11 +27,23 @@ defmodule Reach.IR.Helpers do
     Enum.any?(children, &var_used_in_subtree?(&1, target))
   end
 
+  @elixir_extensions [".ex", ".exs"]
+  @erlang_extensions [".erl", ".hrl"]
+  @javascript_extensions [".js", ".ts", ".tsx", ".jsx", ".mjs"]
+  @gleam_extensions [".gleam"]
+
+  def elixir_extensions, do: @elixir_extensions
+  def erlang_extensions, do: @erlang_extensions
+  def javascript_extensions, do: @javascript_extensions
+
+  def source_extensions,
+    do: @elixir_extensions ++ @erlang_extensions ++ @gleam_extensions ++ @javascript_extensions
+
   def language_from_path(path) do
     case Path.extname(path) do
-      ext when ext in [".erl", ".hrl"] -> :erlang
-      ".gleam" -> :gleam
-      ext when ext in [".js", ".ts", ".tsx", ".jsx"] -> :javascript
+      ext when ext in @erlang_extensions -> :erlang
+      ext when ext in @gleam_extensions -> :gleam
+      ext when ext in @javascript_extensions -> :javascript
       _ -> :elixir
     end
   end

@@ -137,15 +137,16 @@ defmodule Reach.Project do
   end
 
   defp source_files({elixirc_paths, erlc_paths}) do
-    elixir_files =
-      elixirc_paths
-      |> Enum.flat_map(&Path.wildcard(Path.join(&1, "**/*.ex")))
-
-    erlang_files =
-      erlc_paths
-      |> Enum.flat_map(&Path.wildcard(Path.join(&1, "**/*.erl")))
-
+    elixir_files = glob_extensions(elixirc_paths, [".ex"])
+    erlang_files = glob_extensions(erlc_paths, [".erl"])
     elixir_files ++ erlang_files
+  end
+
+  defp glob_extensions(paths, extensions) do
+    for path <- paths,
+        ext <- extensions,
+        file <- Path.wildcard(Path.join(path, "**/*#{ext}")),
+        do: file
   end
 
   @doc """

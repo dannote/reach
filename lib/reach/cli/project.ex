@@ -97,21 +97,23 @@ defmodule Reach.CLI.Project do
   defp expand_paths(paths) do
     paths
     |> List.wrap()
-    |> Enum.flat_map(fn path ->
-      cond do
-        File.dir?(path) ->
-          [Path.join(path, "**/*.ex"), Path.join(path, "**/*.erl")]
-          |> Enum.flat_map(&Path.wildcard/1)
-
-        String.contains?(path, "*") ->
-          Path.wildcard(path)
-
-        true ->
-          [path]
-      end
-    end)
+    |> Enum.flat_map(&expand_path/1)
     |> Enum.uniq()
     |> Enum.sort()
+  end
+
+  defp expand_path(path) do
+    cond do
+      File.dir?(path) -> glob_dir(path)
+      String.contains?(path, "*") -> Path.wildcard(path)
+      true -> [path]
+    end
+  end
+
+  defp glob_dir(path) do
+    for ext <- [".ex", ".erl"],
+        file <- Path.wildcard(Path.join(path, "**/*#{ext}")),
+        do: file
   end
 
   def compile(quiet? \\ false)

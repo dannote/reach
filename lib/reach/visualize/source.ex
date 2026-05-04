@@ -5,8 +5,8 @@ defmodule Reach.Visualize.Source do
 
   @def_cache_key :reach_def_end_cache
   @fallback_function_line_span 50
-  @js_extensions [".js", ".ts", ".tsx", ".jsx"]
-  @source_extensions [".ex", ".exs", ".erl", ".hrl", ".gleam"] ++ @js_extensions
+  @js_extensions Reach.IR.Helpers.javascript_extensions()
+  @source_extensions Reach.IR.Helpers.source_extensions()
 
   def ensure_def_cache(file) do
     cache = Process.get(@def_cache_key, %{})
