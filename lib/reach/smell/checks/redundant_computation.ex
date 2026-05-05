@@ -48,10 +48,12 @@ defmodule Reach.Smell.Checks.RedundantComputation do
     :defmacro,
     :defmacrop,
     :defguard,
-    :defguardp
+    :defguardp,
+    :unquote,
+    :quote
   ]
 
-  @pattern_operators [:|, :{}, :@]
+  @pattern_operators [:|, :{}, :@, :"::", :<<>>]
 
   defp findings(func) do
     func
@@ -100,7 +102,8 @@ defmodule Reach.Smell.Checks.RedundantComputation do
       node.meta[:function] not in @compiler_directives and
       node.meta[:function] not in @pattern_operators and
       node.meta[:function] != :__aliases__ and
-      node.meta[:kind] not in [:attribute, :field_access] and not formatting_call?(node) and
+      node.meta[:kind] not in [:attribute, :field_access, :binary_size] and
+      not formatting_call?(node) and
       node.source_span != nil
   end
 
