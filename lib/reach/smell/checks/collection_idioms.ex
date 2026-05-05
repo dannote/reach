@@ -110,4 +110,40 @@ defmodule Reach.Smell.Checks.CollectionIdioms do
     :suboptimal,
     "List.to_tuple/1 → elem/2 allocates a full copy; use Enum.at/2 or pattern matching"
   )
+
+  smell(
+    ~p[String.graphemes(_) |> Enum.reverse() |> Enum.join()],
+    :suboptimal,
+    "String.graphemes |> Enum.reverse |> Enum.join; use String.reverse/1"
+  )
+
+  smell(
+    ~p[Map.values(_) |> Enum.all?(_)],
+    :suboptimal,
+    "Map.values/1 → Enum.all?: iterate the map directly as {key, value} pairs"
+  )
+
+  smell(
+    ~p[Map.values(_) |> Enum.any?(_)],
+    :suboptimal,
+    "Map.values/1 → Enum.any?: iterate the map directly as {key, value} pairs"
+  )
+
+  smell(
+    ~p[Map.values(_) |> Enum.find(_)],
+    :suboptimal,
+    "Map.values/1 → Enum.find: iterate the map directly as {key, value} pairs"
+  )
+
+  smell(
+    ~p[Map.values(_) |> Enum.filter(_)],
+    :suboptimal,
+    "Map.values/1 → Enum.filter: iterate the map directly as {key, value} pairs"
+  )
+
+  smell(
+    ~p[Map.values(_) |> Enum.map(_)],
+    :suboptimal,
+    "Map.values/1 → Enum.map: iterate the map directly as {key, value} pairs"
+  )
 end

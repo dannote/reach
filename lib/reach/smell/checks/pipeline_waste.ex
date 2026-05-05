@@ -86,4 +86,34 @@ defmodule Reach.Smell.Checks.PipelineWaste do
     :suboptimal,
     "anonymous fn applied with .() in pipe; use then/2 instead"
   )
+
+  smell(
+    ~p[Enum.map(_, _) |> Enum.max()],
+    :eager_pattern,
+    "Enum.map → Enum.max: allocates intermediate list; use Enum.max_by/2"
+  )
+
+  smell(
+    ~p[Enum.map(_, _) |> Enum.min()],
+    :eager_pattern,
+    "Enum.map → Enum.min: allocates intermediate list; use Enum.min_by/2"
+  )
+
+  smell(
+    ~p[Enum.map(_, _) |> Enum.sum()],
+    :eager_pattern,
+    "Enum.map → Enum.sum: allocates intermediate list; use Enum.sum_by/2 or Enum.reduce/3"
+  )
+
+  smell(
+    ~p[List.foldl(_, _, _)],
+    :suboptimal,
+    "List.foldl/3 is non-idiomatic; use Enum.reduce/3"
+  )
+
+  smell(
+    ~p[List.foldr(_, _, _)],
+    :suboptimal,
+    "List.foldr/3 is non-idiomatic; use Enum.reduce/3 (consider reversal semantics)"
+  )
 end

@@ -852,4 +852,50 @@ defmodule Reach.SmellTest do
       assert string == []
     end
   end
+
+  describe "ported smell patterns" do
+    test "flags String.graphemes |> Enum.reverse |> Enum.join" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def rev(s), do: s |> String.graphemes() |> Enum.reverse() |> Enum.join()
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "String.reverse"))
+    end
+
+    test "flags Map.values piped to Enum functions" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def check(m), do: m |> Map.values() |> Enum.all?(&is_integer/1)
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "Map.values"))
+    end
+
+    test "flags Enum.map |> Enum.max" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def biggest(items), do: items |> Enum.map(& &1.size) |> Enum.max()
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "Enum.max_by"))
+    end
+
+    test "flags List.foldl" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def total(items), do: List.foldl(items, 0, &(&1 + &2))
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "Enum.reduce"))
+    end
+  end
 end
