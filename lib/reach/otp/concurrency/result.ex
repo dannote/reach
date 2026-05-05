@@ -1,5 +1,5 @@
 defmodule Reach.OTP.Concurrency.Result do
-  @moduledoc false
+  @moduledoc "Struct holding the results of a concurrency pattern analysis."
 
   @derive Jason.Encoder
   defstruct [:tasks, :monitors, :spawns, :supervisors, :concurrency_edges]

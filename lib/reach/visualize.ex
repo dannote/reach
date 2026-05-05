@@ -1,5 +1,5 @@
 defmodule Reach.Visualize do
-  @moduledoc false
+  @moduledoc "Generates interactive HTML reports from project analysis."
 
   alias Reach.Visualize.ControlFlow
   alias Reach.Visualize.Source

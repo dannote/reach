@@ -1,5 +1,5 @@
 defmodule Reach.Map.Hotspot do
-  @moduledoc false
+  @moduledoc "Struct for complexity × callers hotspot metrics."
   @derive Jason.Encoder
   defstruct [
     :module,

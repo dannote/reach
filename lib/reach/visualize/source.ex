@@ -1,5 +1,5 @@
 defmodule Reach.Visualize.Source do
-  @moduledoc false
+  @moduledoc "Extracts and highlights source code snippets for blocks."
 
   alias Reach.Frontend.Gleam
   alias Reach.IR.Helpers, as: IRHelpers

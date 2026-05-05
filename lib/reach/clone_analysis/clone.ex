@@ -1,5 +1,5 @@
 defmodule Reach.CloneAnalysis.Clone do
-  @moduledoc false
+  @moduledoc "Struct for a clone family (a group of similar code fragments)."
 
   @derive Jason.Encoder
   defstruct [:type, :mass, :similarity, :fragments, :suggestion]

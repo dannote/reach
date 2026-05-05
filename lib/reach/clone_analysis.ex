@@ -1,5 +1,5 @@
 defmodule Reach.CloneAnalysis do
-  @moduledoc false
+  @moduledoc "Process-dictionary-cached clone detection dispatcher."
 
   alias Reach.CloneAnalysis.ExDNA
   alias Reach.Config

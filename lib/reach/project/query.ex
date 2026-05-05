@@ -1,5 +1,5 @@
 defmodule Reach.Project.Query do
-  @moduledoc false
+  @moduledoc "Query API for filtering and searching project nodes and edges."
 
   alias Reach.IR.Helpers, as: IRHelpers
 

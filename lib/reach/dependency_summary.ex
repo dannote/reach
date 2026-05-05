@@ -1,5 +1,5 @@
 defmodule Reach.DependencySummary do
-  @moduledoc false
+  @moduledoc "Summarizes function dependencies (callers, callees, shared state)."
 
   alias Reach.{Frontend, IR}
 

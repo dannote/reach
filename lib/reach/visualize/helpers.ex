@@ -1,5 +1,5 @@
 defmodule Reach.Visualize.Helpers do
-  @moduledoc false
+  @moduledoc "Shared helpers for source extraction and line mapping."
 
   alias Reach.Visualize.Source
 

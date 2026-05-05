@@ -1,5 +1,5 @@
 defmodule Reach.ControlFlow do
-  @moduledoc false
+  @moduledoc "Translates IR nodes into control flow graph vertices and edges."
 
   alias Reach.IR.Node
 

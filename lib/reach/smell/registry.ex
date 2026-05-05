@@ -1,5 +1,5 @@
 defmodule Reach.Smell.Registry do
-  @moduledoc false
+  @moduledoc "Auto-discovers and lists all smell check modules."
 
   alias Reach.Smell.Check
 

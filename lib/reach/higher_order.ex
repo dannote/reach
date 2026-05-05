@@ -1,5 +1,5 @@
 defmodule Reach.HigherOrder do
-  @moduledoc false
+  @moduledoc "Resolves higher-order function references to concrete callees."
 
   alias Reach.IR.Node
 

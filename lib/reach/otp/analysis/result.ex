@@ -1,5 +1,5 @@
 defmodule Reach.OTP.Analysis.Result do
-  @moduledoc false
+  @moduledoc "Struct holding the combined results of an OTP analysis run."
 
   @derive Jason.Encoder
   defstruct [

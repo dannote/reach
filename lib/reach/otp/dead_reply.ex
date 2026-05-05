@@ -1,5 +1,5 @@
 defmodule Reach.OTP.DeadReply do
-  @moduledoc false
+  @moduledoc "Detects GenServer.call sites where the reply value is discarded."
 
   alias Reach.Analysis
   alias Reach.IR

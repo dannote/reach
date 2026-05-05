@@ -1,5 +1,5 @@
 defmodule Reach.Graph do
-  @moduledoc false
+  @moduledoc "Adjacency-list graph data structure with vertex and edge operations."
 
   @doc """
   Merges multiple `Graph.t()` structs by combining their internal maps.

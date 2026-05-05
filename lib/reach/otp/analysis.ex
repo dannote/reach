@@ -1,5 +1,5 @@
 defmodule Reach.OTP.Analysis do
-  @moduledoc false
+  @moduledoc "Analyzes GenServer and gen_statem state machines from IR to extract behaviours, state transforms, and missing handlers."
 
   alias Reach.IR
   alias Reach.OTP.Analysis.{Behaviour, MissingHandler, Result, StateTransform, Supervisor}

@@ -1,5 +1,5 @@
 defmodule Reach.OTP.Analysis.StateTransform do
-  @moduledoc false
+  @moduledoc "Struct representing a state transformation performed within an OTP callback."
 
   @derive Jason.Encoder
   defstruct [:callback, :action, :location]

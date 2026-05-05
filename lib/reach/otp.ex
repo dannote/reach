@@ -1,5 +1,5 @@
 defmodule Reach.OTP do
-  @moduledoc false
+  @moduledoc "Entry point for OTP analysis, covering GenServer, gen_statem, and supervisor patterns."
 
   alias Reach.IR
   alias Reach.IR.Node

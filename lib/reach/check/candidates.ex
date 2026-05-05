@@ -1,5 +1,5 @@
 defmodule Reach.Check.Candidates do
-  @moduledoc false
+  @moduledoc "Generates graph-backed refactoring candidates from cycles, effects, and pure regions."
 
   alias Reach.Analysis
   alias Reach.Check.{Architecture, Candidate, Changed}

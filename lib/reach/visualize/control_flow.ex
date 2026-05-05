@@ -1,5 +1,5 @@
 defmodule Reach.Visualize.ControlFlow do
-  @moduledoc false
+  @moduledoc "Decomposes CFG into visualization blocks and edges."
 
   alias Reach.{ControlFlow, IR}
   alias Reach.Visualize.Source

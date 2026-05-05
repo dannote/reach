@@ -1,5 +1,5 @@
 defmodule Reach.Check.Changed.Result do
-  @moduledoc false
+  @moduledoc "Struct for changed-code analysis results."
 
   @derive Jason.Encoder
   defstruct [

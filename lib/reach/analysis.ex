@@ -1,5 +1,5 @@
 defmodule Reach.Analysis do
-  @moduledoc false
+  @moduledoc "Shared analysis helpers for project-wide queries."
 
   alias Reach.IR.Node
 

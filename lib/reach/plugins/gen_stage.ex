@@ -1,5 +1,5 @@
 defmodule Reach.Plugins.GenStage do
-  @moduledoc false
+  @moduledoc "Plugin for GenStage producer/consumer semantics."
   @behaviour Reach.Plugin
 
   alias Reach.IR.Node

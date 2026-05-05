@@ -1,5 +1,5 @@
 defmodule Reach.Plugins.Oban do
-  @moduledoc false
+  @moduledoc "Plugin for Oban worker and job semantics."
   @behaviour Reach.Plugin
 
   alias Reach.IR

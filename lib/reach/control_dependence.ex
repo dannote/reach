@@ -1,5 +1,5 @@
 defmodule Reach.ControlDependence do
-  @moduledoc false
+  @moduledoc "Computes control dependence from CFG and post-dominators."
 
   alias Reach.Dominator
 

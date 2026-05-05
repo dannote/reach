@@ -1,5 +1,5 @@
 defmodule Reach.Check.Architecture do
-  @moduledoc false
+  @moduledoc "Validates `.reach.exs` architecture policies against project structure."
 
   alias Reach.Check.Violation
   alias Reach.Config

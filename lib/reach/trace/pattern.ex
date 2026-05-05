@@ -1,5 +1,5 @@
 defmodule Reach.Trace.Pattern do
-  @moduledoc false
+  @moduledoc "Plugin-dispatched trace pattern presets."
 
   def compile(pattern, plugins \\ []) do
     Reach.Plugin.trace_pattern(plugins, pattern) || compile_generic(pattern)

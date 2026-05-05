@@ -1,5 +1,5 @@
 defmodule Reach.Smell.Checks.DualKeyAccess do
-  @moduledoc false
+  @moduledoc "Detects mixed atom/string key access on the same map."
 
   use Reach.Smell.Check
 

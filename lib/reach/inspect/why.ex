@@ -1,5 +1,5 @@
 defmodule Reach.Inspect.Why do
-  @moduledoc false
+  @moduledoc "Finds and explains relationship paths between two targets."
 
   alias Reach.Inspect.Why.{Path, Result}
   alias Reach.IR

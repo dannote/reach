@@ -1,5 +1,5 @@
 defmodule Reach.Config do
-  @moduledoc false
+  @moduledoc "Parses and normalizes .reach.exs architecture policy configuration."
 
   alias Reach.Check.Violation
 

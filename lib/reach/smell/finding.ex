@@ -1,5 +1,5 @@
 defmodule Reach.Smell.Finding do
-  @moduledoc false
+  @moduledoc "Struct for smell check findings with location and evidence."
 
   @enforce_keys [:kind, :message, :location]
   @derive Jason.Encoder

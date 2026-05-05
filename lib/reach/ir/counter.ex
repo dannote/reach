@@ -1,5 +1,5 @@
 defmodule Reach.IR.Counter do
-  @moduledoc false
+  @moduledoc "Monotonic ID counter for IR node construction."
 
   @opaque t :: :atomics.atomics_ref()
 

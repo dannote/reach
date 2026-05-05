@@ -1,5 +1,5 @@
 defmodule Reach.Frontend.BEAM do
-  @moduledoc false
+  @moduledoc "BEAM bytecode frontend for analyzing compiled .beam files."
   alias Reach.IR.Counter
 
   alias Reach.Frontend.Erlang

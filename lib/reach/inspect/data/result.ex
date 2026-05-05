@@ -1,5 +1,5 @@
 defmodule Reach.Inspect.Data.Result do
-  @moduledoc false
+  @moduledoc "Struct for data inspection results."
 
   @derive Jason.Encoder
   defstruct [:definitions, :uses, :returns, :edges]

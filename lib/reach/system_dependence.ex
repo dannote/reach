@@ -1,5 +1,5 @@
 defmodule Reach.SystemDependence do
-  @moduledoc false
+  @moduledoc "Builds system dependence graph from per-function PDGs."
 
   import Reach.IR.Helpers, only: [param_var_name: 1, var_used_in_subtree?: 2]
   alias Reach.{CallGraph, ControlDependence, ControlFlow, DataDependence, IR, OTP, Plugin}

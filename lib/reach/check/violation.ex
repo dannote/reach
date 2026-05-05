@@ -1,5 +1,5 @@
 defmodule Reach.Check.Violation do
-  @moduledoc false
+  @moduledoc "Struct for an architecture policy violation."
 
   @derive Jason.Encoder
   defstruct [

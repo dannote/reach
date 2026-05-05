@@ -1,5 +1,5 @@
 defmodule Reach.Smell.PatternCheck do
-  @moduledoc false
+  @moduledoc "Macro DSL for ExAST-backed pattern smell checks."
 
   defmacro __using__(_opts) do
     quote do

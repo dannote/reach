@@ -1,5 +1,5 @@
 defmodule Reach.Smell.Check do
-  @moduledoc false
+  @moduledoc "Behaviour and shared helpers for IR-based smell checks."
 
   @callback run(Reach.Project.t()) :: [map()]
 

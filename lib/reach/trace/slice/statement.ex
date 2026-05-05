@@ -1,5 +1,5 @@
 defmodule Reach.Trace.Slice.Statement do
-  @moduledoc false
+  @moduledoc "Struct for a single statement in a program slice."
 
   @derive Jason.Encoder
   defstruct [:file, :line, :description, :type]

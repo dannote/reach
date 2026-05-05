@@ -1,5 +1,5 @@
 defmodule Reach.Plugins.Ecto do
-  @moduledoc false
+  @moduledoc "Plugin for Ecto query DSL, Repo calls, and schema semantics."
   @behaviour Reach.Plugin
 
   alias Reach.IR

@@ -1,5 +1,5 @@
 defmodule Reach.Smell.Checks.LoopAntipattern do
-  @moduledoc false
+  @moduledoc "Detects O(n²) patterns in loops and recursive functions."
 
   use Reach.Smell.Check
 

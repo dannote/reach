@@ -1,5 +1,5 @@
 defmodule Reach.Inspect.Why.Path do
-  @moduledoc false
+  @moduledoc "Struct for a single relationship path with evidence."
 
   @derive Jason.Encoder
   defstruct [:kind, :nodes, :evidence]

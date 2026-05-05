@@ -1,5 +1,5 @@
 defmodule Reach.Plugins.Ash do
-  @moduledoc false
+  @moduledoc "Plugin for Ash framework action and resource semantics."
   @behaviour Reach.Plugin
 
   alias Reach.IR

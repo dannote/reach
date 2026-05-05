@@ -1,5 +1,5 @@
 defmodule Reach.Inspect.Data.NodeSummary do
-  @moduledoc false
+  @moduledoc "Struct for a data flow node summary."
 
   @derive Jason.Encoder
   defstruct [:id, :kind, :name, :file, :line]

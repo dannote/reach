@@ -1,5 +1,5 @@
 defmodule Reach.Dominator do
-  @moduledoc false
+  @moduledoc "Immediate dominator/post-dominator trees and dominance frontiers."
 
   @doc """
   Computes the immediate dominator map for a directed graph.

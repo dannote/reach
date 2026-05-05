@@ -1,5 +1,5 @@
 defmodule Reach.Plugins.Phoenix do
-  @moduledoc false
+  @moduledoc "Plugin for Phoenix conn, LiveView, and channel semantics."
   @behaviour Reach.Plugin
 
   alias Reach.IR

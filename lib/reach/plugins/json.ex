@@ -1,5 +1,5 @@
 defmodule Reach.Plugins.JSON do
-  @moduledoc false
+  @moduledoc "Plugin for Jason encoding effect classification."
   @behaviour Reach.Plugin
 
   alias Reach.IR.Node

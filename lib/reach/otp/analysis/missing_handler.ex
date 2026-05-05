@@ -1,5 +1,5 @@
 defmodule Reach.OTP.Analysis.MissingHandler do
-  @moduledoc false
+  @moduledoc "Struct representing a missing GenServer or gen_statem handler finding."
 
   @derive Jason.Encoder
   defstruct [:location, :message]

@@ -1,5 +1,5 @@
 defmodule Reach.Smell.Checks.IdiomMismatch do
-  @moduledoc false
+  @moduledoc "Detects non-idiomatic patterns such as guard equality and update-then-fetch."
 
   use Reach.Smell.Check
 

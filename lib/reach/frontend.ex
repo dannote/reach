@@ -1,5 +1,5 @@
 defmodule Reach.Frontend do
-  @moduledoc false
+  @moduledoc "Registry dispatching source files to language-specific frontends."
 
   alias Reach.Frontend.Elixir, as: ElixirFrontend
   alias Reach.Frontend.Erlang, as: ErlangFrontend

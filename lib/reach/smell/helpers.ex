@@ -1,5 +1,5 @@
 defmodule Reach.Smell.Helpers do
-  @moduledoc false
+  @moduledoc "Shared helpers for smell checks including loop detection, statement pairs, and callbacks."
 
   alias Reach.IR
   alias Reach.IR.Helpers, as: IRHelpers

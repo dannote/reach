@@ -1,5 +1,5 @@
 defmodule Reach.OTP.GenStatem do
-  @moduledoc false
+  @moduledoc "Extracts gen_statem states, transitions, and event handlers from module IR."
 
   alias Reach.IR
 

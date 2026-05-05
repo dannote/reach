@@ -1,5 +1,5 @@
 defmodule Reach.IR.Helpers do
-  @moduledoc false
+  @moduledoc "Utility functions for IR node inspection and traversal."
 
   alias Reach.IR.Node
 

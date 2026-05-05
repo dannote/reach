@@ -1,5 +1,5 @@
 defmodule Reach.Smell.Checks.StringBuilding do
-  @moduledoc false
+  @moduledoc "Detects string concatenation where iolists are more efficient."
 
   use Reach.Smell.Check
 

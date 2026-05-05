@@ -1,5 +1,5 @@
 defmodule Reach.Trace.Slice do
-  @moduledoc false
+  @moduledoc "Backward and forward program slicing from a source location."
 
   alias Reach.Project.Query
   alias Reach.Trace.Slice.{Result, Statement}

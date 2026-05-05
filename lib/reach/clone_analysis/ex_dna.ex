@@ -1,5 +1,5 @@
 defmodule Reach.CloneAnalysis.ExDNA do
-  @moduledoc false
+  @moduledoc "ExDNA-backed clone detection provider."
 
   alias Reach.CloneAnalysis.{Clone, Fragment}
   alias Reach.Effects

@@ -1,5 +1,5 @@
 defmodule Reach.Smell.Checks.RedundantComputation do
-  @moduledoc false
+  @moduledoc "Detects duplicate pure calls within the same function."
 
   use Reach.Smell.Check
 

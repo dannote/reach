@@ -1,5 +1,5 @@
 defmodule Reach.Check.Changed do
-  @moduledoc false
+  @moduledoc "Analyzes changed functions for risk, impact, and clone siblings."
 
   alias Reach.Check.Architecture
   alias Reach.Check.Changed.Function, as: ChangedFunction

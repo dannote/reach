@@ -1,5 +1,5 @@
 defmodule Reach.GraphAlgorithms do
-  @moduledoc false
+  @moduledoc "Graph traversal algorithms (BFS, DFS, reachability, SCC)."
 
   def cycle_components(graph, canonical_fun \\ &default_canonical/1) do
     graph

@@ -1,5 +1,5 @@
 defmodule Reach.OTP.CrossProcess do
-  @moduledoc false
+  @moduledoc "Analyzes cross-process data dependencies by tracing effects through GenServer call/cast boundaries."
 
   alias Reach.Analysis
   alias Reach.IR

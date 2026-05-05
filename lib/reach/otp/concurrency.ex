@@ -1,5 +1,5 @@
 defmodule Reach.OTP.Concurrency do
-  @moduledoc false
+  @moduledoc "Detects concurrency patterns such as tasks, spawns, monitors, and supervisors across project functions."
 
   alias Reach.IR
   alias Reach.IR.Helpers, as: IRHelpers

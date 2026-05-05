@@ -1,5 +1,5 @@
 defmodule Reach.Smell.Checks.FixedShapeMap do
-  @moduledoc false
+  @moduledoc "Detects repeated map literals that should be structs."
 
   @behaviour Reach.Smell.Check
 

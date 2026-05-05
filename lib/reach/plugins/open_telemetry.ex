@@ -1,5 +1,5 @@
 defmodule Reach.Plugins.OpenTelemetry do
-  @moduledoc false
+  @moduledoc "Plugin for OpenTelemetry span and context propagation."
   @behaviour Reach.Plugin
 
   alias Reach.IR

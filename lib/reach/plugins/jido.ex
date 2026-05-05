@@ -1,5 +1,5 @@
 defmodule Reach.Plugins.Jido do
-  @moduledoc false
+  @moduledoc "Plugin for Jido action, signal, and tool semantics."
   @behaviour Reach.Plugin
 
   alias Reach.IR

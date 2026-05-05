@@ -1,5 +1,5 @@
 defmodule Reach.Smell.Checks.CollectionIdioms do
-  @moduledoc false
+  @moduledoc "Pattern-based detection of suboptimal collection operations."
 
   use Reach.Smell.PatternCheck
 

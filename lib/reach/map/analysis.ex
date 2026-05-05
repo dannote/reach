@@ -1,5 +1,5 @@
 defmodule Reach.Map.Analysis do
-  @moduledoc false
+  @moduledoc "Computes project-wide summaries including modules, hotspots, coupling, effects, depth, and data flow."
 
   alias Reach.Analysis
   alias Reach.ControlFlow

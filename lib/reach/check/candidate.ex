@@ -1,5 +1,5 @@
 defmodule Reach.Check.Candidate do
-  @moduledoc false
+  @moduledoc "Struct for an advisory refactoring candidate with confidence and proof."
 
   @derive Jason.Encoder
   defstruct [

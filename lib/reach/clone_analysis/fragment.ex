@@ -1,5 +1,5 @@
 defmodule Reach.CloneAnalysis.Fragment do
-  @moduledoc false
+  @moduledoc "Struct for a single code fragment within a clone family."
 
   @derive Jason.Encoder
   defstruct [

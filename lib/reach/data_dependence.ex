@@ -1,5 +1,5 @@
 defmodule Reach.DataDependence do
-  @moduledoc false
+  @moduledoc "Computes data dependence (def-use chains) from IR."
 
   alias Reach.IR
   alias Reach.IR.Node

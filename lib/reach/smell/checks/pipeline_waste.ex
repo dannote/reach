@@ -1,5 +1,5 @@
 defmodule Reach.Smell.Checks.PipelineWaste do
-  @moduledoc false
+  @moduledoc "Pattern-based detection of redundant pipeline operations."
 
   use Reach.Smell.PatternCheck
 

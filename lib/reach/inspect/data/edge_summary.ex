@@ -1,5 +1,5 @@
 defmodule Reach.Inspect.Data.EdgeSummary do
-  @moduledoc false
+  @moduledoc "Struct for a cross-function data flow edge summary."
 
   @derive Jason.Encoder
   defstruct [:from, :to, :label]

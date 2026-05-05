@@ -1,5 +1,5 @@
 defmodule Reach.Inspect.Data.VariableSummary do
-  @moduledoc false
+  @moduledoc "Struct for a variable flow summary."
 
   @derive Jason.Encoder
   defstruct [:name, :role, :file, :line]

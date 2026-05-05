@@ -1,5 +1,5 @@
 defmodule Reach.Smell.Checks.BehaviourCandidate do
-  @moduledoc false
+  @moduledoc "Detects module groups sharing the same public callback set."
 
   @behaviour Reach.Smell.Check
 

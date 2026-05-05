@@ -1,5 +1,5 @@
 defmodule Reach.Inspect.Why.Result do
-  @moduledoc false
+  @moduledoc "Struct for why-path query results."
 
   @derive Jason.Encoder
   defstruct [:command, :target, :why, :relation, :paths, :reason]

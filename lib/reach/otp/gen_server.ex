@@ -1,5 +1,5 @@
 defmodule Reach.OTP.GenServer do
-  @moduledoc false
+  @moduledoc "Extracts GenServer state access patterns, callbacks, and reply semantics from module IR."
 
   alias Reach.IR
   alias Reach.IR.Node

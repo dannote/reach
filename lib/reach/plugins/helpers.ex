@@ -1,5 +1,5 @@
 defmodule Reach.Plugins.Helpers do
-  @moduledoc false
+  @moduledoc "Shared helpers for plugin callback implementations."
 
   alias Reach.IR
 

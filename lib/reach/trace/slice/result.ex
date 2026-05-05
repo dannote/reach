@@ -1,5 +1,5 @@
 defmodule Reach.Trace.Slice.Result do
-  @moduledoc false
+  @moduledoc "Struct for program slice results."
 
   @derive Jason.Encoder
   defstruct [:node, :direction, :statements]

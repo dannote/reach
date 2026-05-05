@@ -1,5 +1,5 @@
 defmodule Reach.Trace.Flow.Result do
-  @moduledoc false
+  @moduledoc "Struct for flow trace results."
 
   @derive Jason.Encoder
   defstruct [:type, :from, :to, :paths, :variable, :definitions, :uses]

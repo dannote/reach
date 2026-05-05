@@ -1,5 +1,5 @@
 defmodule Reach.Smell.Checks.CloneConsistency do
-  @moduledoc false
+  @moduledoc "Detects structural drift across clone families."
 
   @behaviour Reach.Smell.Check
 

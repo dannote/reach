@@ -1,5 +1,5 @@
 defmodule Reach.Trace.Flow do
-  @moduledoc false
+  @moduledoc "Taint and variable flow tracing through data dependence edges."
 
   alias Reach.IR
   alias Reach.Project.Query

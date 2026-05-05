@@ -1,5 +1,5 @@
 defmodule Reach.Concurrency do
-  @moduledoc false
+  @moduledoc "Detects concurrency patterns (Task, spawn, GenServer calls)."
 
   alias Reach.IR
   alias Reach.IR.Node

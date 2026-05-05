@@ -1,5 +1,5 @@
 defmodule Reach.CallGraph do
-  @moduledoc false
+  @moduledoc "Builds call graph edges between function definitions."
 
   alias Reach.IR
   alias Reach.IR.Node

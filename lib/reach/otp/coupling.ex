@@ -1,5 +1,5 @@
 defmodule Reach.OTP.Coupling do
-  @moduledoc false
+  @moduledoc "Detects hidden coupling across modules via shared ETS tables, process dictionary keys, and message patterns."
 
   alias Reach.IR.Node
 

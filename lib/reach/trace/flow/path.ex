@@ -1,5 +1,5 @@
 defmodule Reach.Trace.Flow.Path do
-  @moduledoc false
+  @moduledoc "Struct for a single taint flow path."
 
   @derive Jason.Encoder
   defstruct [:source, :sink, :intermediate]
