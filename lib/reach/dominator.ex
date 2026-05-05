@@ -11,11 +11,7 @@ defmodule Reach.Dominator do
     vertices = reverse_postorder(graph, root)
     index = vertices |> Enum.with_index() |> Map.new()
 
-    # Initialize: every node's idom is undefined except root
-    idom = %{root => root}
-
-    idom = iterate(graph, vertices, index, idom)
-    idom
+    iterate(graph, vertices, index, %{root => root})
   end
 
   @doc """
@@ -139,7 +135,8 @@ defmodule Reach.Dominator do
     end
   end
 
-  defp add_frontier_entries(preds, _node, _idom_map, df) when length(preds) < 2, do: df
+  defp add_frontier_entries([], _node, _idom_map, df), do: df
+  defp add_frontier_entries([_single], _node, _idom_map, df), do: df
 
   defp add_frontier_entries(preds, node, idom_map, df) do
     Enum.reduce(preds, df, fn pred, df_acc ->

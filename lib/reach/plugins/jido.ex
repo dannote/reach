@@ -211,6 +211,8 @@ defmodule Reach.Plugins.Jido do
     end)
   end
 
+  @first_parameter_limit 1
+
   defp first_param_defs(func) do
     func.children
     |> Enum.filter(&(&1.type == :clause))
@@ -219,7 +221,7 @@ defmodule Reach.Plugins.Jido do
       |> Enum.filter(fn n ->
         n.type == :var and n.meta[:binding_role] == :definition
       end)
-      |> Enum.take(1)
+      |> Enum.take(@first_parameter_limit)
     end)
   end
 

@@ -119,8 +119,9 @@ defmodule Reach.Frontend.Elixir do
   defp translate({:defmodule, meta, [alias_ast, [do: body]]}, counter, file) do
     prev_aliases = Process.get(:reach_alias_map, %{})
     prev_imports = Process.get(:reach_import_map, %{})
+    module = module_name(alias_ast)
 
-    aliases = collect_aliases(body, module_name(alias_ast))
+    aliases = collect_aliases(body, module)
     imports = collect_imports(body)
 
     Process.put(:reach_alias_map, Map.merge(prev_aliases, aliases))
@@ -135,7 +136,7 @@ defmodule Reach.Frontend.Elixir do
     %Node{
       id: Counter.next(counter),
       type: :module_def,
-      meta: %{name: module_name(alias_ast)},
+      meta: %{name: module},
       children: [merged_body],
       source_span: span_from_meta(meta, file)
     }
@@ -827,7 +828,11 @@ defmodule Reach.Frontend.Elixir do
     params = fun_params(head)
 
     param_nodes =
-      Enum.map(params, &translate(&1, counter, file)) |> Enum.map(&mark_as_definitions/1)
+      Enum.map(params, fn param ->
+        param
+        |> translate(counter, file)
+        |> mark_as_definitions()
+      end)
 
     guard_nodes =
       Enum.map(guards, fn g ->
@@ -1056,7 +1061,7 @@ defmodule Reach.Frontend.Elixir do
   defp extract_alias_forms({:alias, _, [{:__aliases__, _, parts}]}) when is_list(parts) do
     if Enum.all?(parts, &is_atom/1) do
       full = Module.concat(parts)
-      short = List.last(parts) |> then(&Module.concat([&1]))
+      short = parts |> Enum.reverse() |> List.first() |> then(&Module.concat([&1]))
       [{short, full}]
     else
       []

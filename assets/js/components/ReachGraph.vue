@@ -15,7 +15,6 @@ const nodeTypes = { code: CodeNode, compact: CompactNode }
 const mode = ref("control_flow")
 const nodes = ref([])
 const edges = ref([])
-const selectedModule = ref(null)
 const selectedFunction = ref(null)
 const { fitView, setCenter } = useVueFlow()
 
@@ -231,7 +230,7 @@ async function rebuild() {
   }
 }
 
-watch(mode, rebuild)
+watch([mode, () => props.graphData], rebuild)
 onMounted(rebuild)
 
 // ── Sidebar ──
@@ -257,8 +256,7 @@ function clearSelection() {
   }
 }
 
-function selectFunction(modName, funcId) {
-  selectedModule.value = modName
+function selectFunction(_modName, funcId) {
   selectedFunction.value = funcId
   if (mode.value !== "control_flow") {
     mode.value = "control_flow"

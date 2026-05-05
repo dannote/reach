@@ -17,6 +17,8 @@ defmodule Reach.Frontend.Gleam do
   import Reach.IR.Helpers, only: [mark_as_definitions: 1]
 
   @spec parse_file(Path.t(), keyword()) :: {:ok, [Node.t()]} | {:error, term()}
+  def extensions, do: [".gleam"]
+
   def parse_file(gleam_path, opts \\ []) do
     gleam_path = Path.expand(gleam_path)
 

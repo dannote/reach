@@ -1,6 +1,7 @@
 defmodule Reach.OTP.DeadReply do
   @moduledoc false
 
+  alias Reach.Analysis
   alias Reach.IR
   alias Reach.IR.Node
 
@@ -47,7 +48,7 @@ defmodule Reach.OTP.DeadReply do
   defp value_unused?(call, parent) do
     case parent.type do
       :block ->
-        last = List.last(parent.children)
+        last = parent.children |> Enum.reverse() |> List.first()
         last == nil or last.id != call.id
 
       :function_def ->
@@ -58,29 +59,7 @@ defmodule Reach.OTP.DeadReply do
     end
   end
 
-  defp call_target(%Node{children: [target | _]}) do
-    case target do
-      %Node{type: :literal, meta: %{value: mod}} when is_atom(mod) ->
-        mod
-
-      %Node{type: :var, meta: %{name: name}} ->
-        name
-
-      %Node{type: :call, meta: %{function: :__aliases__}, children: parts} ->
-        atoms =
-          Enum.map(parts, fn
-            %{type: :literal, meta: %{value: v}} when is_atom(v) -> v
-            _ -> nil
-          end)
-
-        if Enum.all?(atoms, & &1), do: Module.concat(atoms)
-
-      _ ->
-        nil
-    end
-  end
-
-  defp call_target(_), do: nil
+  defp call_target(node), do: Analysis.call_target(node)
 
   defp build_parent_map(all_nodes) do
     for node <- all_nodes,
@@ -90,13 +69,5 @@ defmodule Reach.OTP.DeadReply do
     end
   end
 
-  defp location(%{source_span: %{file: file, start_line: line}}) do
-    "#{file}:#{line}"
-  end
-
-  defp location(%{source_span: %{start_line: line}}) do
-    "line #{line}"
-  end
-
-  defp location(_), do: "unknown"
+  defp location(node), do: Analysis.location(node)
 end

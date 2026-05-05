@@ -1,90 +1,19 @@
 defmodule Reach.Visualize.Helpers do
   @moduledoc false
 
-  alias Reach.Visualize
+  alias Reach.Visualize.Source
 
-  @js_extensions [".js", ".ts", ".tsx", ".jsx"]
-  @source_extensions [".ex", ".exs", ".erl", ".hrl", ".gleam"] ++ @js_extensions
-
-  # ── Source helpers ──
-
-  def highlight_line(file, line) when is_binary(file) and is_integer(line) do
-    case read_line(file, line) do
-      nil -> nil
-      text -> Visualize.highlight_source(String.trim_leading(text), lang_for_file(file))
-    end
-  end
-
-  def highlight_line(_, _), do: nil
-
-  def highlight_lines(file, from, to) when is_binary(file) do
-    case cached_file_lines(file) do
-      nil ->
-        nil
-
-      lines ->
-        lines
-        |> Enum.slice((from - 1)..max(from - 1, to - 1))
-        |> dedent()
-        |> Enum.join("\n")
-        |> Visualize.highlight_source(lang_for_file(file))
-    end
-  end
-
-  def highlight_lines(_, _, _), do: nil
-
-  defp lang_for_file(file) when is_binary(file) do
-    case Process.get({:reach_file_lang, file}) do
-      nil ->
-        if Path.extname(file) in @js_extensions, do: :javascript, else: :elixir
-
-      lang ->
-        lang
-    end
-  end
-
-  def dedent(lines) do
-    min_indent =
-      lines
-      |> Enum.reject(&(String.trim(&1) == ""))
-      |> Enum.map(fn line -> byte_size(line) - byte_size(String.trim_leading(line)) end)
-      |> Enum.min(fn -> 0 end)
-
-    Enum.map(lines, fn line -> String.slice(line, min_indent, byte_size(line)) end)
-  end
-
-  def read_line(file, line) do
-    case cached_file_lines(file) do
-      nil -> nil
-      lines -> Enum.at(lines, line - 1)
-    end
-  end
-
-  def cached_file_lines(file) do
-    case Process.get({:reach_file_lines, file}) do
-      nil -> if source_file?(file), do: do_cached_file_lines(file), else: nil
-      lines -> lines
-    end
-  end
-
-  defp do_cached_file_lines(file) do
-    cache_key = {:reach_file_lines, file}
-
-    case Process.get(cache_key) do
-      nil ->
-        with {:ok, content} <- File.read(file),
-             true <- String.valid?(content) do
-          lines = String.split(content, "\n")
-          Process.put(cache_key, lines)
-          lines
-        else
-          _ -> nil
-        end
-
-      lines ->
-        lines
-    end
-  end
+  defdelegate highlight_line(file, line), to: Source
+  defdelegate highlight_lines(file, from, to), to: Source
+  defdelegate dedent(lines), to: Source
+  defdelegate read_line(file, line), to: Source
+  defdelegate cached_file_lines(file), to: Source
+  defdelegate extract_clause_source(func, clause, all_clauses, file), to: Source
+  defdelegate min_line_in_subtree(node), to: Source
+  defdelegate clause_end_line(func, clause_start, all_clauses, file), to: Source
+  defdelegate func_end_line(func, file), to: Source
+  defdelegate span_field(node, field), to: Source
+  defdelegate source_file?(file), to: Source
 
   # ── IR helpers ──
 
@@ -181,95 +110,4 @@ defmodule Reach.Visualize.Helpers do
   end
 
   defp render_map_field(node), do: render_pattern(node)
-
-  def extract_clause_source(func, clause, all_clauses, file) do
-    clause_start = span_field(clause, :start_line) || min_child_line(clause)
-
-    with true <- is_binary(file) and is_integer(clause_start),
-         end_line <- clause_end_line(func, clause_start, all_clauses, file),
-         true <- is_integer(end_line) and end_line >= clause_start do
-      case cached_file_lines(file) do
-        nil ->
-          nil
-
-        lines ->
-          lines
-          |> Enum.slice((clause_start - 1)..(end_line - 1))
-          |> dedent()
-          |> Enum.join("\n")
-          |> Visualize.format_source()
-      end
-    else
-      _ -> nil
-    end
-  end
-
-  def min_line_in_subtree(node) do
-    line = span_field(node, :start_line)
-    child_lines = Enum.flat_map(node.children, &collect_lines/1)
-    all = if line, do: [line | child_lines], else: child_lines
-    Enum.min(all, fn -> nil end)
-  end
-
-  defp min_child_line(node) do
-    node.children
-    |> Enum.flat_map(&collect_lines/1)
-    |> Enum.min(fn -> nil end)
-  end
-
-  defp collect_lines(node) do
-    line = span_field(node, :start_line)
-    child_lines = Enum.flat_map(node.children, &collect_lines/1)
-    if line, do: [line | child_lines], else: child_lines
-  end
-
-  def clause_end_line(func, clause_start, all_clauses, file) do
-    next_start =
-      all_clauses
-      |> Enum.map(&(span_field(&1, :start_line) || min_child_line(&1) || 0))
-      |> Enum.filter(&(&1 > clause_start))
-      |> Enum.min(fn -> nil end)
-
-    (next_start && next_start - 1) || func_end_line(func, file)
-  end
-
-  def func_end_line(func, file) do
-    case span_field(func, :end_line) do
-      end_line when is_integer(end_line) ->
-        end_line
-
-      _ ->
-        if file, do: Visualize.ensure_def_cache(file)
-        start = span_field(func, :start_line)
-        fallback = file_line_count(file) || (start || 1) + 50
-        line_map = Process.get(:reach_def_end_cache, %{}) |> Map.get(file, %{})
-        Map.get(line_map, start) || find_nearest_end(line_map, start) || fallback
-    end
-  end
-
-  defp find_nearest_end(line_map, start) when is_integer(start) do
-    line_map
-    |> Map.keys()
-    |> Enum.filter(&(&1 <= start))
-    |> Enum.max(fn -> nil end)
-    |> then(fn nearest -> if nearest, do: Map.get(line_map, nearest) end)
-  end
-
-  defp find_nearest_end(_, _), do: nil
-
-  def span_field(%{source_span: %{} = span}, field), do: Map.get(span, field)
-  def span_field(_, _), do: nil
-
-  defp file_line_count(nil), do: nil
-
-  defp file_line_count(file) do
-    case cached_file_lines(file) do
-      nil -> nil
-      lines -> length(lines)
-    end
-  end
-
-  @doc false
-  def source_file?(nil), do: false
-  def source_file?(file), do: Path.extname(file) in @source_extensions
 end

@@ -253,27 +253,34 @@ defmodule Reach.ControlFlow do
   # --- Helpers ---
 
   defp build_clauses(graph, clauses, parent_id) do
-    clauses
-    |> Enum.with_index()
-    |> Enum.reduce({graph, []}, fn {clause, index}, {g, exits} ->
-      {g, clause_exits} = build_clause(g, clause, parent_id, index)
-      {g, exits ++ clause_exits}
-    end)
+    {graph, exit_groups} =
+      clauses
+      |> Enum.with_index()
+      |> Enum.reduce({graph, []}, fn {clause, index}, {g, exit_groups} ->
+        {g, clause_exits} = build_clause(g, clause, parent_id, index)
+        {g, [clause_exits | exit_groups]}
+      end)
+
+    {graph, exit_groups |> Enum.reverse() |> List.flatten()}
   end
 
   defp build_exception_clauses(graph, clauses, parent_id) do
-    Enum.reduce(clauses, {graph, []}, fn clause_node, {g, exits} ->
-      g = Graph.add_vertex(g, clause_node.id)
-      g = Graph.add_edge(g, parent_id, clause_node.id, label: :exception)
-      {g, clause_exits} = build_sequential(g, clause_node.children, clause_node.id)
-      {g, exits ++ clause_exits}
-    end)
+    {graph, exit_groups} =
+      Enum.reduce(clauses, {graph, []}, fn clause_node, {g, exit_groups} ->
+        g = Graph.add_vertex(g, clause_node.id)
+        g = Graph.add_edge(g, parent_id, clause_node.id, label: :exception)
+        {g, clause_exits} = build_sequential(g, clause_node.children, clause_node.id)
+        {g, [clause_exits | exit_groups]}
+      end)
+
+    {graph, exit_groups |> Enum.reverse() |> List.flatten()}
   end
 
-  defp last_exit(exits), do: List.last(exits)
+  defp last_exit([single]), do: single
+  defp last_exit([_ | rest]), do: last_exit(rest)
 
-  defp build_sequential(graph, nodes, from) when is_list(from) do
-    build_sequential(graph, nodes, hd(from), tl(from))
+  defp build_sequential(graph, nodes, [current | extra]) do
+    build_sequential(graph, nodes, current, extra)
   end
 
   defp build_sequential(graph, nodes, from) do
@@ -295,7 +302,7 @@ defmodule Reach.ControlFlow do
     case exits do
       [] -> {graph, [current | extra_predecessors]}
       [single] -> build_sequential(graph, rest, single, [])
-      multiple -> build_sequential(graph, rest, hd(multiple), tl(multiple))
+      [next | extra] -> build_sequential(graph, rest, next, extra)
     end
   end
 

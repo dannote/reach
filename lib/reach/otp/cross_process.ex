@@ -1,6 +1,7 @@
 defmodule Reach.OTP.CrossProcess do
   @moduledoc false
 
+  alias Reach.Analysis
   alias Reach.IR
   alias Reach.IR.Node
 
@@ -132,26 +133,7 @@ defmodule Reach.OTP.CrossProcess do
 
   defp genserver_send?(_), do: false
 
-  defp resolve_call_target(%Node{children: [target | _]}) do
-    case target do
-      %Node{type: :literal, meta: %{value: mod}} when is_atom(mod) ->
-        mod
-
-      %Node{type: :call, meta: %{function: :__aliases__}, children: parts} ->
-        atoms =
-          Enum.map(parts, fn
-            %{type: :literal, meta: %{value: v}} when is_atom(v) -> v
-            _ -> nil
-          end)
-
-        if Enum.all?(atoms, & &1), do: Module.concat(atoms)
-
-      _ ->
-        nil
-    end
-  end
-
-  defp resolve_call_target(_), do: nil
+  defp resolve_call_target(node), do: Analysis.call_target(node)
 
   defp detect_coupling(call, caller_mod, callee_mod, summaries) do
     caller_summary = Map.get(summaries, caller_mod)
@@ -234,7 +216,5 @@ defmodule Reach.OTP.CrossProcess do
     end
   end
 
-  defp location(%{source_span: %{file: file, start_line: line}}), do: "#{file}:#{line}"
-  defp location(%{source_span: %{start_line: line}}), do: "line #{line}"
-  defp location(_), do: "unknown"
+  defp location(node), do: Analysis.location(node)
 end

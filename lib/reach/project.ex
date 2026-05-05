@@ -20,22 +20,22 @@ defmodule Reach.Project do
       )
   """
 
-  alias Reach.{Frontend, IR}
+  alias Reach.{DependencySummary, Frontend, IR}
   alias Reach.IR.Counter
 
-  import Reach.IR.Helpers,
-    only: [param_var_name: 1, var_used_in_subtree?: 2, language_from_path: 1, module_from_path: 1]
+  import Reach.IR.Helpers, only: [module_from_path: 1]
 
   @type t :: %__MODULE__{
           modules: %{module() => map()},
           graph: Graph.t(),
           nodes: %{IR.Node.id() => IR.Node.t()},
           call_graph: Graph.t(),
-          summaries: %{{module(), atom(), non_neg_integer()} => map()}
+          summaries: %{{module(), atom(), non_neg_integer()} => map()},
+          plugins: [module()]
         }
 
   @enforce_keys [:modules, :graph, :nodes, :call_graph]
-  defstruct [:modules, :graph, :nodes, :call_graph, summaries: %{}]
+  defstruct [:modules, :graph, :nodes, :call_graph, summaries: %{}, plugins: []]
 
   @doc """
   Builds a project graph from source file paths.
@@ -64,14 +64,89 @@ defmodule Reach.Project do
   @doc """
   Builds a project graph from the current Mix project.
 
-  Analyzes all `.ex` files in `lib/` and all `.erl` files in `src/`.
+  Uses `Mix.Project.config()` to discover source paths via `:elixirc_paths`
+  and `:erlc_paths`. Umbrella children are included automatically.
   """
   @spec from_mix_project(keyword()) :: t()
   def from_mix_project(opts \\ []) do
-    elixir_files = Path.wildcard("lib/**/*.ex")
-    erlang_files = Path.wildcard("src/**/*.erl")
+    source_roots()
+    |> Enum.flat_map(&source_files/1)
+    |> Enum.uniq()
+    |> Enum.sort()
+    |> from_sources(opts)
+  end
 
-    from_sources(elixir_files ++ erlang_files, opts)
+  defp source_roots do
+    config = Mix.Project.config()
+    elixirc = config[:elixirc_paths] || ["lib"]
+    erlc = config[:erlc_paths] || ["src"]
+
+    case Mix.Project.apps_paths(config) do
+      nil ->
+        [{elixirc, erlc} | discovered_child_roots(elixirc, erlc)]
+
+      apps_paths ->
+        children =
+          Enum.map(apps_paths, fn {_app, app_path} ->
+            child_config = app_mix_config(app_path)
+            child_elixirc = child_config[:elixirc_paths] || ["lib"]
+            child_erlc = child_config[:erlc_paths] || ["src"]
+
+            {
+              Enum.map(child_elixirc, &Path.join(app_path, &1)),
+              Enum.map(child_erlc, &Path.join(app_path, &1))
+            }
+          end)
+
+        [{elixirc, erlc} | children]
+    end
+  end
+
+  defp discovered_child_roots(root_elixirc, root_erlc) do
+    root_set = MapSet.new(root_elixirc ++ root_erlc)
+
+    deps_path = Mix.Project.config()[:deps_path] || "deps"
+    build_path = Mix.Project.build_path()
+
+    ["apps/*/lib", "apps/*/src", "*/lib", "*/src"]
+    |> Enum.flat_map(&Path.wildcard/1)
+    |> Enum.reject(fn path ->
+      Path.dirname(path) in root_set or
+        String.starts_with?(path, deps_path <> "/") or
+        String.starts_with?(path, build_path <> "/")
+    end)
+    |> Enum.group_by(&Path.dirname/1)
+    |> Enum.map(fn {_parent, dirs} ->
+      elixirc = Enum.filter(dirs, &String.ends_with?(&1, "/lib"))
+      erlc = Enum.filter(dirs, &String.ends_with?(&1, "/src"))
+      {elixirc, erlc}
+    end)
+  end
+
+  defp app_mix_config(app_path) do
+    mix_file = Path.join(app_path, "mix.exs")
+
+    if File.regular?(mix_file) do
+      [{module, _}] = Code.compile_file(mix_file)
+      module.project()
+    else
+      []
+    end
+  rescue
+    _ -> []
+  end
+
+  defp source_files({elixirc_paths, erlc_paths}) do
+    elixir_files = glob_extensions(elixirc_paths, [".ex"])
+    erlang_files = glob_extensions(erlc_paths, [".erl"])
+    elixir_files ++ erlang_files
+  end
+
+  defp glob_extensions(paths, extensions) do
+    for path <- paths,
+        ext <- extensions,
+        file <- Path.wildcard(Path.join(path, "**/*#{ext}")),
+        do: file
   end
 
   @doc """
@@ -81,22 +156,7 @@ defmodule Reach.Project do
   These summaries can be passed as the `:summaries` option to `from_sources/2`.
   """
   @spec summarize_dependency(module()) :: %{{module(), atom(), non_neg_integer()} => map()}
-  def summarize_dependency(module) do
-    case Frontend.BEAM.from_module(module) do
-      {:ok, ir_nodes} ->
-        all = IR.all_nodes(ir_nodes)
-
-        all
-        |> Enum.filter(&(&1.type == :function_def))
-        |> Map.new(fn func_def ->
-          func_id = {module, func_def.meta[:name], func_def.meta[:arity]}
-          {func_id, compute_param_flows(func_def)}
-        end)
-
-      {:error, _} ->
-        %{}
-    end
-  end
+  def summarize_dependency(module), do: DependencySummary.summarize(module)
 
   @doc """
   Runs taint analysis across the entire project.
@@ -144,17 +204,15 @@ defmodule Reach.Project do
   end
 
   defp chop_in_graph(graph, source_id, sink_id) do
-    fwd =
-      if Graph.has_vertex?(graph, source_id),
-        do: Graph.reachable(graph, [source_id]) |> MapSet.new(),
-        else: MapSet.new()
+    fwd = graph |> Graph.reachable([source_id]) |> MapSet.new()
 
     bwd =
       if Graph.has_vertex?(graph, sink_id),
-        do: Graph.reaching(graph, [sink_id]) |> MapSet.new(),
+        do: graph |> Graph.reaching([sink_id]) |> MapSet.new(),
         else: MapSet.new()
 
-    MapSet.intersection(fwd, bwd)
+    fwd
+    |> MapSet.intersection(bwd)
     |> MapSet.delete(source_id)
     |> MapSet.delete(sink_id)
     |> MapSet.to_list()
@@ -170,7 +228,7 @@ defmodule Reach.Project do
   defp matches_kv?(node, {:module, mod}), do: node.meta[:module] == mod
   defp matches_kv?(node, {:function, fun}), do: node.meta[:function] == fun
   defp matches_kv?(node, {:arity, arity}), do: node.meta[:arity] == arity
-  defp matches_kv?(_, _), do: true
+  defp matches_kv?(_node, _unknown_filter), do: false
 
   defp matches_filter?(node, filter) when is_list(filter),
     do: Enum.all?(filter, &matches_kv?(node, &1))
@@ -179,32 +237,11 @@ defmodule Reach.Project do
 
   # --- Private ---
 
-  defp parse_files(paths, _opts) do
-    counter = Counter.new()
+  defp parse_files(paths, opts) do
+    counter = Keyword.get_lazy(opts, :counter, &Counter.new/0)
 
     paths
-    |> Task.async_stream(
-      fn path ->
-        language = language_from_path(path)
-        module_name = module_from_path(path)
-
-        result =
-          case language do
-            :gleam -> Frontend.Gleam.parse_file(path, file: path)
-            :erlang -> Frontend.Erlang.parse_file(path, file: path)
-            :javascript -> parse_js_file(path, counter)
-            :elixir -> parse_elixir_file(path, counter)
-          end
-
-        case result do
-          {:ok, ir_nodes} ->
-            mod = module_name || extract_module_name(ir_nodes)
-            {mod, path, ir_nodes}
-
-          {:error, _} ->
-            nil
-        end
-      end,
+    |> Task.async_stream(&parse_path(&1, counter),
       max_concurrency: System.schedulers_online(),
       ordered: false
     )
@@ -214,18 +251,15 @@ defmodule Reach.Project do
     end)
   end
 
-  defp parse_elixir_file(path, counter) do
-    case File.read(path) do
-      {:ok, source} -> Frontend.Elixir.parse(source, file: path, counter: counter)
-      {:error, reason} -> {:error, reason}
-    end
-  end
+  defp parse_path(path, counter) do
+    module_name = module_from_path(path)
 
-  defp parse_js_file(path, counter) do
-    if Code.ensure_loaded?(Frontend.JavaScript) do
-      Frontend.JavaScript.parse_file(path, counter: counter)
-    else
-      {:error, :quickbeam_not_available}
+    case Frontend.parse_file(path, file: path, counter: counter) do
+      {:ok, ir_nodes} ->
+        {module_name || extract_module_name(ir_nodes), path, ir_nodes}
+
+      {:error, _} ->
+        nil
     end
   end
 
@@ -307,7 +341,8 @@ defmodule Reach.Project do
       graph: merged_graph,
       nodes: merged_nodes,
       call_graph: merged_call_graph,
-      summaries: summaries
+      summaries: summaries,
+      plugins: plugins
     }
   end
 
@@ -324,42 +359,6 @@ defmodule Reach.Project do
   defp find_func_def(pdg) do
     Map.get(pdg, :func_def) ||
       pdg.nodes |> Map.values() |> Enum.find(&(&1.type == :function_def))
-  end
-
-  defp compute_param_flows(func_def) do
-    case func_def.children do
-      [%{type: :clause, children: children, meta: %{kind: :function_clause}} | _] ->
-        arity = func_def.meta[:arity] || 0
-        params = Enum.take(children, arity)
-        return_nodes = find_return_expressions(func_def)
-
-        params
-        |> Enum.with_index()
-        |> Map.new(fn {param, index} ->
-          var_name = param_var_name(param)
-
-          flows =
-            var_name != nil and
-              Enum.any?(return_nodes, &var_used_in_subtree?(&1, var_name))
-
-          {index, flows}
-        end)
-
-      _ ->
-        %{}
-    end
-  end
-
-  defp find_return_expressions(func_def) do
-    func_def
-    |> IR.all_nodes()
-    |> Enum.filter(&(&1.type == :clause and &1.meta[:kind] == :function_clause))
-    |> Enum.flat_map(fn clause ->
-      case List.last(clause.children) do
-        nil -> []
-        last -> [last]
-      end
-    end)
   end
 
   defp extract_module_name(ir_nodes) do

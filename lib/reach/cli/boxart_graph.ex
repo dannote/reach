@@ -7,6 +7,8 @@ defmodule Reach.CLI.BoxartGraph do
   alias Reach.Visualize.ControlFlow
   alias Reach.Visualize.Helpers
 
+  @slice_node_render_limit 20
+
   @compile {:no_warn_undefined,
             [
               Boxart,
@@ -25,7 +27,8 @@ defmodule Reach.CLI.BoxartGraph do
              render_caller_graph: 3,
              render_module_graph: 1,
              render_slice_graph: 3,
-             render_boxart: 1}
+             render_boxart: 1,
+             raise_missing!: 1}
 
   defp term_width do
     case :io.columns() do
@@ -34,9 +37,34 @@ defmodule Reach.CLI.BoxartGraph do
     end
   end
 
+  @max_terminal_cfg_nodes 80
+  @install_hint "Add {:boxart, \"~> 0.3.3\"} to your deps."
+
   def available? do
     Code.ensure_loaded?(Boxart)
   end
+
+  def require!(context \\ "--graph") do
+    unless available?(), do: raise_missing!(context)
+  end
+
+  def require_state_diagram! do
+    require!("OTP state diagrams")
+
+    unless Code.ensure_loaded?(Boxart.Render.StateDiagram.State),
+      do: raise_missing!("OTP state diagrams")
+  end
+
+  def require_pie_chart! do
+    require!("effect graphs")
+
+    unless Code.ensure_loaded?(Boxart.Render.PieChart) and
+             Code.ensure_loaded?(Module.concat([Boxart, Render, PieChart, PieChart])),
+           do: raise_missing!("effect graphs")
+  end
+
+  defp raise_missing!(context),
+    do: Mix.raise("boxart is required for #{context}. #{@install_hint}")
 
   def render_call_graph(project, target, depth) do
     cg = project.call_graph
@@ -57,11 +85,7 @@ defmodule Reach.CLI.BoxartGraph do
   end
 
   def render_otp_state_diagram(callbacks) do
-    unless Code.ensure_loaded?(Boxart.Render.StateDiagram.State) do
-      Mix.raise(
-        "boxart is required for OTP state diagrams. Add {:boxart, \"~> 0.3\"} to your deps."
-      )
-    end
+    require_state_diagram!()
 
     state_mod = Boxart.Render.StateDiagram.State
     transition_mod = Boxart.Render.StateDiagram.Transition
@@ -109,17 +133,21 @@ defmodule Reach.CLI.BoxartGraph do
   def render_cfg(func_node, file) do
     viz = ControlFlow.build_function(func_node, file)
 
-    graph =
-      Enum.reduce(viz.nodes, Graph.new(), fn node, g ->
-        Graph.add_vertex(g, node.id, viz_node_to_attrs(node, file))
-      end)
+    if length(viz.nodes) > @max_terminal_cfg_nodes do
+      render_large_cfg_summary(viz, file)
+    else
+      graph =
+        Enum.reduce(viz.nodes, Graph.new(), fn node, g ->
+          Graph.add_vertex(g, node.id, viz_node_to_attrs(node, file))
+        end)
 
-    graph =
-      Enum.reduce(viz.edges, graph, fn edge, g ->
-        Graph.add_edge(g, edge.source, edge.target, edge_opts(edge))
-      end)
+      graph =
+        Enum.reduce(viz.edges, graph, fn edge, g ->
+          Graph.add_edge(g, edge.source, edge.target, edge_opts(edge))
+        end)
 
-    IO.puts(render_boxart(graph))
+      IO.puts(render_boxart(graph))
+    end
   end
 
   def render_caller_graph(project, target, depth) do
@@ -232,7 +260,7 @@ defmodule Reach.CLI.BoxartGraph do
       |> Enum.map(&Map.get(project.nodes, &1))
       |> Enum.reject(&is_nil/1)
       |> Enum.filter(& &1.source_span)
-      |> Enum.take(20)
+      |> Enum.take(@slice_node_render_limit)
 
     viz_graph =
       Enum.reduce(slice_nodes, Graph.new(), fn n, g ->
@@ -280,6 +308,44 @@ defmodule Reach.CLI.BoxartGraph do
   defp render_boxart(graph) do
     opts = [direction: :td, theme: :default, max_width: term_width()]
     Boxart.render(graph, opts)
+  end
+
+  defp render_large_cfg_summary(viz, file) do
+    IO.puts(
+      "CFG is too large for terminal rendering (#{length(viz.nodes)} blocks, #{length(viz.edges)} edges)."
+    )
+
+    IO.puts("Showing a compact block summary instead. Use the HTML report for the full graph.\n")
+
+    viz.nodes
+    |> Enum.sort_by(fn node -> {node.start_line || 0, node.id} end)
+    |> Enum.take(@max_terminal_cfg_nodes)
+    |> Enum.each(fn node ->
+      label = node.label || to_string(node.type)
+      location = line_range(file, node.start_line, node.end_line)
+      IO.puts("  #{location} #{label}")
+    end)
+
+    remaining = length(viz.nodes) - @max_terminal_cfg_nodes
+
+    if remaining > 0 do
+      IO.puts("  " <> Format.omitted("#{remaining} more block(s) omitted"))
+    end
+  end
+
+  defp line_range(file, start_line, end_line) do
+    base = if file, do: Path.basename(file), else: "unknown"
+
+    cond do
+      is_integer(start_line) and is_integer(end_line) and start_line != end_line ->
+        "#{base}:#{start_line}-#{end_line}"
+
+      is_integer(start_line) ->
+        "#{base}:#{start_line}"
+
+      true ->
+        base
+    end
   end
 
   # ── Private ──

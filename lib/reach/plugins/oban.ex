@@ -6,6 +6,11 @@ defmodule Reach.Plugins.Oban do
   alias Reach.IR.Node
 
   @impl true
+  def behaviour_label(callbacks) do
+    if :perform in callbacks, do: "Oban.Worker"
+  end
+
+  @impl true
   def classify_effect(%Node{type: :call, meta: %{module: Oban, function: fun}})
       when fun in [:insert, :insert!, :insert_all, :insert_all!],
       do: :write

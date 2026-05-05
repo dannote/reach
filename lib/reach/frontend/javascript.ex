@@ -12,6 +12,8 @@ if Code.ensure_loaded?(QuickBEAM) do
     alias Reach.IR.{Counter, Node}
     import Reach.IR.Helpers, only: [mark_as_definitions: 1]
 
+    def extensions, do: [".js", ".ts", ".tsx", ".jsx", ".mjs"]
+
     @spec parse(String.t(), keyword()) :: {:ok, [Node.t()]} | {:error, term()}
     def parse(source, opts \\ []) do
       file = Keyword.get(opts, :file, "nofile")
@@ -51,6 +53,14 @@ if Code.ensure_loaded?(QuickBEAM) do
     end
 
     defp strip_module_syntax(source) do
+      if Code.ensure_loaded?(OXC) do
+        patch_module_syntax(source)
+      else
+        source
+      end
+    end
+
+    defp patch_module_syntax(source) do
       case OXC.parse(source, "module.js") do
         {:ok, ast} ->
           patches = Enum.flat_map(ast.body, &module_syntax_patch/1)
@@ -312,7 +322,7 @@ if Code.ensure_loaded?(QuickBEAM) do
           translate_op(op, nodes, stack, ctx, counter, file, line)
         end)
 
-      {Enum.reverse(nodes) ++ Enum.reverse(stack), stack}
+      {Enum.reverse(nodes, Enum.reverse(stack)), stack}
     end
 
     defp pop_condition([top | rest]), do: {top, rest}
@@ -323,13 +333,13 @@ if Code.ensure_loaded?(QuickBEAM) do
     end
 
     defp detect_if_else(block_ops, block_map) do
-      last = List.last(block_ops)
+      last = block_ops |> Enum.reverse() |> List.first()
 
       with {_, kind, target} when kind in [:if_false, :if_false8] <- last,
            condition_ops = Enum.drop(block_ops, -1),
            true_offset = find_next_block_offset(block_map, elem(last, 0)),
            true_block when true_block != nil <- Map.get(block_map, true_offset),
-           true_last = List.last(true_block),
+           true_last = true_block |> Enum.reverse() |> List.first(),
            true when true <- terminal?(true_last),
            false_block when false_block != nil <- Map.get(block_map, target) do
         {:if_else, condition_ops, true_block, false_block}
@@ -391,7 +401,7 @@ if Code.ensure_loaded?(QuickBEAM) do
       |> Enum.chunk_every(2, 1, [])
       |> Enum.flat_map(fn
         [prev_block, [next_op | _]] ->
-          last_op = List.last(prev_block)
+          last_op = prev_block |> Enum.reverse() |> List.first()
 
           falls_through =
             elem(last_op, 1) not in [

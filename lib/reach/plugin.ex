@@ -15,6 +15,10 @@ defmodule Reach.Plugin do
      literals (e.g. JS inside QuickBEAM.eval) and returns additional IR
      nodes plus cross-language edges.
 
+  4. **Framework presentation/patterns** — optional callbacks provide
+     framework-specific trace presets, behaviour labels, and visualization
+     edge filtering.
+
   ## Implementing a plugin
 
       defmodule MyPlugin do
@@ -78,7 +82,16 @@ defmodule Reach.Plugin do
   """
   @callback analyze_embedded(all_nodes :: [Node.t()], opts :: keyword()) :: embedded_result()
 
-  @optional_callbacks analyze_project: 3, classify_effect: 1, analyze_embedded: 2
+  @callback trace_pattern(pattern :: String.t()) :: (Node.t() -> boolean()) | nil
+  @callback behaviour_label(callbacks :: [atom()]) :: String.t() | nil
+  @callback ignore_call_edge?(Graph.Edge.t()) :: boolean()
+
+  @optional_callbacks analyze_project: 3,
+                      classify_effect: 1,
+                      analyze_embedded: 2,
+                      trace_pattern: 1,
+                      behaviour_label: 1,
+                      ignore_call_edge?: 1
 
   @known_plugins [
     {Phoenix.Router, Reach.Plugins.Phoenix},
@@ -121,23 +134,21 @@ defmodule Reach.Plugin do
   """
   def classify_effect(plugins, node) do
     Enum.find_value(plugins, fn plugin ->
-      if Code.ensure_loaded?(plugin) and function_exported?(plugin, :classify_effect, 1) do
-        plugin.classify_effect(node)
-      end
+      if exports?(plugin, :classify_effect, 1), do: plugin.classify_effect(node)
     end)
   end
 
-  @doc false
+  @doc "Runs module-local analysis hooks for the configured plugins."
   def run_analyze(plugins, all_nodes, opts) do
     Enum.flat_map(plugins, fn plugin ->
       plugin.analyze(all_nodes, opts)
     end)
   end
 
-  @doc false
+  @doc "Runs embedded-node analysis hooks for plugins that provide them."
   def run_analyze_embedded(plugins, all_nodes, opts) do
     Enum.reduce(plugins, {[], []}, fn plugin, {all_nodes_acc, edges_acc} ->
-      if Code.ensure_loaded?(plugin) and function_exported?(plugin, :analyze_embedded, 2) do
+      if exports?(plugin, :analyze_embedded, 2) do
         {new_nodes, new_edges} = plugin.analyze_embedded(all_nodes ++ all_nodes_acc, opts)
         {all_nodes_acc ++ new_nodes, edges_acc ++ new_edges}
       else
@@ -146,14 +157,37 @@ defmodule Reach.Plugin do
     end)
   end
 
-  @doc false
+  @doc "Compiles a framework-specific trace pattern, if a plugin recognizes it."
+  def trace_pattern(plugins, pattern) do
+    Enum.find_value(plugins, fn plugin ->
+      if exports?(plugin, :trace_pattern, 1), do: plugin.trace_pattern(pattern)
+    end)
+  end
+
+  @doc "Infers a framework-specific behaviour label from callback names."
+  def behaviour_label(plugins, callbacks) do
+    Enum.find_value(plugins, fn plugin ->
+      if exports?(plugin, :behaviour_label, 1), do: plugin.behaviour_label(callbacks)
+    end)
+  end
+
+  @doc "Returns true when a plugin marks a call-graph edge as visualization noise."
+  def ignore_call_edge?(plugins, edge) do
+    Enum.any?(plugins, fn plugin ->
+      exports?(plugin, :ignore_call_edge?, 1) and plugin.ignore_call_edge?(edge)
+    end)
+  end
+
+  @doc "Runs project-level analysis hooks for plugins that provide them."
   def run_analyze_project(plugins, modules, all_nodes, opts) do
     Enum.flat_map(plugins, fn plugin ->
-      if Code.ensure_loaded?(plugin) and function_exported?(plugin, :analyze_project, 3) do
-        plugin.analyze_project(modules, all_nodes, opts)
-      else
-        []
-      end
+      if exports?(plugin, :analyze_project, 3),
+        do: plugin.analyze_project(modules, all_nodes, opts),
+        else: []
     end)
+  end
+
+  defp exports?(plugin, function, arity) do
+    Code.ensure_loaded?(plugin) and function_exported?(plugin, function, arity)
   end
 end

@@ -1,6 +1,9 @@
 defmodule Reach.CLI.Format do
   @moduledoc false
 
+  alias Reach.CLI.Project
+  alias Reach.IR.Helpers, as: IRHelpers
+
   # ── Color helpers ──
 
   defp color?, do: IO.ANSI.enabled?()
@@ -13,8 +16,48 @@ defmodule Reach.CLI.Format do
   def green(text), do: c(text, IO.ANSI.green())
   def yellow(text), do: c(text, IO.ANSI.yellow())
   def red(text), do: c(text, IO.ANSI.red())
+  def magenta(text), do: c(text, IO.ANSI.magenta())
+  def blue(text), do: c(text, IO.ANSI.blue())
   def bright(text), do: c(text, IO.ANSI.bright())
   def faint(text), do: c(text, IO.ANSI.faint())
+
+  def risk(:high), do: red("high")
+  def risk("high"), do: red("high")
+  def risk(:medium), do: yellow("medium")
+  def risk("medium"), do: yellow("medium")
+  def risk(:low), do: green("low")
+  def risk("low"), do: green("low")
+  def risk(other), do: to_string(other)
+
+  def effect("pure"), do: green("pure")
+  def effect(:pure), do: green("pure")
+  def effect("unknown"), do: yellow("unknown")
+  def effect(:unknown), do: yellow("unknown")
+  def effect("io"), do: cyan("io")
+  def effect(:io), do: cyan("io")
+  def effect("read"), do: blue("read")
+  def effect(:read), do: blue("read")
+  def effect("write"), do: magenta("write")
+  def effect(:write), do: magenta("write")
+  def effect("exception"), do: red("exception")
+  def effect(:exception), do: red("exception")
+  def effect("send"), do: magenta("send")
+  def effect(:send), do: magenta("send")
+  def effect(other), do: to_string(other)
+
+  def effects_join(effects, separator \\ ", ") do
+    Enum.map_join(effects, separator, &effect/1)
+  end
+
+  def humanize(value) do
+    value
+    |> to_string()
+    |> String.replace("_", " ")
+  end
+
+  def humanized_join(values, separator \\ ", ") do
+    Enum.map_join(values, separator, &humanize/1)
+  end
 
   # ── Rendering ──
 
@@ -31,7 +74,12 @@ defmodule Reach.CLI.Format do
   end
 
   defp render_json(data, tool, opts) do
-    output = %{"tool" => tool} |> Map.merge(jsonify(data))
+    output = %Reach.CLI.JSONEnvelope{
+      command: tool,
+      tool: tool,
+      data: jsonify(data)
+    }
+
     json = Jason.encode!(output, pretty: Keyword.get(opts, :pretty, true))
     IO.write(json)
     IO.write("\n")
@@ -48,7 +96,7 @@ defmodule Reach.CLI.Format do
   # ── JSON encoding ──
 
   def jsonify(%Reach.IR.Node{} = node) do
-    %{"type" => Atom.to_string(node.type), "id" => node.id}
+    %{type: Atom.to_string(node.type), id: node.id}
     |> maybe_add(:name, node.meta[:name])
     |> maybe_add(:module, node.meta[:module])
     |> maybe_add(:function, node.meta[:function])
@@ -91,7 +139,7 @@ defmodule Reach.CLI.Format do
   def location(node) do
     case node.source_span do
       %{file: f, start_line: l} ->
-        faint(f <> ":" <> to_string(l))
+        loc(f, l)
 
       _ ->
         "unknown"
@@ -106,20 +154,38 @@ defmodule Reach.CLI.Format do
   end
 
   def loc(file, line) when is_binary(file) do
-    faint(file <> ":" <> to_string(line))
+    faint(path(file) <> ":" <> to_string(line))
   end
 
   def loc(raw, _), do: faint(to_string(raw))
 
-  def func_id_to_string({mod, fun, arity}) when is_atom(mod) and mod != nil do
-    bright("#{inspect(mod)}.#{fun}/#{arity}")
+  def location_text("unknown"), do: "unknown"
+
+  def location_text(location) when is_binary(location) do
+    case Regex.run(~r/^(.*):(\d+)$/, location) do
+      [_match, file, line] -> loc(file, line)
+      _ -> faint(location)
+    end
   end
 
-  def func_id_to_string({nil, fun, arity}) do
-    bright("#{fun}/#{arity}")
+  def path(file) when is_binary(file) do
+    expanded = Path.expand(file)
+
+    case Project.display_root() do
+      nil -> file
+      root -> relative_to_root(expanded, root)
+    end
   end
 
-  def func_id_to_string(other), do: inspect(other)
+  def path(other), do: to_string(other)
+
+  defp relative_to_root(path, root) do
+    relative = Path.relative_to(path, root)
+
+    if String.starts_with?(relative, ".."), do: path, else: relative
+  end
+
+  def func_id_to_string(func_id), do: IRHelpers.func_id_to_string(func_id)
 
   def header(title) do
     width = max(String.length(title) + 4, 40)
@@ -147,6 +213,8 @@ defmodule Reach.CLI.Format do
   def tag(:info), do: cyan("ℹ")
 
   def warning(text), do: yellow(text) <> " " <> tag(:warning)
+  def omitted(text), do: faint("… " <> text)
+  def empty(text \\ "none"), do: faint("(#{text})")
   def count(n), do: bright(to_string(n))
   def summary(text), do: faint(text)
 
@@ -158,11 +226,7 @@ defmodule Reach.CLI.Format do
     end
   end
 
-  def call_name(node) do
-    mod = node.meta[:module]
-    fun = node.meta[:function]
-    if mod, do: "#{inspect(mod)}.#{fun}", else: to_string(fun)
-  end
+  def call_name(node), do: IRHelpers.call_name(node)
 
   defp maybe_add(map, _key, nil), do: map
   defp maybe_add(map, key, val), do: Map.put(map, key, jsonify(val))

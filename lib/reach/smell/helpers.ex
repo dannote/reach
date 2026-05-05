@@ -1,0 +1,114 @@
+defmodule Reach.Smell.Helpers do
+  @moduledoc false
+
+  alias Reach.IR
+  alias Reach.IR.Helpers, as: IRHelpers
+
+  @loop_fns ~w(
+    each map flat_map filter reject reduce reduce_while map_reduce flat_map_reduce
+    find find_value find_index all? any? count sum_by product_by
+    min_by max_by min_max_by frequencies_by group_by
+    sort sort_by chunk_by chunk_while dedup_by uniq_by
+    split_while split_with take_while drop_while partition
+    scan map_every map_join map_intersperse into zip_with zip_reduce
+  )a
+
+  def function_defs(project) do
+    project.nodes
+    |> Map.values()
+    |> Enum.filter(&(&1.type == :function_def))
+  end
+
+  def location(node) do
+    case node.source_span do
+      %{file: file, start_line: line} -> "#{file}:#{line}"
+      _ -> "unknown"
+    end
+  end
+
+  def call_name(node), do: IRHelpers.call_name(node)
+
+  @doc "Returns true if `node` is inside a loop body (reduce/map/for/recursion)."
+  def inside_loop?(node, function) do
+    ancestors = ancestors_of(node.id, function)
+
+    Enum.any?(ancestors, fn ancestor ->
+      fn_inside_loop_call?(ancestor, function) or
+        ancestor.type == :comprehension
+    end) or recursive?(function)
+  end
+
+  @doc "Extracts the callback fn body nodes from an Enum call."
+  def callback_body(%{type: :call, children: children}) do
+    children
+    |> Enum.find(&(&1.type == :fn))
+    |> case do
+      nil -> []
+      fn_node -> IR.all_nodes(fn_node)
+    end
+  end
+
+  def callback_body(_), do: []
+
+  @doc "Returns adjacent top-level statement pairs from a function body."
+  def statement_pairs(function) do
+    function
+    |> body_statements()
+    |> Enum.chunk_every(2, 1, :discard)
+    |> Enum.map(fn [a, b] -> {a, b} end)
+  end
+
+  @doc "Returns true if the function contains a self-recursive call."
+  def recursive?(function) do
+    name = function.meta[:name]
+    arity = function.meta[:arity]
+
+    function
+    |> IR.all_nodes()
+    |> Enum.any?(fn node ->
+      node.type == :call and node.meta[:function] == name and
+        node.meta[:arity] == arity and node.meta[:module] == nil
+    end)
+  end
+
+  defp fn_inside_loop_call?(node, function) do
+    node.type == :fn and
+      Enum.any?(ancestors_of(node.id, function), fn ancestor ->
+        ancestor.type == :call and ancestor.meta[:module] in [Enum, Stream] and
+          ancestor.meta[:function] in @loop_fns
+      end)
+  end
+
+  defp ancestors_of(target_id, root) do
+    case find_path(root, target_id, []) do
+      nil -> []
+      path -> path
+    end
+  end
+
+  defp find_path(%{id: id} = node, target_id, path) do
+    if id == target_id do
+      path
+    else
+      Enum.find_value(node.children, fn child ->
+        find_path(child, target_id, [node | path])
+      end)
+    end
+  end
+
+  defp body_statements(function) do
+    case function.children do
+      [%{type: :clause, children: children} | _] ->
+        children
+        |> Enum.reject(&(&1.type in [:guard]))
+        |> Enum.drop(function.meta[:arity] || 0)
+        |> Enum.flat_map(&unwrap_block/1)
+
+      children ->
+        children
+    end
+  end
+
+  defp unwrap_block(%{type: :block, children: children}), do: children
+  defp unwrap_block(node), do: [node]
+end

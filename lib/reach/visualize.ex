@@ -1,14 +1,13 @@
 defmodule Reach.Visualize do
   @moduledoc false
 
-  alias Reach.Frontend.Gleam
   alias Reach.Visualize.ControlFlow
-  alias Reach.Visualize.Helpers
+  alias Reach.Visualize.Source
 
   # ── Public API ──
 
   def to_graph_json(graph, opts \\ []) do
-    %{
+    %Reach.Visualize.Graph.JSON{
       control_flow: ControlFlow.build(Reach.nodes(graph), graph),
       call_graph: call_graph_data(graph),
       data_flow: data_flow_data(graph, opts)
@@ -31,73 +30,13 @@ defmodule Reach.Visualize do
     end
   end
 
-  # ── Source extraction (used by ControlFlow module) ──
+  # ── Source extraction ──
 
-  @def_cache_key :reach_def_end_cache
-
-  def ensure_def_cache(file) do
-    cache = Process.get(@def_cache_key, %{})
-
-    unless Map.has_key?(cache, file) do
-      line_map = build_def_line_map(file)
-      Process.put(@def_cache_key, Map.put(cache, file, line_map))
-    end
-  end
-
-  def extract_func_source(%{type: :function_def, meta: %{source: source, language: :javascript}})
-      when is_binary(source) do
-    source
-  end
-
-  def extract_func_source(%{type: :function_def, source_span: %{file: file, start_line: start}})
-      when is_binary(file) and is_integer(start) do
-    with end_line when is_integer(end_line) <- find_end_line(file, start),
-         {:ok, content} <- File.read(file) do
-      content
-      |> String.split("\n")
-      |> Enum.slice((start - 1)..(end_line - 1))
-      |> Enum.join("\n")
-      |> format_source()
-    else
-      _ -> nil
-    end
-  end
-
-  def extract_func_source(_), do: nil
-
-  def highlight_source(nil), do: nil
-  def highlight_source(source), do: highlight_source(source, :elixir)
-
-  def highlight_source(nil, _), do: nil
-
-  def highlight_source(source, lang) do
-    if Code.ensure_loaded?(Makeup) do
-      opts = lexer_opts(lang)
-
-      source
-      |> Makeup.highlight(opts)
-      |> String.replace(~r{^<pre class="highlight"><code>}, "")
-      |> String.replace(~r{</code></pre>$}, "")
-    else
-      nil
-    end
-  end
-
-  defp lexer_opts(:javascript) do
-    if Code.ensure_loaded?(Makeup.Lexers.JsLexer) do
-      [lexer: Makeup.Lexers.JsLexer]
-    else
-      []
-    end
-  end
-
-  defp lexer_opts(_), do: []
-
-  def format_source(source) do
-    Code.format_string!(source) |> IO.iodata_to_binary()
-  rescue
-    _ -> String.trim(source)
-  end
+  defdelegate ensure_def_cache(file), to: Source
+  defdelegate extract_func_source(node), to: Source
+  defdelegate highlight_source(source), to: Source
+  defdelegate highlight_source(source, lang), to: Source
+  defdelegate format_source(source), to: Source
 
   # ── Call Graph ──
 
@@ -117,11 +56,11 @@ defmodule Reach.Visualize do
       |> MapSet.new()
 
     raw_edges = Graph.edges(call_graph)
+    plugins = Reach.Plugin.detect()
 
-    # Filter: remove noise
     clean_edges =
       raw_edges
-      |> Enum.reject(&garbage_call?/1)
+      |> Enum.reject(&garbage_call?(&1, plugins))
       |> Enum.map(fn e ->
         # Resolve nil module to the detected module
         src = resolve_nil_module(e.v1, module_name)
@@ -229,52 +168,14 @@ defmodule Reach.Visualize do
   defp func_key(%{type: :fn}), do: nil
   defp func_key(_), do: nil
 
-  defp garbage_call?(edge) do
-    {tgt_mod, tgt_fn, tgt_ar} = edge.v2
+  @noise_functions MapSet.new([:!, :&&, :||, :|>, :"~~~", :not, :and, :or, :in, :\\])
 
-    cond do
-      # Ecto query field access: :e.name/0, :s.timestamp/0
-      is_atom(tgt_mod) and tgt_ar == 0 and field_access?(tgt_mod) ->
-        true
+  defp garbage_call?(edge, plugins) do
+    {_target_module, target_function, _target_arity} = edge.v2
 
-      # Pipe operator
-      tgt_fn == :\\ ->
-        true
-
-      # Kernel operators that aren't real calls
-      tgt_fn in [:!, :&&, :||, :|>, :"~~~", :not, :and, :or, :in] ->
-        true
-
-      # AST leakage — module is a tuple/list
-      not is_atom(tgt_mod) ->
-        true
-
-      # Ecto query DSL macros injected as local calls
-      ecto_dsl_macro?(tgt_fn, tgt_ar) ->
-        true
-
-      true ->
-        false
-    end
-  end
-
-  @ecto_dsl_macros ~w(from assoc is_nil field type selected_as coalesce fragment subquery dynamic select_merge)a
-  defp ecto_dsl_macro?(fn_name, arity), do: fn_name in @ecto_dsl_macros and arity <= 3
-
-  defp field_access?(mod), do: ecto_binding?(mod) or variable_access?(mod)
-  defp variable_access?(nil), do: false
-
-  defp variable_access?(mod) when is_atom(mod) do
-    name = Atom.to_string(mod)
-
-    String.first(name) == String.downcase(String.first(name)) and
-      not String.starts_with?(name, "Elixir.")
-  end
-
-  defp ecto_binding?(mod) when is_atom(mod) do
-    s = Atom.to_string(mod)
-    # Single-letter atoms like :e, :s, :t, :p — Ecto query bindings
-    byte_size(s) <= 2 and s =~ ~r/^[a-z]{1,2}$/
+    not is_atom(elem(edge.v2, 0)) or
+      target_function in @noise_functions or
+      Reach.Plugin.ignore_call_edge?(plugins, edge)
   end
 
   defp resolve_nil_module({nil, func, arity}, module_name),
@@ -297,13 +198,7 @@ defmodule Reach.Visualize do
   defp safe_name(name) when is_atom(name), do: name |> Atom.to_string() |> sanitize_id()
   defp safe_name(name), do: name |> to_string() |> sanitize_id()
 
-  defp sanitize_id(s) do
-    s
-    |> String.replace("<", "")
-    |> String.replace(">", "")
-    |> String.replace("\"", "")
-    |> String.replace(":", "")
-  end
+  defp sanitize_id(s), do: String.replace(s, ~r/[<>":]/, "")
 
   defp display_module(:"<javascript>"), do: "JavaScript"
   defp display_module(mod), do: safe_module_name(mod)
@@ -405,89 +300,6 @@ defmodule Reach.Visualize do
         into: %{} do
       {child.id, func.id}
     end
-  end
-
-  defp find_end_line(file, start_line) do
-    cache = Process.get(@def_cache_key, %{})
-
-    case Map.get(cache, file) do
-      nil ->
-        line_map = build_def_line_map(file)
-        Process.put(@def_cache_key, Map.put(cache, file, line_map))
-        Map.get(line_map, start_line)
-
-      line_map ->
-        Map.get(line_map, start_line)
-    end
-  end
-
-  defp build_def_line_map(file) do
-    cond do
-      String.ends_with?(file, ".gleam") ->
-        build_gleam_def_map(file)
-
-      not Helpers.source_file?(file) ->
-        %{}
-
-      true ->
-        with {:ok, source} <- File.read(file),
-             true <- String.valid?(source),
-             {:ok, ast} <-
-               Code.string_to_quoted(source,
-                 columns: true,
-                 token_metadata: true,
-                 file: file
-               ) do
-          collect_def_ranges(ast)
-        else
-          _ -> %{}
-        end
-    end
-  end
-
-  defp build_gleam_def_map(file) do
-    with {:ok, source} <- File.read(file),
-         {:ok, {:module, _, _, _, _, functions}} <- call_glance(source) do
-      offsets = Gleam.build_line_offsets(source)
-
-      Map.new(functions, fn {:definition, _, {:function, {:span, s, e}, _, _, _, _, _}} ->
-        start_line = Gleam.byte_to_line(offsets, s)
-        end_line = Gleam.byte_to_line(offsets, max(e - 1, s))
-        {start_line, end_line}
-      end)
-    else
-      _ -> %{}
-    end
-  end
-
-  defp call_glance(source) do
-    if :code.which(:glance) == :non_existing do
-      for p <- Path.wildcard("/tmp/glance/build/dev/erlang/*/ebin"),
-          do: :code.add_patha(to_charlist(p))
-    end
-
-    if :code.which(:glance) != :non_existing do
-      # credo:disable-for-next-line Credo.Check.Refactor.Apply
-      apply(:glance, :module, [source])
-    else
-      {:error, :glance_not_available}
-    end
-  end
-
-  defp collect_def_ranges(ast) do
-    {_, ranges} =
-      Macro.prewalk(ast, %{}, fn
-        {def_type, meta, [{_name, _, _} | _]} = node, acc
-        when def_type in [:def, :defp, :defmacro, :defmacrop] ->
-          end_meta = meta[:end]
-          end_line = if end_meta, do: end_meta[:line], else: meta[:line]
-          {node, Map.put(acc, meta[:line], end_line)}
-
-        node, acc ->
-          {node, acc}
-      end)
-
-    ranges
   end
 
   defp extract_call_graph(%Reach.Project{call_graph: cg}), do: cg

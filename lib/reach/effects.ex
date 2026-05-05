@@ -89,27 +89,37 @@ defmodule Reach.Effects do
     :quote
   ]
 
-  @spec classify(Node.t()) :: effect()
-  def classify(%Node{type: :literal}), do: :pure
-  def classify(%Node{type: :var}), do: :pure
-  def classify(%Node{type: :pin}), do: :pure
-  def classify(%Node{type: :tuple}), do: :pure
-  def classify(%Node{type: :list}), do: :pure
-  def classify(%Node{type: :cons}), do: :pure
-  def classify(%Node{type: :map}), do: :pure
-  def classify(%Node{type: :map_field}), do: :pure
-  def classify(%Node{type: :struct}), do: :pure
-  def classify(%Node{type: :match}), do: :pure
-  def classify(%Node{type: :block}), do: :pure
-  def classify(%Node{type: :guard}), do: :pure
-  def classify(%Node{type: :clause}), do: :pure
-  def classify(%Node{type: :case}), do: :pure
-  def classify(%Node{type: :fn}), do: :pure
-  def classify(%Node{type: :entry}), do: :pure
-  def classify(%Node{type: :exit}), do: :pure
+  @pure_node_types [
+    :literal,
+    :var,
+    :pin,
+    :tuple,
+    :list,
+    :cons,
+    :map,
+    :map_field,
+    :struct,
+    :match,
+    :block,
+    :guard,
+    :clause,
+    :case,
+    :fn,
+    :entry,
+    :exit,
+    :module_def,
+    :function_def,
+    :binary_op,
+    :unary_op,
+    :access,
+    :dispatch,
+    :generator,
+    :filter,
+    :comprehension
+  ]
 
-  def classify(%Node{type: :binary_op}), do: :pure
-  def classify(%Node{type: :unary_op}), do: :pure
+  @spec classify(Node.t()) :: effect()
+  def classify(%Node{type: type}) when type in @pure_node_types, do: :pure
 
   def classify(%Node{type: :receive}), do: :receive
 
@@ -447,7 +457,7 @@ defmodule Reach.Effects do
 
   @classify_cache :reach_classify_cache
 
-  @doc false
+  @doc "Ensures the effect-classification ETS cache exists."
   def ensure_cache do
     if :ets.whereis(@classify_cache) == :undefined do
       :ets.new(@classify_cache, [:set, :public, :named_table, read_concurrency: true])
@@ -880,10 +890,10 @@ defmodule Reach.Effects do
 
   # --- Pure function database ---
 
-  @doc false
+  @doc "Returns modules whose functions are pure by default unless explicitly listed otherwise."
   def pure_modules, do: @pure_modules
 
-  @doc false
+  @doc "Returns true when a module/function/arity is classified as pure."
   def pure_call?(module, function, arity) do
     classify_pure(module, function, arity) == :pure
   end

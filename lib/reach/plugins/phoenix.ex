@@ -72,6 +72,22 @@ defmodule Reach.Plugins.Phoenix do
 
   def classify_effect(_), do: nil
 
+  @param_names [:params, :user_params, :body_params]
+
+  @impl true
+  def trace_pattern(pattern) when pattern in ["conn.params", "params"] do
+    fn node ->
+      node.type == :var and node.meta[:name] in @param_names
+    end
+  end
+
+  def trace_pattern(_pattern), do: nil
+
+  @impl true
+  def behaviour_label(callbacks) do
+    if :mount in callbacks and :render in callbacks, do: "LiveView"
+  end
+
   @impl true
   def analyze(all_nodes, _opts) do
     conn_param_to_action_edges(all_nodes) ++

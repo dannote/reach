@@ -27,14 +27,28 @@ defmodule Reach.IR.Helpers do
     Enum.any?(children, &var_used_in_subtree?(&1, target))
   end
 
-  def language_from_path(path) do
-    case Path.extname(path) do
-      ext when ext in [".erl", ".hrl"] -> :erlang
-      ".gleam" -> :gleam
-      ext when ext in [".js", ".ts", ".tsx", ".jsx"] -> :javascript
-      _ -> :elixir
+  defdelegate language_from_path(path), to: Reach.Frontend
+  defdelegate source_extensions(), to: Reach.Frontend
+
+  def location(%Node{} = node) do
+    case node.source_span do
+      %{file: file, start_line: line} -> "#{file}:#{line}"
+      _ -> "unknown"
     end
   end
+
+  def call_name(%Node{} = node) do
+    mod = node.meta[:module]
+    fun = node.meta[:function]
+    if mod, do: "#{inspect(mod)}.#{fun}", else: to_string(fun)
+  end
+
+  def func_id_to_string({mod, fun, arity}) when is_atom(mod) and mod != nil do
+    "#{inspect(mod)}.#{fun}/#{arity}"
+  end
+
+  def func_id_to_string({nil, fun, arity}), do: "#{fun}/#{arity}"
+  def func_id_to_string(other), do: inspect(other)
 
   def module_from_path(path) do
     path
