@@ -107,4 +107,64 @@ defmodule Reach.Smell.Checks.IdiomMismatchTest do
       assert Enum.filter(result, &(&1.message =~ "traverses twice")) == []
     end
   end
+
+  describe "redundant negated guard" do
+    test "flags when != guard follows == guard on same variables" do
+      result =
+        findings("""
+        defmodule A do
+          defp compare([h1 | t1], [h2 | t2]) when h1 == h2, do: compare(t1, t2)
+          defp compare([h1 | _], [h2 | _]) when h1 != h2, do: h1
+        end
+        """)
+
+      assert Enum.any?(result, &(&1.message =~ "redundant negated guard"))
+    end
+
+    test "does not flag unrelated guards" do
+      result =
+        findings("""
+        defmodule A do
+          def check(x) when x > 0, do: :pos
+          def check(x) when x < 0, do: :neg
+        end
+        """)
+
+      assert Enum.filter(result, &(&1.message =~ "redundant")) == []
+    end
+  end
+
+  describe "destructure then reconstruct" do
+    test "flags list destructured and reassembled in body" do
+      result =
+        findings("""
+        defmodule A do
+          def check(ip) do
+            case String.split(ip, ".") do
+              [p1, p2, p3, p4] -> Enum.all?([p1, p2, p3, p4], &valid?/1)
+              _ -> false
+            end
+          end
+        end
+        """)
+
+      assert Enum.any?(result, &(&1.message =~ "reassembled"))
+    end
+
+    test "does not flag when variables are used individually" do
+      result =
+        findings("""
+        defmodule A do
+          def check(ip) do
+            case String.split(ip, ".") do
+              [p1, p2, p3, p4] -> {p1, p2, p3, p4}
+              _ -> :error
+            end
+          end
+        end
+        """)
+
+      assert Enum.filter(result, &(&1.message =~ "reassembled")) == []
+    end
+  end
 end
