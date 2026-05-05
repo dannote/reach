@@ -299,23 +299,36 @@ defmodule Reach.Frontend.Elixir do
             children: [translate(bare_expr, counter, file)],
             source_span: span_from_meta(bare_meta, file)
           }
+
+        other ->
+          %Node{
+            id: Counter.next(counter),
+            type: :clause,
+            meta: %{kind: :with_clause},
+            children: [translate(other, counter, file)],
+            source_span: nil
+          }
       end)
 
     body_node = translate(do_body, counter, file)
 
     else_nodes =
-      Enum.with_index(else_clauses, fn {:->, clause_meta, [patterns, body]}, index ->
-        {pattern_nodes, guard_nodes} = extract_patterns_and_guards(patterns, counter, file)
-        body_ir = translate(body, counter, file)
+      if is_list(else_clauses) do
+        Enum.with_index(else_clauses, fn {:->, clause_meta, [patterns, body]}, index ->
+          {pattern_nodes, guard_nodes} = extract_patterns_and_guards(patterns, counter, file)
+          body_ir = translate(body, counter, file)
 
-        %Node{
-          id: Counter.next(counter),
-          type: :clause,
-          meta: %{kind: :else_clause, index: index},
-          children: pattern_nodes ++ guard_nodes ++ [body_ir],
-          source_span: span_from_meta(clause_meta, file)
-        }
-      end)
+          %Node{
+            id: Counter.next(counter),
+            type: :clause,
+            meta: %{kind: :else_clause, index: index},
+            children: pattern_nodes ++ guard_nodes ++ [body_ir],
+            source_span: span_from_meta(clause_meta, file)
+          }
+        end)
+      else
+        []
+      end
 
     %Node{
       id: Counter.next(counter),
@@ -862,6 +875,9 @@ defmodule Reach.Frontend.Elixir do
   end
 
   defp translate_handler_clauses(nil, _type, _counter, _file), do: []
+
+  defp translate_handler_clauses(clauses, _type, _counter, _file) when not is_list(clauses),
+    do: []
 
   defp translate_handler_clauses(clauses, type, counter, file) do
     Enum.with_index(clauses, fn {:->, clause_meta, [patterns, body]}, index ->
