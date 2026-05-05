@@ -152,4 +152,16 @@ defmodule Reach.Smell.Checks.CollectionIdioms do
     :suboptimal,
     "Enum.count/1 without predicate has protocol dispatch overhead; use length/1 for lists"
   )
+
+  smell(
+    from(~p[Map.put(_, key, true)]) |> where(not is_atom(^key) and not is_binary(^key)),
+    :suboptimal,
+    "Map.put/3 with variable key and boolean value suggests membership tracking; use MapSet"
+  )
+
+  smell(
+    from(~p[Map.put(_, key, false)]) |> where(not is_atom(^key) and not is_binary(^key)),
+    :suboptimal,
+    "Map.put/3 with variable key and boolean value suggests membership tracking; use MapSet"
+  )
 end

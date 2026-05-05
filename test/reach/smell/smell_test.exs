@@ -919,5 +919,27 @@ defmodule Reach.SmellTest do
 
       refute Enum.any?(findings, &(&1.message =~ "protocol dispatch"))
     end
+
+    test "flags Map.put with variable key and boolean value" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def track(seen, item), do: Map.put(seen, item, true)
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "MapSet"))
+    end
+
+    test "does not flag Map.put with atom key and boolean value" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def activate(struct), do: Map.put(struct, :active, true)
+        end
+        """)
+
+      refute Enum.any?(findings, &(&1.message =~ "MapSet"))
+    end
   end
 end
