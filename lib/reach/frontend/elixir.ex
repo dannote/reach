@@ -1029,8 +1029,11 @@ defmodule Reach.Frontend.Elixir do
               except -> exported_functions(mod) -- except
             end
 
-          kind when kind in [:macros, :functions, :sigils] ->
+          kind when kind in [:macros, :functions] ->
             exported_of_kind(mod, kind)
+
+          :sigils ->
+            []
 
           only when is_list(only) ->
             only
