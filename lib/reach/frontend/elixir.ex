@@ -1029,8 +1029,14 @@ defmodule Reach.Frontend.Elixir do
               except -> exported_functions(mod) -- except
             end
 
-          only ->
+          kind when kind in [:macros, :functions, :sigils] ->
+            exported_of_kind(mod, kind)
+
+          only when is_list(only) ->
             only
+
+          _ ->
+            []
         end
 
       [{mod, funs}]
@@ -1044,6 +1050,16 @@ defmodule Reach.Frontend.Elixir do
   defp exported_functions(mod) do
     if Code.ensure_loaded?(mod) do
       mod.__info__(:functions) ++ mod.__info__(:macros)
+    else
+      []
+    end
+  rescue
+    _ -> []
+  end
+
+  defp exported_of_kind(mod, kind) do
+    if Code.ensure_loaded?(mod) do
+      mod.__info__(kind)
     else
       []
     end
