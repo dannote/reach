@@ -81,13 +81,26 @@ defmodule Reach.Smell.PatternCheck do
   defmacro __before_compile__(_env) do
     quote do
       defp find_pattern_smells(zipper, file) do
-        Enum.flat_map(@smell_patterns, fn {pattern, kind, message} ->
-          zipper
-          |> ExAST.Patcher.find_all(pattern)
-          |> Enum.map(fn match ->
-            line = (match.range && match.range.start[:line]) || 0
-            Reach.Smell.Finding.new(kind: kind, message: message, location: "#{file}:#{line}")
+        named =
+          @smell_patterns
+          |> Enum.with_index()
+          |> Map.new(fn {{pattern, _kind, _message}, idx} ->
+            {:"p#{idx}", pattern}
           end)
+
+        meta =
+          @smell_patterns
+          |> Enum.with_index()
+          |> Map.new(fn {{_pattern, kind, message}, idx} ->
+            {:"p#{idx}", {kind, message}}
+          end)
+
+        zipper
+        |> ExAST.Patcher.find_many(named)
+        |> Enum.map(fn match ->
+          {kind, message} = Map.fetch!(meta, match.pattern)
+          line = (match.range && match.range.start[:line]) || 0
+          Reach.Smell.Finding.new(kind: kind, message: message, location: "#{file}:#{line}")
         end)
       end
 
