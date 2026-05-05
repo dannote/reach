@@ -82,19 +82,17 @@ defmodule Reach.Smell.Helpers do
     end)
   end
 
-  defp fn_inside_loop_call?(node, function) do
-    node.type == :fn and
-      Enum.any?(ancestors_of(node.id, function), fn ancestor ->
-        ancestor.type == :call and ancestor.meta[:module] in [Enum, Stream] and
-          ancestor.meta[:function] in @loop_fns
-      end)
-  end
+  defp fn_inside_loop_call?(node, function),
+    do: fn_inside_call?(node, function, @loop_fns)
 
-  defp fn_inside_accumulator_call?(node, function) do
+  defp fn_inside_accumulator_call?(node, function),
+    do: fn_inside_call?(node, function, @accumulator_fns)
+
+  defp fn_inside_call?(node, function, target_fns) do
     node.type == :fn and
       Enum.any?(ancestors_of(node.id, function), fn ancestor ->
         ancestor.type == :call and ancestor.meta[:module] in [Enum, Stream] and
-          ancestor.meta[:function] in @accumulator_fns
+          ancestor.meta[:function] in target_fns
       end)
   end
 

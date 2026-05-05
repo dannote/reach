@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.0.1
+
+### Fixed
+
+- **ex_ast dependency** — `ex_ast` is now a regular dependency instead of `only: [:dev, :test]`. Pattern smell checks import ExAST at compile time, so the previous declaration made Reach uninstallable from Hex. (Fixes #14)
+
+### Improved
+
+- **Smell false positive reduction** — narrowed loop antipatterns to accumulator loops and recursive operands, excluded compile-time constructs and formatting functions from redundant computation, removed debatable patterns (chained `String.replace`, `Enum.take` with negative count, sequential `Enum.filter`). Validated on 19 Hex packages: 63% fewer findings, all remaining verified as true positives.
+- **Module documentation** — all public modules now have `@moduledoc` descriptions.
+
 ## 2.0.0
 
 ### Breaking changes

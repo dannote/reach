@@ -102,16 +102,21 @@ defmodule Reach.Smell.Checks.RedundantComputation do
   defp formatting_call?(%{meta: %{function: :inspect, module: Kernel}}), do: true
   defp formatting_call?(_node), do: false
 
+  @excluded_fns MapSet.new(
+                  @type_check_fns ++
+                    @compiler_directives ++
+                    @pattern_operators ++
+                    [:__aliases__, :get]
+                )
+
+  @excluded_kinds MapSet.new([:attribute, :field_access, :binary_size])
+
   defp redundancy_candidate?(node) do
-    node.type == :call and Effects.pure?(node) and node.meta[:function] != nil and
-      node.meta[:function] not in @type_check_fns and
-      node.meta[:function] not in @compiler_directives and
-      node.meta[:function] not in @pattern_operators and
-      node.meta[:function] not in [:__aliases__, :get] and
+    node.type == :call and node.meta[:function] != nil and node.source_span != nil and
+      node.meta[:function] not in @excluded_fns and
+      node.meta[:kind] not in @excluded_kinds and
       node.meta[:module] != Access and
-      node.meta[:kind] not in [:attribute, :field_access, :binary_size] and
-      not formatting_call?(node) and
-      node.source_span != nil
+      Effects.pure?(node) and not formatting_call?(node)
   end
 
   defp collect_block_calls(node, acc) do
