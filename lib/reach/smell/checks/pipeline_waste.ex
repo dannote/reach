@@ -110,10 +110,4 @@ defmodule Reach.Smell.Checks.PipelineWaste do
     :suboptimal,
     "List.foldl/3 is non-idiomatic; use Enum.reduce/3"
   )
-
-  smell(
-    ~p[List.foldr(_, _, _)],
-    :suboptimal,
-    "List.foldr/3 is non-idiomatic; use Enum.reduce/3 (consider reversal semantics)"
-  )
 end
