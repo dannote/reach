@@ -8,6 +8,8 @@ defmodule Reach.Smell.Checks.LoopAntipattern do
 
     append_in_loop(all_nodes, function) ++
       concat_in_loop(all_nodes, function) ++
+      enum_at_in_loop(all_nodes, function) ++
+      list_delete_at_in_loop(all_nodes, function) ++
       manual_min_reduce(all_nodes) ++
       manual_max_reduce(all_nodes) ++
       manual_sum_reduce(all_nodes) ++
@@ -35,6 +37,36 @@ defmodule Reach.Smell.Checks.LoopAntipattern do
         node.source_span,
         quadratic_concat?(node, function) do
       finding(:string_building, "<> inside reduce is O(n²); use iolists or Enum.map_join", node)
+    end
+  end
+
+  defp enum_at_in_loop(all_nodes, function) do
+    for node <- all_nodes,
+        node.type == :call,
+        node.meta[:module] == Enum,
+        node.meta[:function] == :at,
+        node.source_span,
+        Helpers.inside_loop?(node, function) do
+      finding(
+        :suboptimal,
+        "Enum.at/2 inside loop is O(n) per call; use pattern matching, Enum.with_index/1, or convert to tuple",
+        node
+      )
+    end
+  end
+
+  defp list_delete_at_in_loop(all_nodes, function) do
+    for node <- all_nodes,
+        node.type == :call,
+        node.meta[:module] == List,
+        node.meta[:function] == :delete_at,
+        node.source_span,
+        Helpers.inside_loop?(node, function) do
+      finding(
+        :suboptimal,
+        "List.delete_at/2 inside loop is O(n) per call, creating O(n²) cost; use pattern matching or List.delete/2",
+        node
+      )
     end
   end
 

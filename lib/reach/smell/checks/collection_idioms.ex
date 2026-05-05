@@ -146,4 +146,10 @@ defmodule Reach.Smell.Checks.CollectionIdioms do
     :suboptimal,
     "Map.values/1 → Enum.map: iterate the map directly as {key, value} pairs"
   )
+
+  smell(
+    ~p[Enum.count(_)],
+    :suboptimal,
+    "Enum.count/1 without predicate has protocol dispatch overhead; use length/1 for lists"
+  )
 end

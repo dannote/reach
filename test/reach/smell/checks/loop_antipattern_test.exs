@@ -223,4 +223,47 @@ defmodule Reach.Smell.Checks.LoopAntipatternTest do
       assert Enum.filter(result, &(&1.message =~ "frequencies")) == []
     end
   end
+
+  describe "Enum.at inside loop" do
+    test "flags Enum.at inside Enum.map" do
+      result =
+        findings("""
+        defmodule A do
+          def access(items, indices) do
+            Enum.map(indices, fn i -> Enum.at(items, i) end)
+          end
+        end
+        """)
+
+      assert Enum.any?(result, &(&1.message =~ "Enum.at"))
+    end
+
+    test "does not flag Enum.at outside loop" do
+      result =
+        findings("""
+        defmodule A do
+          def first(items), do: Enum.at(items, 0)
+        end
+        """)
+
+      assert Enum.filter(result, &(&1.message =~ "Enum.at")) == []
+    end
+  end
+
+  describe "List.delete_at inside loop" do
+    test "flags List.delete_at inside Enum.reduce" do
+      result =
+        findings("""
+        defmodule A do
+          def remove_each(list) do
+            Enum.reduce(0..length(list)-1, [], fn i, acc ->
+              [List.delete_at(list, i) | acc]
+            end)
+          end
+        end
+        """)
+
+      assert Enum.any?(result, &(&1.message =~ "List.delete_at"))
+    end
+  end
 end

@@ -897,5 +897,27 @@ defmodule Reach.SmellTest do
 
       assert Enum.any?(findings, &(&1.message =~ "Enum.reduce"))
     end
+
+    test "flags Enum.count without predicate" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def len(items), do: Enum.count(items)
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "length"))
+    end
+
+    test "does not flag Enum.count with predicate" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def evens(items), do: Enum.count(items, &(rem(&1, 2) == 0))
+        end
+        """)
+
+      refute Enum.any?(findings, &(&1.message =~ "protocol dispatch"))
+    end
   end
 end
