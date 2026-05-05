@@ -36,6 +36,19 @@ defmodule Reach.Smell.Checks.IdiomMismatchTest do
       assert Enum.filter(result, &(&1.message =~ "pattern matching")) == []
     end
 
+    test "reports clause location, not unknown" do
+      result =
+        findings("""
+        defmodule A do
+          def check(x) when x == :ok, do: true
+        end
+        """)
+
+      finding = Enum.find(result, &(&1.message =~ "pattern matching"))
+      assert finding
+      refute finding.location == "unknown"
+    end
+
     test "does not flag equality between two variables" do
       result =
         findings("""

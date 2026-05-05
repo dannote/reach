@@ -95,14 +95,19 @@ defmodule Reach.Smell.Checks.LoopAntipattern do
   defp reduce_call?(_), do: false
 
   defp callback_contains?(call, target_fn) do
-    call
-    |> Helpers.callback_body()
-    |> Enum.any?(&(&1.type == :call and &1.meta[:function] == target_fn))
+    body = Helpers.callback_body(call)
+    significant = Enum.reject(body, &(&1.type in [:var, :literal, :fn, :clause]))
+
+    length(significant) == 1 and
+      Enum.any?(significant, &(&1.type == :call and &1.meta[:function] == target_fn))
   end
 
   defp callback_sum?(call) do
-    Helpers.callback_body(call)
-    |> Enum.any?(&(&1.type == :binary_op and &1.meta[:operator] == :+))
+    body = Helpers.callback_body(call)
+    significant = Enum.reject(body, &(&1.type in [:var, :literal, :fn, :clause]))
+
+    length(significant) == 1 and
+      Enum.any?(significant, &(&1.type == :binary_op and &1.meta[:operator] == :+))
   end
 
   defp frequencies_pattern?(call) do

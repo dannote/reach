@@ -99,6 +99,7 @@ defmodule Reach.Smell.Checks.RedundantComputation do
       node.meta[:function] not in @type_check_fns and
       node.meta[:function] not in @compiler_directives and
       node.meta[:function] not in @pattern_operators and
+      node.meta[:function] != :__aliases__ and
       node.meta[:kind] not in [:attribute, :field_access] and not formatting_call?(node) and
       node.source_span != nil
   end

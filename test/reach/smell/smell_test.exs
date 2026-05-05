@@ -163,6 +163,26 @@ defmodule Reach.SmellTest do
       assert eager == []
     end
 
+    test "module references are not flagged as redundant computation" do
+      findings =
+        run_smell_task("""
+        defmodule AliasTest do
+          def foo do
+            a = SomeModule.call(1)
+            b = SomeModule.call(2)
+            {a, b}
+          end
+        end
+        """)
+
+      redundant =
+        Enum.filter(findings, fn f ->
+          f.kind == :redundant_computation and String.contains?(f.message, "__aliases__")
+        end)
+
+      assert redundant == []
+    end
+
     test "actual duplicate pure calls are still detected" do
       findings =
         run_smell_task("""

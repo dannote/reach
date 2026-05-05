@@ -10,20 +10,20 @@ defmodule Reach.Smell.Checks.IdiomMismatch do
   defp guard_equality_findings(function) do
     function.children
     |> Enum.filter(&(&1.type == :clause and &1.meta[:kind] == :function_clause))
-    |> Enum.flat_map(&guard_equalities/1)
+    |> Enum.flat_map(&guard_equalities(&1, function))
   end
 
-  defp guard_equalities(clause) do
+  defp guard_equalities(clause, function) do
     clause
     |> IR.all_nodes()
     |> Enum.filter(&guard_with_literal_equality?/1)
-    |> Enum.map(
-      &finding(
+    |> Enum.map(fn _guard ->
+      finding(
         :suboptimal,
         "guard compares parameter to literal with ==; use pattern matching in the function head",
-        &1
+        function
       )
-    )
+    end)
   end
 
   defp guard_with_literal_equality?(%{type: :guard} = guard) do

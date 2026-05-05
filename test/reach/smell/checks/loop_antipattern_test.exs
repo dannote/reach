@@ -81,6 +81,19 @@ defmodule Reach.Smell.Checks.LoopAntipatternTest do
 
       assert Enum.filter(result, &(&1.message =~ "++")) == []
     end
+
+    test "does not flag ++ in Enum.flat_map (no accumulator)" do
+      result =
+        findings("""
+        defmodule A do
+          def build(items) do
+            Enum.flat_map(items, fn item -> item ++ [1] end)
+          end
+        end
+        """)
+
+      assert Enum.filter(result, &(&1.message =~ "++")) == []
+    end
   end
 
   describe "<> inside reduce" do
@@ -96,7 +109,10 @@ defmodule Reach.Smell.Checks.LoopAntipatternTest do
         end
         """)
 
-      assert Enum.any?(result, &(&1.kind == :string_building and &1.message =~ "<> inside reduce"))
+      assert Enum.any?(
+               result,
+               &(&1.kind == :string_building and &1.message =~ "<> inside reduce")
+             )
     end
 
     test "does not flag <> outside a loop" do
@@ -149,6 +165,21 @@ defmodule Reach.Smell.Checks.LoopAntipatternTest do
         """)
 
       assert Enum.any?(result, &(&1.message =~ "sum"))
+    end
+
+    test "does not flag complex accumulator with +" do
+      result =
+        findings("""
+        defmodule A do
+          def count_present(items) do
+            Enum.reduce(items, {0, 0}, fn item, {present, count} ->
+              if item, do: {present + 1, count + 1}, else: {present, count + 1}
+            end)
+          end
+        end
+        """)
+
+      assert Enum.filter(result, &(&1.message =~ "sum")) == []
     end
   end
 
