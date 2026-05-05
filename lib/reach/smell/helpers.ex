@@ -13,6 +13,8 @@ defmodule Reach.Smell.Helpers do
     scan map_every map_join map_intersperse into zip_with zip_reduce
   )a
 
+  @accumulator_fns ~w(reduce reduce_while scan flat_map_reduce map_reduce zip_reduce)a
+
   def function_defs(project) do
     project.nodes
     |> Map.values()
@@ -36,6 +38,15 @@ defmodule Reach.Smell.Helpers do
       fn_inside_loop_call?(ancestor, function) or
         ancestor.type == :comprehension
     end) or recursive?(function)
+  end
+
+  @doc "Returns true if `node` is inside an accumulator-carrying loop (reduce/scan)."
+  def inside_accumulator?(node, function) do
+    ancestors = ancestors_of(node.id, function)
+
+    Enum.any?(ancestors, fn ancestor ->
+      fn_inside_accumulator_call?(ancestor, function)
+    end)
   end
 
   @doc "Extracts the callback fn body nodes from an Enum call."
@@ -76,6 +87,14 @@ defmodule Reach.Smell.Helpers do
       Enum.any?(ancestors_of(node.id, function), fn ancestor ->
         ancestor.type == :call and ancestor.meta[:module] in [Enum, Stream] and
           ancestor.meta[:function] in @loop_fns
+      end)
+  end
+
+  defp fn_inside_accumulator_call?(node, function) do
+    node.type == :fn and
+      Enum.any?(ancestors_of(node.id, function), fn ancestor ->
+        ancestor.type == :call and ancestor.meta[:module] in [Enum, Stream] and
+          ancestor.meta[:function] in @accumulator_fns
       end)
   end
 

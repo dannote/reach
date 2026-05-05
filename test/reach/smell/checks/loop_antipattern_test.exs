@@ -12,7 +12,7 @@ defmodule Reach.Smell.Checks.LoopAntipatternTest do
     result
   end
 
-  describe "++ inside loop" do
+  describe "++ inside reduce" do
     test "flags ++ in Enum.reduce" do
       result =
         findings("""
@@ -25,10 +25,10 @@ defmodule Reach.Smell.Checks.LoopAntipatternTest do
         end
         """)
 
-      assert Enum.any?(result, &(&1.kind == :suboptimal and &1.message =~ "++ inside loop"))
+      assert Enum.any?(result, &(&1.kind == :suboptimal and &1.message =~ "++ inside reduce"))
     end
 
-    test "flags ++ in Enum.map" do
+    test "does not flag ++ in Enum.map (no accumulator)" do
       result =
         findings("""
         defmodule A do
@@ -38,7 +38,7 @@ defmodule Reach.Smell.Checks.LoopAntipatternTest do
         end
         """)
 
-      assert Enum.any?(result, &(&1.message =~ "++ inside loop"))
+      assert Enum.filter(result, &(&1.message =~ "++")) == []
     end
 
     test "does not flag ++ outside a loop" do
@@ -51,9 +51,39 @@ defmodule Reach.Smell.Checks.LoopAntipatternTest do
 
       assert Enum.filter(result, &(&1.message =~ "++")) == []
     end
+
+    test "flags ++ when recursive call result feeds into operand" do
+      result =
+        findings("""
+        defmodule A do
+          def flatten([h | t]) when is_list(h), do: flatten(h) ++ flatten(t)
+          def flatten([h | t]), do: [h | flatten(t)]
+          def flatten([]), do: []
+        end
+        """)
+
+      assert Enum.any?(result, &(&1.message =~ "++"))
+    end
+
+    test "does not flag ++ in recursive function when operands are local" do
+      result =
+        findings("""
+        defmodule A do
+          def walk(tree) do
+            exits = body(tree) ++ rescue(tree)
+            walk(tree.child)
+            exits
+          end
+          defp body(_), do: [1]
+          defp rescue(_), do: [2]
+        end
+        """)
+
+      assert Enum.filter(result, &(&1.message =~ "++")) == []
+    end
   end
 
-  describe "<> inside loop" do
+  describe "<> inside reduce" do
     test "flags <> in Enum.reduce" do
       result =
         findings("""
@@ -66,7 +96,7 @@ defmodule Reach.Smell.Checks.LoopAntipatternTest do
         end
         """)
 
-      assert Enum.any?(result, &(&1.kind == :string_building and &1.message =~ "<> inside loop"))
+      assert Enum.any?(result, &(&1.kind == :string_building and &1.message =~ "<> inside reduce"))
     end
 
     test "does not flag <> outside a loop" do

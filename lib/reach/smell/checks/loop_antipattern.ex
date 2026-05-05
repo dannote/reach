@@ -19,10 +19,10 @@ defmodule Reach.Smell.Checks.LoopAntipattern do
         node.type == :binary_op,
         node.meta[:operator] == :++,
         node.source_span,
-        Helpers.inside_loop?(node, function) do
+        quadratic_concat?(node, function) do
       finding(
         :suboptimal,
-        "++ inside loop is O(n²); prepend with [item | acc] and Enum.reverse/1 after",
+        "++ inside reduce is O(n²); prepend with [item | acc] and Enum.reverse/1 after",
         node
       )
     end
@@ -33,9 +33,31 @@ defmodule Reach.Smell.Checks.LoopAntipattern do
         node.type == :binary_op,
         node.meta[:operator] == :<>,
         node.source_span,
-        Helpers.inside_loop?(node, function) do
-      finding(:string_building, "<> inside loop is O(n²); use iolists or Enum.map_join", node)
+        quadratic_concat?(node, function) do
+      finding(:string_building, "<> inside reduce is O(n²); use iolists or Enum.map_join", node)
     end
+  end
+
+  defp quadratic_concat?(node, function) do
+    Helpers.inside_accumulator?(node, function) or
+      recursive_operand?(node, function)
+  end
+
+  defp recursive_operand?(%{children: [left, right]}, function) do
+    name = function.meta[:name]
+    arity = function.meta[:arity]
+
+    contains_self_call?(left, name, arity) or contains_self_call?(right, name, arity)
+  end
+
+  defp recursive_operand?(_, _), do: false
+
+  defp contains_self_call?(node, name, arity) do
+    IR.all_nodes(node)
+    |> Enum.any?(fn n ->
+      n.type == :call and n.meta[:function] == name and
+        n.meta[:arity] == arity and n.meta[:module] == nil
+    end)
   end
 
   defp manual_min_reduce(all_nodes) do
