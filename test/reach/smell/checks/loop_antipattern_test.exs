@@ -1,11 +1,13 @@
 defmodule Reach.Smell.Checks.LoopAntipatternTest do
   use ExUnit.Case, async: true
 
+  alias Reach.Smell.Checks.LoopAntipattern
+
   defp findings(code) do
     path = Path.join(System.tmp_dir!(), "loop_test_#{:erlang.unique_integer([:positive])}.ex")
     File.write!(path, code)
     project = Reach.Project.from_sources([path])
-    result = Reach.Smell.Checks.LoopAntipattern.run(project)
+    result = LoopAntipattern.run(project)
     File.rm(path)
     result
   end
