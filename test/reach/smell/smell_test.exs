@@ -7,19 +7,7 @@ defmodule Reach.SmellTest do
     path = Path.join(System.tmp_dir!(), "smell_test_#{:erlang.unique_integer([:positive])}.ex")
     File.write!(path, code)
     project = Reach.Project.from_sources([path])
-
-    {:ok, result} = Agent.start_link(fn -> [] end)
-
-    try do
-      ExUnit.CaptureIO.capture_io(fn ->
-        Agent.update(result, fn _ -> Smells.run(project, config) end)
-      end)
-
-      Agent.get(result, & &1)
-    after
-      Agent.stop(result)
-      File.rm(path)
-    end
+    Smells.run(project, config)
   end
 
   describe "check registry" do
