@@ -24,7 +24,11 @@ defmodule Reach.Smell.Checks.RedundantComputation do
     :is_port,
     :is_reference,
     :is_struct,
-    :is_tuple
+    :is_tuple,
+    :byte_size,
+    :bit_size,
+    :tuple_size,
+    :map_size
   ]
 
   @compiler_directives [
@@ -53,7 +57,7 @@ defmodule Reach.Smell.Checks.RedundantComputation do
     :quote
   ]
 
-  @pattern_operators [:|, :{}, :@, :"::", :<<>>]
+  @pattern_operators [:|, :{}, :@, :"::", :<<>>, :size]
 
   defp findings(func) do
     func
@@ -94,6 +98,8 @@ defmodule Reach.Smell.Checks.RedundantComputation do
 
   defp formatting_call?(%{meta: %{function: :to_string, module: Kernel}}), do: true
   defp formatting_call?(%{meta: %{function: :to_string, kind: :local}}), do: true
+  defp formatting_call?(%{meta: %{function: :inspect, kind: :local}}), do: true
+  defp formatting_call?(%{meta: %{function: :inspect, module: Kernel}}), do: true
   defp formatting_call?(_node), do: false
 
   defp redundancy_candidate?(node) do
@@ -101,7 +107,8 @@ defmodule Reach.Smell.Checks.RedundantComputation do
       node.meta[:function] not in @type_check_fns and
       node.meta[:function] not in @compiler_directives and
       node.meta[:function] not in @pattern_operators and
-      node.meta[:function] != :__aliases__ and
+      node.meta[:function] not in [:__aliases__, :get] and
+      node.meta[:module] != Access and
       node.meta[:kind] not in [:attribute, :field_access, :binary_size] and
       not formatting_call?(node) and
       node.source_span != nil

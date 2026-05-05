@@ -163,6 +163,24 @@ defmodule Reach.SmellTest do
       assert eager == []
     end
 
+    test "binary pattern size references are not flagged as redundant computation" do
+      findings =
+        run_smell_task("""
+        defmodule BinaryPatternTest do
+          def parse(<<count, data::binary-size(count), rest::binary-size(count)>>) do
+            {data, rest}
+          end
+        end
+        """)
+
+      size_findings =
+        Enum.filter(findings, fn f ->
+          f.kind == :redundant_computation and String.contains?(f.message, "size")
+        end)
+
+      assert size_findings == []
+    end
+
     test "module references are not flagged as redundant computation" do
       findings =
         run_smell_task("""
@@ -364,22 +382,6 @@ defmodule Reach.SmellTest do
         """)
 
       assert Enum.any?(findings, &(&1.message =~ "inspect/1 for module"))
-    end
-
-    test "flags chained String.replace" do
-      findings =
-        run_smell_task("""
-        defmodule IdiomB do
-          def clean(s) do
-            s
-            |> String.replace("<", "")
-            |> String.replace(">", "")
-            |> String.replace(":", "")
-          end
-        end
-        """)
-
-      assert Enum.any?(findings, &(&1.message =~ "chained String.replace"))
     end
 
     test "flags Enum.reverse |> hd" do
@@ -618,7 +620,7 @@ defmodule Reach.SmellTest do
       assert length(matching) == 2
     end
 
-    test "flags negative Enum.take" do
+    test "does not flag Enum.take with negative count (no better alternative)" do
       findings =
         run_smell_task("""
         defmodule CollectionIdioms do
@@ -627,8 +629,7 @@ defmodule Reach.SmellTest do
         end
         """)
 
-      matching = Enum.filter(findings, &String.contains?(&1.message, "negative count"))
-      assert length(matching) == 2
+      assert Enum.filter(findings, &String.contains?(&1.message, "Enum.take")) == []
     end
 
     test "flags Integer.to_string to String.to_charlist digit extraction" do

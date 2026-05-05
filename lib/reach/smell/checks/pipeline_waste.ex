@@ -22,12 +22,6 @@ defmodule Reach.Smell.Checks.PipelineWaste do
   )
 
   smell(
-    ~p[Enum.filter(_, _) |> Enum.filter(_)],
-    :suboptimal,
-    "Enum.filter → Enum.filter: combine predicates into one pass"
-  )
-
-  smell(
     ~p[Enum.map(_, _) |> List.first()],
     :eager_pattern,
     "Enum.map → List.first: builds entire list for one element; use Enum.find_value/2"

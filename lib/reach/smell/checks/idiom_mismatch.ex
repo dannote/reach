@@ -13,16 +13,24 @@ defmodule Reach.Smell.Checks.IdiomMismatch do
     |> Enum.flat_map(&guard_equalities(&1, function))
   end
 
-  defp guard_equalities(clause, function) do
+  defp guard_equalities(clause, _function) do
     clause
     |> IR.all_nodes()
     |> Enum.filter(&guard_with_literal_equality?/1)
-    |> Enum.map(fn _guard ->
-      finding(
-        :suboptimal,
-        "guard compares parameter to literal with ==; use pattern matching in the function head",
-        function
-      )
+    |> Enum.flat_map(fn guard ->
+      guard
+      |> IR.all_nodes()
+      |> Enum.filter(fn n ->
+        n.type == :binary_op and n.meta[:operator] == :== and
+          has_literal_and_var?(n.children) and n.source_span
+      end)
+      |> Enum.map(fn eq_node ->
+        finding(
+          :suboptimal,
+          "guard compares parameter to literal with ==; use pattern matching in the function head",
+          eq_node
+        )
+      end)
     end)
   end
 

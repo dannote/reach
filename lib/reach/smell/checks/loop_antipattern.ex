@@ -111,18 +111,22 @@ defmodule Reach.Smell.Checks.LoopAntipattern do
   end
 
   defp frequencies_pattern?(call) do
-    empty_map_acc?(call) and callback_has_map_update?(call)
+    empty_map_acc?(call) and simple_map_update_callback?(call)
   end
 
   defp empty_map_acc?(%{children: children}) do
     Enum.any?(children, &(&1.type == :map and &1.children == []))
   end
 
-  defp callback_has_map_update?(call) do
-    Helpers.callback_body(call)
-    |> Enum.any?(fn node ->
-      node.type == :call and node.meta[:module] == Map and
-        node.meta[:function] in [:update, :update!]
-    end)
+  defp simple_map_update_callback?(call) do
+    body = Helpers.callback_body(call)
+
+    top_level_calls =
+      Enum.filter(body, fn node ->
+        node.type == :call and node.meta[:module] == Map and
+          node.meta[:function] in [:update, :update!]
+      end)
+
+    top_level_calls != [] and length(body) <= 15
   end
 end

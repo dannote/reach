@@ -10,12 +10,6 @@ defmodule Reach.Smell.Checks.CollectionIdioms do
   )
 
   smell(
-    ~p[Enum.take(_, -_)],
-    :suboptimal,
-    "Enum.take with negative count forces extra traversal; prefer sorting in the desired direction"
-  )
-
-  smell(
     ~p[Enum.reverse(_) |> hd()],
     :suboptimal,
     "Enum.reverse/1 |> hd() traverses twice; use List.last/1"
@@ -85,12 +79,6 @@ defmodule Reach.Smell.Checks.CollectionIdioms do
     ~p[inspect(_) |> String.contains?(_)],
     :suboptimal,
     "inspect/1 for type checking is fragile; compare atoms or use Module.split/1"
-  )
-
-  smell(
-    ~p[String.replace(_, _, _) |> String.replace(_, _)],
-    :suboptimal,
-    "chained String.replace/3; use a single String.replace/3 with a regex"
   )
 
   smell(

@@ -198,5 +198,29 @@ defmodule Reach.Smell.Checks.LoopAntipatternTest do
 
       assert Enum.any?(result, &(&1.message =~ "frequencies"))
     end
+
+    test "does not flag complex reduce with Map.update" do
+      result =
+        findings("""
+        defmodule A do
+          def index(files) do
+            Enum.reduce(files, %{}, fn file, acc ->
+              case File.read(file) do
+                {:ok, content} ->
+                  content
+                  |> extract_keys()
+                  |> Enum.reduce(acc, fn key, inner_acc ->
+                    Map.update(inner_acc, key, [file], &[file | &1])
+                  end)
+                _ -> acc
+              end
+            end)
+          end
+          defp extract_keys(c), do: [c]
+        end
+        """)
+
+      assert Enum.filter(result, &(&1.message =~ "frequencies")) == []
+    end
   end
 end
