@@ -22,18 +22,13 @@ defmodule Reach.Trace.Slice do
   def find_node_at_location(project, file, line) do
     target_basename = Path.basename(file)
 
-    project.nodes
-    |> Map.values()
-    |> Enum.filter(fn node ->
-      case node.source_span do
-        %{file: source_file, start_line: start_line} ->
-          Query.file_matches?(source_file, file) and start_line == line and
-            not (source_file != file and source_file != target_basename)
-
-        _ ->
-          false
-      end
-    end)
+    for(
+      {_id, node} <- project.nodes,
+      %{file: source_file, start_line: start_line} <- [node.source_span],
+      Query.file_matches?(source_file, file) and start_line == line,
+      not (source_file != file and source_file != target_basename),
+      do: node
+    )
     |> Enum.min_by(&node_specificity/1, fn -> nil end)
   end
 

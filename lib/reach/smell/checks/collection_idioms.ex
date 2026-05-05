@@ -148,7 +148,8 @@ defmodule Reach.Smell.Checks.CollectionIdioms do
   )
 
   smell(
-    ~p[Enum.count(_)],
+    from(~p[Enum.count(arg)])
+    |> where(not match?({:&, _, _}, ^arg) and not match?({:fn, _, _}, ^arg)),
     :suboptimal,
     "Enum.count/1 without predicate has protocol dispatch overhead; use length/1 for lists"
   )

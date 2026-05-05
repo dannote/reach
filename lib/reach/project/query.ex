@@ -133,11 +133,10 @@ defmodule Reach.Project.Query do
   end
 
   def func_location(project, func_id) do
-    project.nodes
-    |> Map.values()
-    |> Enum.find(fn node ->
-      node.type == :function_def and
-        {node.meta[:module], node.meta[:name], node.meta[:arity]} == func_id
+    Enum.find_value(project.nodes, fn {_id, node} ->
+      if node.type == :function_def and
+           {node.meta[:module], node.meta[:name], node.meta[:arity]} == func_id,
+         do: node
     end)
     |> case do
       nil -> "unknown"
@@ -184,10 +183,7 @@ defmodule Reach.Project.Query do
   end
 
   defp build_function_index(project) do
-    func_defs =
-      project.nodes
-      |> Map.values()
-      |> Enum.filter(fn node -> node.type == :function_def end)
+    func_defs = for {_id, node} <- project.nodes, node.type == :function_def, do: node
 
     by_name_arity = Enum.group_by(func_defs, fn node -> {node.meta[:name], node.meta[:arity]} end)
 
@@ -373,9 +369,7 @@ defmodule Reach.Project.Query do
   end
 
   defp build_node_to_function_index(project) do
-    project.nodes
-    |> Map.values()
-    |> Enum.filter(&node_to_function_root?/1)
+    for({_id, node} <- project.nodes, node_to_function_root?(node), do: node)
     |> Enum.reduce(%{}, &index_node_function/2)
   end
 

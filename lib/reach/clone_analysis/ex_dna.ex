@@ -89,13 +89,13 @@ defmodule Reach.CloneAnalysis.ExDNA do
   defp module_at_location(_project, nil, _line), do: nil
 
   defp module_at_location(project, file, line) do
-    project.nodes
-    |> Map.values()
-    |> Enum.filter(fn node ->
-      ((node.type == :module_def and node.source_span) &&
-         file_matches?(node.source_span.file, file)) and
-        node.source_span.start_line <= line
-    end)
+    for(
+      {_id, node} <- project.nodes,
+      node.type == :module_def and node.source_span,
+      file_matches?(node.source_span.file, file),
+      node.source_span.start_line <= line,
+      do: node
+    )
     |> Enum.max_by(& &1.source_span.start_line, fn -> nil end)
     |> case do
       nil -> nil

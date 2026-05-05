@@ -24,9 +24,7 @@ defmodule Reach.Smell.Checks.BehaviourCandidate do
   end
 
   defp module_public_apis(project, config) do
-    project.nodes
-    |> Map.values()
-    |> Enum.filter(&(&1.type == :module_def and &1.source_span))
+    for({_id, node} <- project.nodes, node.type == :module_def and node.source_span, do: node)
     |> Enum.flat_map(&module_public_api(&1, config))
   end
 

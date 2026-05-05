@@ -60,7 +60,7 @@ defmodule Reach.Trace.Flow do
   end
 
   defp find_nodes(project, filter) do
-    Map.values(project.nodes) |> Enum.filter(filter)
+    for {_id, node} <- project.nodes, filter.(node), do: node
   end
 
   defp find_taint_paths(project, sources, sinks, max_paths) do

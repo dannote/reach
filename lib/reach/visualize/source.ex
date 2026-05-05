@@ -297,9 +297,7 @@ defmodule Reach.Visualize.Source do
   end
 
   defp find_nearest_end(line_map, start) when is_integer(start) do
-    line_map
-    |> Map.keys()
-    |> Enum.filter(&(&1 <= start))
+    for({k, _v} <- line_map, k <= start, do: k)
     |> Enum.max(fn -> nil end)
     |> then(fn nearest -> if nearest, do: Map.get(line_map, nearest) end)
   end

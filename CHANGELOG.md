@@ -1,5 +1,26 @@
 # Changelog
 
+## 2.1.0
+
+### New
+
+- **Enum.at/2 inside loop** — flags O(n) indexed access inside loops (O(n²) total).
+- **List.delete_at/2 inside loop** — same O(n²) concern.
+- **Enum.count/1 without predicate** — suggests `length/1` (avoids protocol dispatch).
+- **Map.put with variable key and boolean value** — suggests MapSet for membership tracking (excludes atom/string keys to avoid struct field false positives).
+- **Map.values → Enum.all?/any?/find/filter/map** — iterate the map directly as `{key, value}` pairs.
+- **Enum.map → Enum.max/min/sum** — allocates intermediate list; use `*_by` or reduce.
+- **List.foldl/3** — non-idiomatic; use `Enum.reduce/3`.
+- **String.graphemes → Enum.reverse → Enum.join** — use `String.reverse/1`.
+- **Redundant negated guard** — flags `when x != y` immediately after `when x == y` on the same variables.
+- **Destructure then reconstruct** — flags `[a, b, c]` pattern where the body rebuilds the same list.
+
+### Fixed
+
+- **Frontend crash on `import Mod, only: :macros`** — atom values (`:macros`, `:functions`) are now handled correctly instead of crashing with `Enumerable not implemented for Atom`.
+- **Frontend crash on macro-generated AST** — bare atoms in `with` clause lists, non-list `else` clauses, and non-list handler clauses no longer crash the parser.
+- **CI compatibility** — full `mix ci` runs on Elixir 1.19 only; 1.18 runs compile + tests (formatter output differs between versions).
+
 ## 2.0.1
 
 ### Fixed

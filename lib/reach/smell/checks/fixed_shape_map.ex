@@ -15,9 +15,7 @@ defmodule Reach.Smell.Checks.FixedShapeMap do
   def run(project, config) do
     config = fixed_shape_config(config)
 
-    project.nodes
-    |> Map.values()
-    |> Enum.filter(&(&1.type == :function_def))
+    for({_, node} <- project.nodes, node.type == :function_def, do: node)
     |> Enum.flat_map(&maps_in_function(&1, config))
     |> Enum.group_by(& &1.keys)
     |> Enum.flat_map(&fixed_shape_finding(&1, config))

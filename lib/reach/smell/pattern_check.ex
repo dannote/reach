@@ -15,10 +15,9 @@ defmodule Reach.Smell.PatternCheck do
 
       @impl true
       def run(project) do
-        project.nodes
-        |> Map.values()
-        |> Enum.filter(&(&1.type == :module_def))
-        |> Enum.flat_map(&scan_module/1)
+        for {_, node} <- project.nodes, node.type == :module_def, result <- scan_module(node) do
+          result
+        end
       end
 
       defp scan_module(module) do

@@ -454,7 +454,7 @@ defmodule Reach.Visualize.ControlFlow do
       {start_l, _} = Map.fetch!(vertex_ranges, first_v)
 
       raw_end_l =
-        block |> Enum.map(fn v -> elem(Map.fetch!(vertex_ranges, v), 1) end) |> Enum.max()
+        Enum.reduce(block, 0, fn v, acc -> max(elem(Map.fetch!(vertex_ranges, v), 1), acc) end)
 
       min_next = all_starts |> Enum.filter(&(&1 > start_l)) |> Enum.min(fn -> nil end)
       end_l = if min_next, do: min(raw_end_l, min_next - 1), else: raw_end_l

@@ -158,7 +158,7 @@ defmodule Reach.Inspect.Why do
   defp bfs_path([], _graph, _targets, _max_depth, _visited), do: nil
 
   defp bfs_path([path | rest], graph, targets, max_depth, visited) do
-    current = path |> Enum.reverse() |> List.first()
+    current = List.last(path)
 
     cond do
       current in targets ->
@@ -179,7 +179,7 @@ defmodule Reach.Inspect.Why do
     end
   end
 
-  defp path_depth(path), do: path |> Enum.reduce(0, fn _node, count -> count + 1 end)
+  defp path_depth(path), do: length(path)
 
   defp why_vertex?(vertex), do: Query.mfa?(vertex) or is_atom(vertex)
 
@@ -268,9 +268,7 @@ defmodule Reach.Inspect.Why do
   end
 
   defp module_nodes(project) do
-    project.nodes
-    |> Map.values()
-    |> Enum.filter(&(&1.type == :module_def))
+    for({_, node} <- project.nodes, node.type == :module_def, do: node)
     |> Enum.uniq_by(& &1.meta[:name])
   end
 
@@ -354,15 +352,11 @@ defmodule Reach.Inspect.Why do
   end
 
   defp canonical_mfa(project, {nil, fun, arity} = mfa) do
-    project.nodes
-    |> Map.values()
-    |> Enum.find(fn node ->
-      node.type == :function_def and node.meta[:name] == fun and node.meta[:arity] == arity
-    end)
-    |> case do
-      nil -> mfa
-      node -> {node.meta[:module], node.meta[:name], node.meta[:arity]}
-    end
+    Enum.find_value(project.nodes, fn {_id, node} ->
+      if node.type == :function_def and node.meta[:name] == fun and node.meta[:arity] == arity do
+        {node.meta[:module], node.meta[:name], node.meta[:arity]}
+      end
+    end) || mfa
   end
 
   defp canonical_mfa(_project, mfa), do: mfa

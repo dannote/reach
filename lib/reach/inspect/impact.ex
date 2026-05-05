@@ -134,11 +134,10 @@ defmodule Reach.Inspect.Impact do
   end
 
   defp find_function(project, target) do
-    project.nodes
-    |> Map.values()
-    |> Enum.find(fn node ->
-      node.type == :function_def and
-        {node.meta[:module], node.meta[:name], node.meta[:arity]} == target
+    Enum.find_value(project.nodes, fn {_id, node} ->
+      if node.type == :function_def and
+           {node.meta[:module], node.meta[:name], node.meta[:arity]} == target,
+         do: node
     end)
   end
 end

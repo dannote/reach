@@ -75,7 +75,7 @@ defmodule Reach.CLI.Project do
 
   defp common_path(paths) do
     split_paths = Enum.map(paths, &Path.split/1)
-    min_length = split_paths |> Enum.map(&length/1) |> Enum.min()
+    min_length = split_paths |> Enum.min_by(&length/1) |> length()
 
     common_parts =
       0..(min_length - 1)

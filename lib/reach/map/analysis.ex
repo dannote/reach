@@ -151,24 +151,26 @@ defmodule Reach.Map.Analysis do
   def section_data(project, :xref, opts, path), do: section_data(project, :data, opts, path)
 
   defp function_defs(project, path) do
-    project.nodes
-    |> Map.values()
-    |> Enum.filter(&(&1.type == :function_def and Query.file_matches?(span_file(&1), path)))
+    for {_id, node} <- project.nodes,
+        node.type == :function_def and Query.file_matches?(span_file(node), path),
+        do: node
   end
 
   defp call_nodes(project, path, module_filter) do
     module_nodes = module_defs(project, nil)
 
-    project.nodes
-    |> Map.values()
-    |> Enum.filter(&(&1.type == :call and Query.file_matches?(span_file(&1), path)))
+    for(
+      {_id, node} <- project.nodes,
+      node.type == :call and Query.file_matches?(span_file(node), path),
+      do: node
+    )
     |> filter_by_module(module_nodes, module_filter)
   end
 
   defp module_defs(project, path) do
-    project.nodes
-    |> Map.values()
-    |> Enum.filter(&(&1.type == :module_def and Query.file_matches?(span_file(&1), path)))
+    for {_id, node} <- project.nodes,
+        node.type == :module_def and Query.file_matches?(span_file(node), path),
+        do: node
   end
 
   defp module_metrics(project, path) do
@@ -180,7 +182,7 @@ defmodule Reach.Map.Analysis do
       public_count = Enum.count(funcs, &(&1.meta[:kind] == :def))
       private_count = Enum.count(funcs, &(&1.meta[:kind] in [:defp, :defmacrop]))
       macro_count = Enum.count(funcs, &(&1.meta[:kind] == :defmacro))
-      total_complexity = Enum.map(funcs, &branch_count/1) |> Enum.sum()
+      total_complexity = Enum.sum_by(funcs, &branch_count/1)
       callbacks = detect_callbacks(module |> IR.all_nodes(), project.plugins)
 
       ModuleMetric.new(
@@ -278,8 +280,7 @@ defmodule Reach.Map.Analysis do
     func
     |> function_vertex()
     |> function_variants()
-    |> Enum.map(&Map.get(caller_counts, &1, 0))
-    |> Enum.sum()
+    |> Enum.sum_by(&Map.get(caller_counts, &1, 0))
   end
 
   defp function_variants({module, function, arity}) do
@@ -426,9 +427,9 @@ defmodule Reach.Map.Analysis do
       if children == [] do
         depth
       else
-        children
-        |> Enum.map(&max_tree_depth(tree, &1, depth + 1, visited))
-        |> Enum.max()
+        Enum.reduce(children, 0, fn child, acc ->
+          max(max_tree_depth(tree, child, depth + 1, visited), acc)
+        end)
       end
     end
   end
@@ -562,15 +563,11 @@ defmodule Reach.Map.Analysis do
   end
 
   defp count_fan_in(call_graph, funcs) do
-    funcs
-    |> Enum.map(&fan_in(call_graph, function_vertex(&1)))
-    |> Enum.sum()
+    Enum.sum_by(funcs, &fan_in(call_graph, function_vertex(&1)))
   end
 
   defp count_fan_out(call_graph, funcs) do
-    funcs
-    |> Enum.map(&fan_out(call_graph, function_vertex(&1)))
-    |> Enum.sum()
+    Enum.sum_by(funcs, &fan_out(call_graph, function_vertex(&1)))
   end
 
   defp fan_in(call_graph, vertex) do

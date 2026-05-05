@@ -152,7 +152,7 @@ defmodule Reach.Concurrency do
     async_by_mod = Enum.group_by(asyncs, &Map.get(module_map, &1.id))
     await_by_mod = Enum.group_by(awaits, &Map.get(module_map, &1.id))
 
-    modules = Map.keys(async_by_mod) |> Enum.filter(&Map.has_key?(await_by_mod, &1))
+    modules = for {k, _v} <- async_by_mod, Map.has_key?(await_by_mod, k), do: k
 
     Enum.flat_map(modules, fn mod ->
       mod_asyncs = Map.get(async_by_mod, mod, []) |> Enum.sort_by(& &1.id)

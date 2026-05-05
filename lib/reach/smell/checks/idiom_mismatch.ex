@@ -138,22 +138,22 @@ defmodule Reach.Smell.Checks.IdiomMismatch do
   defp extract_guard_comparison(clause) do
     clause.children
     |> Enum.find(&(&1.type == :guard))
+    |> guard_to_comparison()
+  end
+
+  defp guard_to_comparison(nil), do: :error
+
+  defp guard_to_comparison(guard) do
+    guard
+    |> IR.all_nodes()
+    |> Enum.find(&(&1.type == :binary_op and &1.meta[:operator] in [:==, :!=, :===, :!==]))
     |> case do
-      nil ->
+      %{meta: %{operator: op}, children: [left, right]} ->
+        normalized_op = if op in [:==, :===], do: :==, else: :!=
+        {:ok, normalized_op, left, right}
+
+      _ ->
         :error
-
-      guard ->
-        guard
-        |> IR.all_nodes()
-        |> Enum.find(&(&1.type == :binary_op and &1.meta[:operator] in [:==, :!=, :===, :!==]))
-        |> case do
-          %{meta: %{operator: op}, children: [left, right]} ->
-            normalized_op = if op in [:==, :===], do: :==, else: :!=
-            {:ok, normalized_op, left, right}
-
-          _ ->
-            :error
-        end
     end
   end
 

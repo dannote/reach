@@ -655,7 +655,7 @@ defmodule Reach do
       case node do
         %{type: t, children: children}
         when t in [:block, :clause, :catch_clause, :rescue, :after] ->
-          children |> Enum.reverse() |> List.first()
+          List.last(children)
 
         other ->
           other

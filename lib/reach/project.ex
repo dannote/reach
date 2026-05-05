@@ -358,7 +358,9 @@ defmodule Reach.Project do
 
   defp find_func_def(pdg) do
     Map.get(pdg, :func_def) ||
-      pdg.nodes |> Map.values() |> Enum.find(&(&1.type == :function_def))
+      Enum.find_value(pdg.nodes, fn {_id, node} ->
+        if node.type == :function_def, do: node
+      end)
   end
 
   defp extract_module_name(ir_nodes) do

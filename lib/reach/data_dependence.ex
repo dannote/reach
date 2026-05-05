@@ -95,9 +95,12 @@ defmodule Reach.DataDependence do
     end)
   end
 
+  defp resolve_def(scoped_defs, _scope_map, nil, var_name) do
+    Map.get(scoped_defs, {nil, var_name}, [])
+  end
+
   defp resolve_def(scoped_defs, scope_map, scope, var_name) do
     case Map.get(scoped_defs, {scope, var_name}) do
-      nil when scope == nil -> []
       nil -> resolve_def(scoped_defs, scope_map, Map.get(scope_map, scope), var_name)
       def_ids -> def_ids
     end

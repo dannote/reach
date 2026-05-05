@@ -43,9 +43,7 @@ defmodule Reach.Check.Architecture do
     module_by_file = module_by_file(project)
 
     edges =
-      project.nodes
-      |> Map.values()
-      |> Enum.filter(&remote_call?/1)
+      for({_id, node} <- project.nodes, remote_call?(node), do: node)
       |> Enum.flat_map(fn node ->
         caller_module = node.source_span && Map.get(module_by_file, node.source_span.file)
         callee_module = node.meta[:module]
@@ -85,10 +83,10 @@ defmodule Reach.Check.Architecture do
   end
 
   def module_by_file(project) do
-    project.nodes
-    |> Map.values()
-    |> Enum.filter(&(&1.type == :module_def and &1.source_span))
-    |> Map.new(fn node -> {node.source_span.file, node.meta[:name]} end)
+    for {_id, node} <- project.nodes,
+        node.type == :module_def and node.source_span,
+        into: %{},
+        do: {node.source_span.file, node.meta[:name]}
   end
 
   def module_matches_any?(module, patterns) do
@@ -126,9 +124,7 @@ defmodule Reach.Check.Architecture do
   defp forbidden_module_violations(_project, []), do: []
 
   defp forbidden_module_violations(project, patterns) do
-    project.nodes
-    |> Map.values()
-    |> Enum.filter(&forbidden_module?(&1, patterns))
+    for({_id, node} <- project.nodes, forbidden_module?(node, patterns), do: node)
     |> Enum.map(fn node ->
       Violation.new(
         type: :forbidden_module,
@@ -148,10 +144,7 @@ defmodule Reach.Check.Architecture do
   defp forbidden_file_violations(_project, []), do: []
 
   defp forbidden_file_violations(project, patterns) do
-    project.nodes
-    |> Map.values()
-    |> Enum.filter(& &1.source_span)
-    |> Enum.map(& &1.source_span.file)
+    for({_id, node} <- project.nodes, node.source_span, do: node.source_span.file)
     |> Enum.uniq()
     |> Enum.filter(fn file -> Enum.any?(patterns, &glob_match?(file, to_string(&1))) end)
     |> Enum.map(fn file ->
@@ -176,9 +169,7 @@ defmodule Reach.Check.Architecture do
     internal_callers = config.boundaries.internal_callers
     module_by_file = module_by_file(project)
 
-    project.nodes
-    |> Map.values()
-    |> Enum.filter(&remote_call?/1)
+    for({_id, node} <- project.nodes, remote_call?(node), do: node)
     |> Enum.flat_map(fn node ->
       caller = node.source_span && Map.get(module_by_file, node.source_span.file)
       callee = node.meta[:module]
@@ -224,9 +215,7 @@ defmodule Reach.Check.Architecture do
     rules = config.calls.forbidden
     module_by_file = module_by_file(project)
 
-    project.nodes
-    |> Map.values()
-    |> Enum.filter(&remote_call?/1)
+    for({_id, node} <- project.nodes, remote_call?(node), do: node)
     |> Enum.flat_map(&forbidden_call_violations_for_node(&1, rules, module_by_file))
   end
 
@@ -370,9 +359,7 @@ defmodule Reach.Check.Architecture do
     policies = config.effects.allowed
     module_by_file = module_by_file(project)
 
-    project.nodes
-    |> Map.values()
-    |> Enum.filter(&(&1.type == :function_def))
+    for({_id, node} <- project.nodes, node.type == :function_def, do: node)
     |> Enum.flat_map(&effect_policy_violation(&1, policies, module_by_file))
   end
 

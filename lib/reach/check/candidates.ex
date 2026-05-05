@@ -101,26 +101,19 @@ defmodule Reach.Check.Candidates do
 
   defp module_call_edges(project) do
     modules =
-      project.nodes
-      |> Map.values()
-      |> Enum.filter(&(&1.type == :module_def))
-      |> MapSet.new(& &1.meta[:name])
+      for {_, node} <- project.nodes, node.type == :module_def, into: MapSet.new() do
+        node.meta[:name]
+      end
 
     module_by_file = Architecture.module_by_file(project)
 
-    project.nodes
-    |> Map.values()
-    |> Enum.filter(&Architecture.remote_call?/1)
-    |> Enum.flat_map(fn node ->
-      caller = node.source_span && Map.get(module_by_file, node.source_span.file)
-      callee = node.meta[:module]
-
-      if caller && callee && caller != callee && MapSet.member?(modules, callee) do
-        [%{caller: caller, callee: callee, node: node}]
-      else
-        []
-      end
-    end)
+    for {_, node} <- project.nodes,
+        Architecture.remote_call?(node),
+        caller = node.source_span && Map.get(module_by_file, node.source_span.file),
+        callee = node.meta[:module],
+        caller && callee && caller != callee && MapSet.member?(modules, callee) do
+      %{caller: caller, callee: callee, node: node}
+    end
   end
 
   defp representative_component_calls(cycle, call_examples, candidate_config) do
@@ -167,9 +160,7 @@ defmodule Reach.Check.Candidates do
   end
 
   defp mixed_effect_candidates(project, candidate_config) do
-    project.nodes
-    |> Map.values()
-    |> Enum.filter(&(&1.type == :function_def and &1.source_span))
+    for({_, node} <- project.nodes, node.type == :function_def and node.source_span, do: node)
     |> Enum.reject(&Analysis.expected_effect_boundary?/1)
     |> Enum.map(fn func -> {func, Architecture.concrete_effects(func)} end)
     |> Enum.filter(fn {_func, effects} ->
@@ -207,9 +198,7 @@ defmodule Reach.Check.Candidates do
   end
 
   defp extract_region_candidates(project, candidate_config) do
-    project.nodes
-    |> Map.values()
-    |> Enum.filter(&(&1.type == :function_def and &1.source_span))
+    for({_, node} <- project.nodes, node.type == :function_def and node.source_span, do: node)
     |> Enum.map(fn func ->
       {func, Changed.branch_count(func), Query.callers(project, function_id(func), 1)}
     end)

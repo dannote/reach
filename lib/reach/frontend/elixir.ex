@@ -1035,28 +1035,7 @@ defmodule Reach.Frontend.Elixir do
        when is_list(parts) and is_list(opts) do
     if Enum.all?(parts, &is_atom/1) do
       mod = Module.concat(parts)
-
-      funs =
-        case Keyword.get(opts, :only) do
-          nil ->
-            # credo:disable-for-next-line Credo.Check.Refactor.Nesting
-            case Keyword.get(opts, :except) do
-              nil -> exported_functions(mod)
-              except -> exported_functions(mod) -- except
-            end
-
-          kind when kind in [:macros, :functions] ->
-            exported_of_kind(mod, kind)
-
-          :sigils ->
-            []
-
-          only when is_list(only) ->
-            only
-
-          _ ->
-            []
-        end
+      funs = resolve_import_funs(mod, opts)
 
       [{mod, funs}]
     else
@@ -1086,6 +1065,19 @@ defmodule Reach.Frontend.Elixir do
     _ -> []
   end
 
+  defp resolve_import_funs(mod, opts) do
+    case Keyword.get(opts, :only) do
+      nil -> resolve_import_except(mod, Keyword.get(opts, :except))
+      kind when kind in [:macros, :functions] -> exported_of_kind(mod, kind)
+      :sigils -> []
+      only when is_list(only) -> only
+      _ -> []
+    end
+  end
+
+  defp resolve_import_except(mod, nil), do: exported_functions(mod)
+  defp resolve_import_except(mod, except), do: exported_functions(mod) -- except
+
   defp collect_aliases(body, _current_module) do
     body |> extract_alias_forms() |> Map.new()
   end
@@ -1096,7 +1088,7 @@ defmodule Reach.Frontend.Elixir do
   defp extract_alias_forms({:alias, _, [{:__aliases__, _, parts}]}) when is_list(parts) do
     if Enum.all?(parts, &is_atom/1) do
       full = Module.concat(parts)
-      short = parts |> Enum.reverse() |> List.first() |> then(&Module.concat([&1]))
+      short = parts |> List.last() |> then(&Module.concat([&1]))
       [{short, full}]
     else
       []

@@ -16,9 +16,7 @@ defmodule Reach.Smell.Helpers do
   @accumulator_fns ~w(reduce reduce_while scan flat_map_reduce map_reduce zip_reduce)a
 
   def function_defs(project) do
-    project.nodes
-    |> Map.values()
-    |> Enum.filter(&(&1.type == :function_def))
+    for {_id, node} <- project.nodes, node.type == :function_def, do: node
   end
 
   def location(node) do
