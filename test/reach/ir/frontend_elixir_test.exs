@@ -192,6 +192,20 @@ defmodule Reach.Frontend.ElixirTest do
     end
   end
 
+  describe "with" do
+    test "translates bare literal clause without crashing" do
+      [node] =
+        IR.from_string!("""
+        with {:ok, x} <- foo(),
+             true do
+          x
+        end
+        """)
+
+      assert %Node{type: :case, meta: %{desugared_from: :with}} = node
+    end
+  end
+
   describe "function definitions" do
     test "simple def" do
       [node] =
