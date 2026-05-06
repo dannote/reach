@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.2.0
+
+### New
+
+- **Length comparisons** — flags `length(list) == 0`, `0 == length(list)`, and `length(list) > 0`; suggests list pattern matching, `== []`, or `!= []`.
+- **Identity `Enum.uniq_by/2`** — flags `Enum.uniq_by(collection, fn x -> x end)`; suggests `Enum.uniq/1`.
+- **Identity `Enum.sort_by/2`** — flags `Enum.sort_by(collection, fn x -> x end)`; suggests `Enum.sort/1`.
+- **`length/1` in guards** — flags small literal comparisons in guards; suggests list pattern matching.
+
+### Fixed
+
+- **Regression coverage for bare literal `with` clauses** — keeps valid clauses such as `true` in `with` blocks from regressing.
+- **CI** — refactored the length-in-guard check to satisfy strict Credo nesting rules.
+
 ## 2.1.0
 
 ### New
