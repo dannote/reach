@@ -229,23 +229,32 @@ defmodule Reach.Smell.Checks.IdiomMismatch do
 
   defp length_in_guard(function) do
     function.children
-    |> Enum.filter(&(&1.type == :clause and &1.meta[:kind] == :function_clause))
-    |> Enum.flat_map(fn clause ->
-      clause.children
-      |> Enum.filter(&(&1.type == :guard))
-      |> Enum.flat_map(fn guard ->
-        guard
-        |> IR.all_nodes()
-        |> Enum.filter(&length_comparison?/1)
-        |> Enum.map(fn node ->
-          finding(
-            :suboptimal,
-            "length/1 in guard is O(n); use list pattern matching instead",
-            (node.source_span && node) || function
-          )
-        end)
-      end)
-    end)
+    |> Enum.filter(&function_clause?/1)
+    |> Enum.flat_map(&clause_length_guard_findings(&1, function))
+  end
+
+  defp function_clause?(%{type: :clause, meta: %{kind: :function_clause}}), do: true
+  defp function_clause?(_), do: false
+
+  defp clause_length_guard_findings(clause, function) do
+    clause.children
+    |> Enum.filter(&(&1.type == :guard))
+    |> Enum.flat_map(&guard_length_findings(&1, function))
+  end
+
+  defp guard_length_findings(guard, function) do
+    guard
+    |> IR.all_nodes()
+    |> Enum.filter(&length_comparison?/1)
+    |> Enum.map(&length_guard_finding(&1, function))
+  end
+
+  defp length_guard_finding(node, function) do
+    finding(
+      :suboptimal,
+      "length/1 in guard is O(n); use list pattern matching instead",
+      (node.source_span && node) || function
+    )
   end
 
   defp length_comparison?(%{type: :binary_op, meta: %{operator: op}, children: [left, right]})
