@@ -30,7 +30,7 @@
           {ExSlop.Check.Refactor.SortThenAt, []},
           {ExSlop.Check.Refactor.SortForTopK, []},
           {ExSlop.Check.Refactor.ListFold, []},
-          {ExSlop.Check.Refactor.ListLast, []},
+          {ExSlop.Check.Refactor.ListLast, false},
           {ExSlop.Check.Refactor.LengthInGuard, []},
           {ExSlop.Check.Refactor.ExplicitSumReduce, []},
           {ExSlop.Check.Readability.NarratorDoc, []},

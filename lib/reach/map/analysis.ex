@@ -422,15 +422,12 @@ defmodule Reach.Map.Analysis do
       depth
     else
       visited = MapSet.put(visited, node)
-      children = Graph.out_neighbors(tree, node)
 
-      if children == [] do
-        depth
-      else
-        Enum.reduce(children, 0, fn child, acc ->
-          max(max_tree_depth(tree, child, depth + 1, visited), acc)
-        end)
-      end
+      tree
+      |> Graph.out_neighbors(node)
+      |> Enum.reduce(depth, fn child, acc ->
+        max(max_tree_depth(tree, child, depth + 1, visited), acc)
+      end)
     end
   end
 

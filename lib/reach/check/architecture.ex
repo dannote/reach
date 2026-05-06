@@ -162,6 +162,7 @@ defmodule Reach.Check.Architecture do
     end)
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp public_boundary_violations(project, config) do
     config = Config.normalize(config)
     public_api = List.wrap(config.boundaries.public)
