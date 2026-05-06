@@ -165,4 +165,24 @@ defmodule Reach.Smell.Checks.CollectionIdioms do
     :suboptimal,
     "Map.put/3 with variable key and boolean value suggests membership tracking; use MapSet"
   )
+
+  # length(list) == 0 → list == []
+  smell(
+    ~p[length(_) == 0],
+    :suboptimal,
+    "length/1 == 0 is O(n); use pattern match or == []"
+  )
+
+  smell(
+    ~p[0 == length(_)],
+    :suboptimal,
+    "length/1 == 0 is O(n); use pattern match or == []"
+  )
+
+  # length(list) > 0 → list != [] or match?([_|_], list)
+  smell(
+    ~p[length(_) > 0],
+    :suboptimal,
+    "length/1 > 0 is O(n); use != [] or match?([_ | _], list)"
+  )
 end

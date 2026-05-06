@@ -941,5 +941,49 @@ defmodule Reach.SmellTest do
 
       refute Enum.any?(findings, &(&1.message =~ "MapSet"))
     end
+
+    test "flags length == 0" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def empty?(list), do: length(list) == 0
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "length"))
+    end
+
+    test "flags length > 0" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def nonempty?(list), do: length(list) > 0
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "length"))
+    end
+
+    test "flags Enum.uniq_by with identity" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def dedup(items), do: Enum.uniq_by(items, fn x -> x end)
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "Enum.uniq"))
+    end
+
+    test "flags length in guard" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def triplet(list) when length(list) == 3, do: List.to_tuple(list)
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "pattern matching"))
+    end
   end
 end

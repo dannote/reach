@@ -7,7 +7,8 @@ defmodule Reach.Smell.Checks.IdiomMismatch do
     guard_equality_findings(function) ++
       map_update_then_fetch(function) ++
       redundant_negated_guard(function) ++
-      destructure_reconstruct(function)
+      destructure_reconstruct(function) ++
+      length_in_guard(function)
   end
 
   defp guard_equality_findings(function) do
@@ -223,4 +224,48 @@ defmodule Reach.Smell.Checks.IdiomMismatch do
         false
     end)
   end
+
+  # --- Length in guard ---
+
+  defp length_in_guard(function) do
+    function.children
+    |> Enum.filter(&(&1.type == :clause and &1.meta[:kind] == :function_clause))
+    |> Enum.flat_map(fn clause ->
+      clause.children
+      |> Enum.filter(&(&1.type == :guard))
+      |> Enum.flat_map(fn guard ->
+        guard
+        |> IR.all_nodes()
+        |> Enum.filter(&length_comparison?/1)
+        |> Enum.map(fn node ->
+          finding(
+            :suboptimal,
+            "length/1 in guard is O(n); use list pattern matching instead",
+            (node.source_span && node) || function
+          )
+        end)
+      end)
+    end)
+  end
+
+  defp length_comparison?(%{type: :binary_op, meta: %{operator: op}, children: [left, right]})
+       when op in [:==, :>, :>=] do
+    length_call?(left) and small_literal?(right)
+  end
+
+  defp length_comparison?(%{type: :binary_op, meta: %{operator: op}, children: [left, right]})
+       when op in [:==, :<, :<=] do
+    small_literal?(left) and length_call?(right)
+  end
+
+  defp length_comparison?(_), do: false
+
+  defp length_call?(%{type: :call, meta: %{function: :length, kind: :local}}), do: true
+  defp length_call?(_), do: false
+
+  defp small_literal?(%{type: :literal, meta: %{value: n}})
+       when is_integer(n) and n >= 0 and n <= 5,
+       do: true
+
+  defp small_literal?(_), do: false
 end

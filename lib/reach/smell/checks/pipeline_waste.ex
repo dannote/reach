@@ -110,4 +110,17 @@ defmodule Reach.Smell.Checks.PipelineWaste do
     :suboptimal,
     "List.foldl/3 is non-idiomatic; use Enum.reduce/3"
   )
+
+  # Enum.uniq_by with identity function
+  smell(
+    ~p[Enum.uniq_by(_, fn x -> x end)],
+    :suboptimal,
+    "Enum.uniq_by with identity function; use Enum.uniq/1"
+  )
+
+  smell(
+    ~p[Enum.sort_by(_, fn x -> x end)],
+    :suboptimal,
+    "Enum.sort_by with identity function; use Enum.sort/1"
+  )
 end
