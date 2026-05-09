@@ -1009,17 +1009,6 @@ defmodule Reach.SmellTest do
       assert Enum.any?(findings, &(&1.message =~ "Integer.digits"))
     end
 
-    test "flags piped Regex.replace" do
-      findings =
-        run_smell_task("""
-        defmodule A do
-          def slug(s), do: s |> Regex.replace(~r/[^a-z0-9]/, "")
-        end
-        """)
-
-      assert Enum.any?(findings, &(&1.message =~ "use String.replace"))
-    end
-
     test "flags eager with_index before reduce" do
       findings =
         run_smell_task("""
@@ -1055,17 +1044,6 @@ defmodule Reach.SmellTest do
         """)
 
       assert Enum.any?(findings, &(&1.message =~ "Map.values/1" and &1.message =~ "Enum.sum"))
-    end
-
-    test "flags multiply by one point zero" do
-      findings =
-        run_smell_task("""
-        defmodule A do
-          def avg(n), do: n * 1.0
-        end
-        """)
-
-      assert Enum.any?(findings, &(&1.message =~ "multiplying by 1.0"))
     end
 
     test "flags List.foldr" do
@@ -1110,17 +1088,6 @@ defmodule Reach.SmellTest do
         """)
 
       assert Enum.any?(findings, &(&1.message =~ "Enum.dedup/1"))
-    end
-
-    test "flags Kernel.== in pipeline" do
-      findings =
-        run_smell_task("""
-        defmodule A do
-          def sorted?(list), do: list |> Enum.sort() |> Kernel.==(list)
-        end
-        """)
-
-      assert Enum.any?(findings, &(&1.message =~ "Kernel.==/2"))
     end
 
     test "flags length(String.split) - 1" do

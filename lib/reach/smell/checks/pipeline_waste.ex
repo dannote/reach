@@ -100,12 +100,6 @@ defmodule Reach.Smell.Checks.PipelineWaste do
   )
 
   smell(
-    ~p[_ |> Enum.with_index() |> Enum.reduce(_, _)],
-    :eager_pattern,
-    "Enum.with_index/1 before Enum.reduce/3 builds index pairs eagerly; use Stream.with_index/1"
-  )
-
-  smell(
     ~p[_ |> (fn _ -> _ end).()],
     :suboptimal,
     "anonymous fn applied with .() in pipe; use then/2 instead"

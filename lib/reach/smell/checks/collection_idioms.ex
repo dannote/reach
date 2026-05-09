@@ -124,12 +124,6 @@ defmodule Reach.Smell.Checks.CollectionIdioms do
   )
 
   smell(
-    ~p[Map.keys(_) |> Enum.sort()],
-    :suboptimal,
-    "Map.keys/1 → Enum.sort: iterate the map directly when possible"
-  )
-
-  smell(
     ~p[Map.keys(_) |> Enum.uniq()],
     :suboptimal,
     "Map.keys/1 returns unique keys already; Enum.uniq/1 is redundant"
@@ -247,69 +241,9 @@ defmodule Reach.Smell.Checks.CollectionIdioms do
   )
 
   smell(
-    ~p[_ |> Regex.replace(_, _)],
-    :suboptimal,
-    "Regex.replace/3 in a pipe receives the piped string as the regex argument; use String.replace/3"
-  )
-
-  smell(
-    ~p[_ |> Regex.replace(_, _, _)],
-    :suboptimal,
-    "Regex.replace/4 in a pipe receives the piped string as the regex argument; use String.replace/4"
-  )
-
-  smell(
-    ~p[_ * 1.0],
-    :suboptimal,
-    "multiplying by 1.0 is unnecessary; remove the no-op conversion"
-  )
-
-  smell(
-    ~p[1.0 * _],
-    :suboptimal,
-    "multiplying by 1.0 is unnecessary; remove the no-op conversion"
-  )
-
-  smell(
     ~p[length(String.split(_, _)) - 1],
     :suboptimal,
     "length(String.split) - 1 allocates the full split list just to count; use :binary.matches/2 |> length/1"
-  )
-
-  smell(
-    ~p[_ |> Kernel.==(_)],
-    :suboptimal,
-    "Kernel.==/2 in pipeline is non-idiomatic; use infix == comparison"
-  )
-
-  smell(
-    ~p[_ |> Kernel.!=(_)],
-    :suboptimal,
-    "Kernel.!=/2 in pipeline is non-idiomatic; use infix != comparison"
-  )
-
-  smell(
-    ~p[_ |> Kernel.>=(_)],
-    :suboptimal,
-    "Kernel.>=/2 in pipeline is non-idiomatic; use infix >= comparison"
-  )
-
-  smell(
-    ~p[_ |> Kernel.<=(_)],
-    :suboptimal,
-    "Kernel.<=/2 in pipeline is non-idiomatic; use infix <= comparison"
-  )
-
-  smell(
-    ~p[_ |> Kernel.>(_)],
-    :suboptimal,
-    "Kernel.>/2 in pipeline is non-idiomatic; use infix > comparison"
-  )
-
-  smell(
-    ~p[_ |> Kernel.<(_)],
-    :suboptimal,
-    "Kernel.</2 in pipeline is non-idiomatic; use infix < comparison"
   )
 
   smell(
@@ -344,12 +278,6 @@ defmodule Reach.Smell.Checks.CollectionIdioms do
 
   smell(
     ~p[Enum.at(_, -1)],
-    :suboptimal,
-    "Enum.at(list, -1) traverses the list twice; use List.last/1"
-  )
-
-  smell(
-    ~p[_ |> Enum.at(-1)],
     :suboptimal,
     "Enum.at(list, -1) traverses the list twice; use List.last/1"
   )
