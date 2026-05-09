@@ -82,6 +82,30 @@ defmodule Reach.Smell.Checks.PipelineWaste do
   )
 
   smell(
+    ~p[Enum.join(_, "")],
+    :suboptimal,
+    ~S[Enum.join/1 defaults to empty separator; remove the "" argument]
+  )
+
+  smell(
+    ~p[Enum.map_join(_, "", _)],
+    :suboptimal,
+    ~S[Enum.map_join/3 defaults to empty separator; remove the "" argument]
+  )
+
+  smell(
+    ~p[Enum.with_index(_) |> Enum.reduce(_, _)],
+    :eager_pattern,
+    "Enum.with_index/1 before Enum.reduce/3 builds index pairs eagerly; use Stream.with_index/1"
+  )
+
+  smell(
+    ~p[_ |> Enum.with_index() |> Enum.reduce(_, _)],
+    :eager_pattern,
+    "Enum.with_index/1 before Enum.reduce/3 builds index pairs eagerly; use Stream.with_index/1"
+  )
+
+  smell(
     ~p[_ |> (fn _ -> _ end).()],
     :suboptimal,
     "anonymous fn applied with .() in pipe; use then/2 instead"
@@ -111,7 +135,13 @@ defmodule Reach.Smell.Checks.PipelineWaste do
     "List.foldl/3 is non-idiomatic; use Enum.reduce/3"
   )
 
-  # Enum.uniq_by with identity function
+  smell(
+    ~p[List.foldr(_, _, _)],
+    :suboptimal,
+    "List.foldr/3 is non-idiomatic; use Enum.reduce/3 (with Enum.reverse if order matters)"
+  )
+
+  # Enum._by with identity function
   smell(
     ~p[Enum.uniq_by(_, fn x -> x end)],
     :suboptimal,
@@ -122,5 +152,53 @@ defmodule Reach.Smell.Checks.PipelineWaste do
     ~p[Enum.sort_by(_, fn x -> x end)],
     :suboptimal,
     "Enum.sort_by with identity function; use Enum.sort/1"
+  )
+
+  smell(
+    ~p[Enum.min_by(_, fn x -> x end)],
+    :suboptimal,
+    "Enum.min_by with identity function; use Enum.min/1"
+  )
+
+  smell(
+    ~p[Enum.max_by(_, fn x -> x end)],
+    :suboptimal,
+    "Enum.max_by with identity function; use Enum.max/1"
+  )
+
+  smell(
+    ~p[Enum.dedup_by(_, fn x -> x end)],
+    :suboptimal,
+    "Enum.dedup_by with identity function; use Enum.dedup/1"
+  )
+
+  smell(
+    ~p[Enum.filter(_, _) |> Enum.filter(_, _)],
+    :eager_pattern,
+    "Enum.filter → Enum.filter: combine predicates into one Enum.filter/2 call"
+  )
+
+  smell(
+    ~p[Enum.map(_, _) |> Enum.flat_map(_)],
+    :eager_pattern,
+    "Enum.map → Enum.flat_map: use Enum.flat_map/2 directly"
+  )
+
+  smell(
+    ~p[Enum.map(_, _) |> List.flatten()],
+    :eager_pattern,
+    "Enum.map → List.flatten: use Enum.flat_map/2 directly"
+  )
+
+  smell(
+    ~p[Enum.filter(_, _) |> Enum.map(_, _)],
+    :eager_pattern,
+    "Enum.filter → Enum.map: consider combining into a single Enum.flat_map/2 or for comprehension"
+  )
+
+  smell(
+    ~p[Enum.sort(_, _) |> Enum.reverse()],
+    :eager_pattern,
+    "Enum.sort/2 → Enum.reverse: pass the opposite sort direction instead"
   )
 end

@@ -4,6 +4,18 @@ defmodule Reach.Frontend.ElixirTest do
   alias Reach.IR
   alias Reach.IR.Node
 
+  test "suppresses parser warnings while parsing source" do
+    source = "а = 1\na = 2\n{а, a}"
+
+    output =
+      ExUnit.CaptureIO.capture_io(:stderr, fn ->
+        assert {:ok, _nodes} =
+                 Reach.Frontend.Elixir.parse(source, file: "deps/old_hex/lib/old.ex")
+      end)
+
+    assert output == ""
+  end
+
   describe "literals" do
     test "integer" do
       [node] = IR.from_string!("42")

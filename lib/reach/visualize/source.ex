@@ -242,6 +242,7 @@ defmodule Reach.Visualize.Source do
                Code.string_to_quoted(source,
                  columns: true,
                  token_metadata: true,
+                 emit_warnings: false,
                  file: file
                ) do
           collect_def_ranges(ast)

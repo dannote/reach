@@ -19,6 +19,7 @@ defmodule Reach.Frontend.Elixir do
     case Code.string_to_quoted(source,
            columns: true,
            token_metadata: true,
+           emit_warnings: false,
            file: file
          ) do
       {:ok, ast} ->

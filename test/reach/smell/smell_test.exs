@@ -985,5 +985,208 @@ defmodule Reach.SmellTest do
 
       assert Enum.any?(findings, &(&1.message =~ "pattern matching"))
     end
+
+    test "flags direct grapheme count and length" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def a(s), do: length(String.graphemes(s))
+          def b(s), do: Enum.count(String.graphemes(s))
+        end
+        """)
+
+      assert length(Enum.filter(findings, &(&1.message =~ "String.length/1"))) == 2
+    end
+
+    test "flags integer string graphemes digit extraction" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def digits(n), do: n |> Integer.to_string() |> String.graphemes()
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "Integer.digits"))
+    end
+
+    test "flags piped Regex.replace" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def slug(s), do: s |> Regex.replace(~r/[^a-z0-9]/, "")
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "use String.replace"))
+    end
+
+    test "flags eager with_index before reduce" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def indexed(items) do
+            items
+            |> Enum.with_index()
+            |> Enum.reduce([], fn {item, index}, acc -> [{index, item} | acc] end)
+          end
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "Stream.with_index"))
+    end
+
+    test "flags redundant map_join empty separator" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def compact(items), do: items |> Enum.map_join("", &to_string/1)
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "Enum.map_join/3 defaults"))
+    end
+
+    test "flags Map.values before aggregate" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def total(m), do: m |> Map.values() |> Enum.sum()
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "Map.values/1" and &1.message =~ "Enum.sum"))
+    end
+
+    test "flags multiply by one point zero" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def avg(n), do: n * 1.0
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "multiplying by 1.0"))
+    end
+
+    test "flags List.foldr" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def build(list), do: List.foldr(list, [], fn x, acc -> [x * 2 | acc] end)
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "List.foldr"))
+    end
+
+    test "flags Enum.min_by with identity" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def smallest(items), do: Enum.min_by(items, fn x -> x end)
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "Enum.min/1"))
+    end
+
+    test "flags Enum.max_by with identity" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def biggest(items), do: Enum.max_by(items, fn x -> x end)
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "Enum.max/1"))
+    end
+
+    test "flags Enum.dedup_by with identity" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def clean(items), do: Enum.dedup_by(items, fn x -> x end)
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "Enum.dedup/1"))
+    end
+
+    test "flags Kernel.== in pipeline" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def sorted?(list), do: list |> Enum.sort() |> Kernel.==(list)
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "Kernel.==/2"))
+    end
+
+    test "flags length(String.split) - 1" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def count_sep(str, sep), do: length(String.split(str, sep)) - 1
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "String.split"))
+    end
+
+    test "flags Enum.at(list, -1)" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def last_item(items), do: Enum.at(items, -1)
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "List.last"))
+    end
+
+    test "flags Map.keys |> Enum.member?" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def has?(m, k), do: m |> Map.keys() |> Enum.member?(k)
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "Map.has_key?"))
+    end
+
+    test "flags Map.keys |> length" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def count(m), do: m |> Map.keys() |> length()
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "map_size"))
+    end
+
+    test "flags Enum.map |> List.flatten" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def expand(items), do: items |> Enum.map(&List.wrap/1) |> List.flatten()
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "flat_map"))
+    end
+
+    test "flags Enum.sort/2 |> Enum.reverse" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def flip(items), do: items |> Enum.sort(:asc) |> Enum.reverse()
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "opposite sort direction"))
+    end
   end
 end

@@ -4,12 +4,6 @@ defmodule Reach.Smell.Checks.CollectionIdioms do
   use Reach.Smell.PatternCheck
 
   smell(
-    ~p[Enum.join(_, "")],
-    :suboptimal,
-    ~S[Enum.join/1 defaults to empty separator; remove the "" argument]
-  )
-
-  smell(
     ~p[Enum.reverse(_) |> hd()],
     :suboptimal,
     "Enum.reverse/1 |> hd() traverses twice; use List.last/1"
@@ -43,6 +37,18 @@ defmodule Reach.Smell.Checks.CollectionIdioms do
     ~p[Integer.to_string(_, _) |> String.to_charlist()],
     :suboptimal,
     "Integer.to_string/2 → String.to_charlist/1; prefer Integer.digits/2"
+  )
+
+  smell(
+    ~p[Integer.to_string(_) |> String.graphemes()],
+    :suboptimal,
+    "Integer.to_string/1 → String.graphemes/1; prefer Integer.digits/1"
+  )
+
+  smell(
+    ~p[Integer.to_string(_, _) |> String.graphemes()],
+    :suboptimal,
+    "Integer.to_string/2 → String.graphemes/1; prefer Integer.digits/2"
   )
 
   smell(
@@ -106,6 +112,30 @@ defmodule Reach.Smell.Checks.CollectionIdioms do
   )
 
   smell(
+    ~p[Map.keys(_) |> Enum.join()],
+    :suboptimal,
+    "Map.keys/1 → Enum.join: iterate the map directly or map_join key/value pairs"
+  )
+
+  smell(
+    ~p[Map.keys(_) |> Enum.join(_)],
+    :suboptimal,
+    "Map.keys/1 → Enum.join: iterate the map directly or map_join key/value pairs"
+  )
+
+  smell(
+    ~p[Map.keys(_) |> Enum.sort()],
+    :suboptimal,
+    "Map.keys/1 → Enum.sort: iterate the map directly when possible"
+  )
+
+  smell(
+    ~p[Map.keys(_) |> Enum.uniq()],
+    :suboptimal,
+    "Map.keys/1 returns unique keys already; Enum.uniq/1 is redundant"
+  )
+
+  smell(
     ~p[List.to_tuple(_) |> elem(_)],
     :suboptimal,
     "List.to_tuple/1 → elem/2 allocates a full copy; use Enum.at/2 or pattern matching"
@@ -148,6 +178,36 @@ defmodule Reach.Smell.Checks.CollectionIdioms do
   )
 
   smell(
+    ~p[Map.values(_) |> Enum.join()],
+    :suboptimal,
+    "Map.values/1 → Enum.join: iterate the map directly or map_join key/value pairs"
+  )
+
+  smell(
+    ~p[Map.values(_) |> Enum.join(_)],
+    :suboptimal,
+    "Map.values/1 → Enum.join: iterate the map directly or map_join key/value pairs"
+  )
+
+  smell(
+    ~p[Map.values(_) |> Enum.sum()],
+    :suboptimal,
+    "Map.values/1 → Enum.sum: iterate the map directly with Enum.reduce/3"
+  )
+
+  smell(
+    ~p[Map.values(_) |> Enum.max()],
+    :suboptimal,
+    "Map.values/1 → Enum.max: iterate the map directly with Enum.max_by/2"
+  )
+
+  smell(
+    ~p[Map.values(_) |> Enum.min()],
+    :suboptimal,
+    "Map.values/1 → Enum.min: iterate the map directly with Enum.min_by/2"
+  )
+
+  smell(
     from(~p[Enum.count(arg)])
     |> where(not match?({:&, _, _}, ^arg) and not match?({:fn, _, _}, ^arg)),
     :suboptimal,
@@ -184,5 +244,113 @@ defmodule Reach.Smell.Checks.CollectionIdioms do
     ~p[length(_) > 0],
     :suboptimal,
     "length/1 > 0 is O(n); use != [] or match?([_ | _], list)"
+  )
+
+  smell(
+    ~p[_ |> Regex.replace(_, _)],
+    :suboptimal,
+    "Regex.replace/3 in a pipe receives the piped string as the regex argument; use String.replace/3"
+  )
+
+  smell(
+    ~p[_ |> Regex.replace(_, _, _)],
+    :suboptimal,
+    "Regex.replace/4 in a pipe receives the piped string as the regex argument; use String.replace/4"
+  )
+
+  smell(
+    ~p[_ * 1.0],
+    :suboptimal,
+    "multiplying by 1.0 is unnecessary; remove the no-op conversion"
+  )
+
+  smell(
+    ~p[1.0 * _],
+    :suboptimal,
+    "multiplying by 1.0 is unnecessary; remove the no-op conversion"
+  )
+
+  smell(
+    ~p[length(String.split(_, _)) - 1],
+    :suboptimal,
+    "length(String.split) - 1 allocates the full split list just to count; use :binary.matches/2 |> length/1"
+  )
+
+  smell(
+    ~p[_ |> Kernel.==(_)],
+    :suboptimal,
+    "Kernel.==/2 in pipeline is non-idiomatic; use infix == comparison"
+  )
+
+  smell(
+    ~p[_ |> Kernel.!=(_)],
+    :suboptimal,
+    "Kernel.!=/2 in pipeline is non-idiomatic; use infix != comparison"
+  )
+
+  smell(
+    ~p[_ |> Kernel.>=(_)],
+    :suboptimal,
+    "Kernel.>=/2 in pipeline is non-idiomatic; use infix >= comparison"
+  )
+
+  smell(
+    ~p[_ |> Kernel.<=(_)],
+    :suboptimal,
+    "Kernel.<=/2 in pipeline is non-idiomatic; use infix <= comparison"
+  )
+
+  smell(
+    ~p[_ |> Kernel.>(_)],
+    :suboptimal,
+    "Kernel.>/2 in pipeline is non-idiomatic; use infix > comparison"
+  )
+
+  smell(
+    ~p[_ |> Kernel.<(_)],
+    :suboptimal,
+    "Kernel.</2 in pipeline is non-idiomatic; use infix < comparison"
+  )
+
+  smell(
+    ~p[Map.keys(_) |> Enum.member?(_)],
+    :suboptimal,
+    "Map.keys/1 → Enum.member?: use Map.has_key?/2 directly"
+  )
+
+  smell(
+    ~p[Map.values(_) |> Enum.count()],
+    :suboptimal,
+    "Map.values/1 → Enum.count: use map_size/1 instead"
+  )
+
+  smell(
+    ~p[Map.keys(_) |> Enum.count()],
+    :suboptimal,
+    "Map.keys/1 → Enum.count: use map_size/1 instead"
+  )
+
+  smell(
+    ~p[Map.keys(_) |> length()],
+    :suboptimal,
+    "Map.keys/1 → length: use map_size/1 instead"
+  )
+
+  smell(
+    ~p[Map.values(_) |> length()],
+    :suboptimal,
+    "Map.values/1 → length: use map_size/1 instead"
+  )
+
+  smell(
+    ~p[Enum.at(_, -1)],
+    :suboptimal,
+    "Enum.at(list, -1) traverses the list twice; use List.last/1"
+  )
+
+  smell(
+    ~p[_ |> Enum.at(-1)],
+    :suboptimal,
+    "Enum.at(list, -1) traverses the list twice; use List.last/1"
   )
 end
