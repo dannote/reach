@@ -481,7 +481,7 @@ defmodule Reach.Map.Analysis do
       XrefEdge.new(
         from: func_id_tuple(from),
         to: func_id_tuple(to),
-        edges: Enum.sum(Map.values(labels)),
+        edges: Enum.reduce(labels, 0, fn {_k, v}, acc -> acc + v end),
         labels: labels,
         variables: variables
       )

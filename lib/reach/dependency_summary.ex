@@ -53,7 +53,7 @@ defmodule Reach.DependencySummary do
     |> Enum.flat_map(fn clause ->
       case clause.children do
         [] -> []
-        children -> [Enum.at(children, -1)]
+        children -> [List.last(children)]
       end
     end)
   end

@@ -200,7 +200,7 @@ defmodule Reach.SystemDependence do
     graph = Graph.add_vertex(graph, call_node.id)
 
     call_node.children
-    |> Enum.with_index()
+    |> Stream.with_index()
     |> Enum.reduce(graph, fn {arg_node, index}, g ->
       if Map.get(param_flows, index, false) do
         g
@@ -344,7 +344,7 @@ defmodule Reach.SystemDependence do
       |> Enum.flat_map(fn clause ->
         case clause.children do
           [] -> []
-          children -> [Enum.at(children, -1)]
+          children -> [List.last(children)]
         end
       end)
 

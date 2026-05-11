@@ -74,13 +74,13 @@ defmodule Reach.CLI.Project do
   defp common_path([path]), do: path
 
   defp common_path(paths) do
-    split_paths = Enum.map(paths, &Path.split/1)
-    min_length = split_paths |> Enum.min_by(&length/1) |> length()
+    split_paths = Enum.map(paths, &List.to_tuple(Path.split(&1)))
+    min_length = split_paths |> Enum.min_by(&tuple_size/1) |> tuple_size()
 
     common_parts =
       0..(min_length - 1)
       |> Enum.reduce_while([], fn index, acc ->
-        parts = Enum.map(split_paths, &Enum.at(&1, index))
+        parts = Enum.map(split_paths, &elem(&1, index))
 
         if Enum.uniq(parts) |> length() == 1,
           do: {:cont, [List.first(parts) | acc]},

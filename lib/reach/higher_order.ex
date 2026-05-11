@@ -57,21 +57,19 @@ defmodule Reach.HigherOrder do
   end
 
   defp add_synthetic_flows(graph, call_node, flowing_params) do
-    args = call_node.children
+    args = List.to_tuple(call_node.children)
 
     Enum.reduce(flowing_params, graph, fn idx, g ->
-      case Enum.at(args, idx) do
-        nil ->
-          g
-
-        arg ->
-          Graph.add_edge(
-            Graph.add_vertex(Graph.add_vertex(g, arg.id), call_node.id),
-            arg.id,
-            call_node.id,
-            label: :higher_order
-          )
-      end
+      if idx < tuple_size(args),
+        do: add_flow_edge(g, elem(args, idx), call_node),
+        else: g
     end)
+  end
+
+  defp add_flow_edge(graph, arg, call_node) do
+    graph
+    |> Graph.add_vertex(arg.id)
+    |> Graph.add_vertex(call_node.id)
+    |> Graph.add_edge(arg.id, call_node.id, label: :higher_order)
   end
 end

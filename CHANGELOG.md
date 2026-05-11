@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **Dogfooding** — ran `reach.check --smells` against Reach's own codebase and fixed all actionable findings across 15 files: `Enum.at(_, -1)` → `List.last`, `++` in reduce → prepend + reverse, `Enum.with_index |> Enum.reduce` → `Stream.with_index`, indexed loop access → tuple conversion, repeated traversals → single reduce, extracted helpers to reduce nesting.
+- **CI** — `mix ci` now runs `reach.check --arch --smells` (was `--arch` only).
+
 ## 2.3.0
 
 ### New

@@ -143,9 +143,13 @@ defmodule Reach.OTP.Analysis do
 
   defp unwrap_state_param(%{type: :match, children: children}) do
     # Prefer var over struct (e.g. %State{} = state → use :state)
-    Enum.find(children, &(&1.type == :var)) ||
-      Enum.find(children, &(&1.type in [:struct, :map])) ||
-      Enum.find_value(children, &unwrap_state_param/1)
+    Enum.reduce_while(children, nil, fn child, fallback ->
+      cond do
+        child.type == :var -> {:halt, child}
+        child.type in [:struct, :map] -> {:cont, fallback || child}
+        true -> {:cont, fallback || unwrap_state_param(child)}
+      end
+    end)
   end
 
   defp unwrap_state_param(%{type: t} = node) when t in [:var, :struct, :map], do: node

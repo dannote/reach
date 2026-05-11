@@ -171,8 +171,8 @@ defmodule Reach.OTP.GenStatem do
     func.children
     |> Enum.filter(&(&1.type == :clause))
     |> Enum.map(fn clause ->
-      params = Enum.take(clause.children, 3)
-      event_type = extract_event_type(Enum.at(params, 0))
+      [first | _] = Enum.take(clause.children, 3)
+      event_type = extract_event_type(first)
       %{event_type: event_type, node: func}
     end)
   end
@@ -197,10 +197,15 @@ defmodule Reach.OTP.GenStatem do
     state_events =
       clauses
       |> Enum.map(fn {func, clause} ->
-        params = Enum.take(clause.children, 4)
-        event_type = extract_event_type(Enum.at(params, 0))
-        state = extract_state_literal(Enum.at(params, 2)) |> resolve_attr(attr_values)
-        {state, event_type, func}
+        case Enum.take(clause.children, 4) do
+          [event_param, _, state_param | _] ->
+            event_type = extract_event_type(event_param)
+            state = extract_state_literal(state_param) |> resolve_attr(attr_values)
+            {state, event_type, func}
+
+          _ ->
+            {nil, :unknown, func}
+        end
       end)
       |> Enum.group_by(fn {state, _, _} -> state end)
 
@@ -218,17 +223,26 @@ defmodule Reach.OTP.GenStatem do
       Enum.flat_map(he_funcs, fn func ->
         func.children
         |> Enum.filter(&(&1.type == :clause))
-        |> Enum.flat_map(fn clause ->
-          params = Enum.take(clause.children, 4)
-          state = extract_state_literal(Enum.at(params, 2)) |> resolve_attr(attr_values)
-          extract_transitions_from_body(clause, state)
-        end)
+        |> Enum.flat_map(&clause_transitions(&1, attr_values))
       end)
 
     {states, transitions}
   end
 
   # --- Event type extraction ---
+
+  defp clause_transitions(clause, attr_values) do
+    state =
+      case Enum.take(clause.children, 4) do
+        [_, _, state_param | _] ->
+          extract_state_literal(state_param) |> resolve_attr(attr_values)
+
+        _ ->
+          nil
+      end
+
+    extract_transitions_from_body(clause, state)
+  end
 
   defp extract_event_type(nil), do: :unknown
 
@@ -314,7 +328,7 @@ defmodule Reach.OTP.GenStatem do
     |> IR.all_nodes()
     |> find_next_state_tuples()
     |> Enum.map(fn {to_state, _} ->
-      event_type = extract_event_type(Enum.at(clause.children, 0))
+      event_type = extract_event_type(hd(clause.children))
       %{from: from_state || :any, to: to_state, trigger: event_type, node: clause}
     end)
   end

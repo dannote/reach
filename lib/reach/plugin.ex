@@ -147,14 +147,18 @@ defmodule Reach.Plugin do
 
   @doc "Runs embedded-node analysis hooks for plugins that provide them."
   def run_analyze_embedded(plugins, all_nodes, opts) do
-    Enum.reduce(plugins, {[], []}, fn plugin, {all_nodes_acc, edges_acc} ->
-      if exports?(plugin, :analyze_embedded, 2) do
-        {new_nodes, new_edges} = plugin.analyze_embedded(all_nodes ++ all_nodes_acc, opts)
-        {all_nodes_acc ++ new_nodes, edges_acc ++ new_edges}
-      else
-        {all_nodes_acc, edges_acc}
-      end
-    end)
+    {nodes_acc, edges_acc} =
+      Enum.reduce(plugins, {[], []}, fn plugin, {all_nodes_acc, edges_acc} ->
+        if exports?(plugin, :analyze_embedded, 2) do
+          accumulated = all_nodes ++ List.flatten(all_nodes_acc)
+          {new_nodes, new_edges} = plugin.analyze_embedded(accumulated, opts)
+          {[new_nodes | all_nodes_acc], [new_edges | edges_acc]}
+        else
+          {all_nodes_acc, edges_acc}
+        end
+      end)
+
+    {nodes_acc |> List.flatten() |> Enum.reverse(), edges_acc |> List.flatten() |> Enum.reverse()}
   end
 
   @doc "Compiles a framework-specific trace pattern, if a plugin recognizes it."

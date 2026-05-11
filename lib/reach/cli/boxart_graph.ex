@@ -422,7 +422,7 @@ defmodule Reach.CLI.BoxartGraph do
 
         new_edges = Enum.map(out, &{v, &1})
         unvisited = Enum.reject(out, &MapSet.member?(vis, &1))
-        {front ++ unvisited, MapSet.union(vis, MapSet.new(out)), edg ++ new_edges}
+        {unvisited ++ front, MapSet.union(vis, MapSet.new(out)), Enum.reverse(new_edges, edg)}
       end)
 
     collect_subgraph(cg, new_frontier, depth - 1, new_visited, new_edges)

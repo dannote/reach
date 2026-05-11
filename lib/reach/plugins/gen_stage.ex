@@ -107,9 +107,9 @@ defmodule Reach.Plugins.GenStage do
         clause.children
         |> Enum.filter(fn c -> c.meta[:binding_role] == :definition or c.type != :var end)
 
-      case Enum.at(params, n) do
-        nil -> []
-        param -> [param]
+      case Enum.fetch(params, n) do
+        {:ok, param} -> [param]
+        :error -> []
       end
     end)
   end

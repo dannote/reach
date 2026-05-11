@@ -808,17 +808,19 @@ defmodule Reach.Frontend.Elixir do
       Enum.reduce(children, {%{}, []}, fn
         %Node{type: :function_def, meta: %{name: name, arity: arity}} = node, {groups, ord} ->
           key = {:func, name, arity}
-          groups = Map.update(groups, key, [node], &(&1 ++ [node]))
+          groups = Map.update(groups, key, [node], &[node | &1])
 
           ord =
-            if Map.has_key?(groups, key) and length(groups[key]) > 1, do: ord, else: ord ++ [key]
+            if Map.has_key?(groups, key) and length(groups[key]) > 1, do: ord, else: [key | ord]
 
           {groups, ord}
 
         node, {groups, ord} ->
           key = {:other, node.id}
-          {Map.put(groups, key, [node]), ord ++ [key]}
+          {Map.put(groups, key, [node]), [key | ord]}
       end)
+
+    order = Enum.reverse(order)
 
     merged =
       Enum.flat_map(order, fn key ->
@@ -827,7 +829,7 @@ defmodule Reach.Frontend.Elixir do
             [single]
 
           [first | _] = defs ->
-            all_clauses = Enum.flat_map(defs, & &1.children)
+            all_clauses = defs |> Enum.reverse() |> Enum.flat_map(& &1.children)
             [%{first | children: all_clauses}]
         end
       end)
@@ -915,11 +917,12 @@ defmodule Reach.Frontend.Elixir do
             }
           end)
 
-        {pats ++ [pat], gs ++ new_guards}
+        {[pat | pats], Enum.reverse(new_guards, gs)}
 
       pattern, {pats, gs} ->
-        {pats ++ [translate(pattern, counter, file) |> mark_as_definitions()], gs}
+        {[translate(pattern, counter, file) |> mark_as_definitions() | pats], gs}
     end)
+    |> then(fn {pats, gs} -> {Enum.reverse(pats), Enum.reverse(gs)} end)
   end
 
   defp desugar_pipe(left, {fun, meta, args}) when is_list(args) do

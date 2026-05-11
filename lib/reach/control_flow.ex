@@ -65,7 +65,7 @@ defmodule Reach.ControlFlow do
     graph = Graph.add_edge(graph, :entry, dispatch_id, label: :sequential)
 
     {graph, _prev_fail} =
-      Enum.with_index(clauses)
+      Stream.with_index(clauses)
       |> Enum.reduce({graph, dispatch_id}, fn {clause, index}, {g, from} ->
         {g, clause_exits} = build_clause(g, clause, from, index)
         g = connect_to_exit(g, clause_exits)
@@ -255,7 +255,7 @@ defmodule Reach.ControlFlow do
   defp build_clauses(graph, clauses, parent_id) do
     {graph, exit_groups} =
       clauses
-      |> Enum.with_index()
+      |> Stream.with_index()
       |> Enum.reduce({graph, []}, fn {clause, index}, {g, exit_groups} ->
         {g, clause_exits} = build_clause(g, clause, parent_id, index)
         {g, [clause_exits | exit_groups]}
@@ -377,9 +377,9 @@ defmodule Reach.ControlFlow do
     {_graph, exits} =
       Enum.reduce(else_clauses, {graph, []}, fn clause, {g, exits} ->
         {g, c_exits} = build_sequential(g, clause.children, List.first(body_exits))
-        {g, exits ++ c_exits}
+        {g, [c_exits | exits]}
       end)
 
-    exits
+    exits |> List.flatten() |> Enum.reverse()
   end
 end

@@ -55,7 +55,10 @@ if Code.ensure_loaded?(QuickBEAM) do
         |> find_eval_calls()
         |> Enum.flat_map(&process_eval_call(&1, all_nodes, counter))
         |> Enum.reduce({[], []}, fn {nodes, edges}, {n_acc, e_acc} ->
-          {n_acc ++ nodes, e_acc ++ edges}
+          {[nodes | n_acc], [edges | e_acc]}
+        end)
+        |> then(fn {n_acc, e_acc} ->
+          {n_acc |> List.flatten() |> Enum.reverse(), e_acc |> List.flatten() |> Enum.reverse()}
         end)
 
       all_js_nodes = Enum.flat_map(js_nodes, &IR.all_nodes/1)

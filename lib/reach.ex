@@ -243,8 +243,10 @@ defmodule Reach do
     # Topological sort respecting dependencies, breaking ties by structural hash
     sorted_indices = topo_sort_with_hash(indexed, must_precede)
 
+    indexed_tuple = List.to_tuple(indexed)
+
     Enum.map(sorted_indices, fn i ->
-      {node, _} = Enum.at(indexed, i)
+      {node, _} = elem(indexed_tuple, i)
       {node.id, node}
     end)
   end

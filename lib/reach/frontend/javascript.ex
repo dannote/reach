@@ -218,7 +218,7 @@ if Code.ensure_loaded?(QuickBEAM) do
 
       {all_nodes, _, _} =
         blocks
-        |> Enum.with_index()
+        |> Stream.with_index()
         |> Enum.reduce({[], [], processed}, fn {block_ops, block_idx}, acc ->
           block_line = base_line + min(block_idx + 1, max_lines - 1)
 
@@ -428,13 +428,16 @@ if Code.ensure_loaded?(QuickBEAM) do
           offset = elem(op, 0)
 
           if MapSet.member?(targets, offset) and current != [] do
-            {blocks ++ [Enum.reverse(current)], [op]}
+            {[Enum.reverse(current) | blocks], [op]}
           else
             {blocks, [op | current]}
           end
         end)
 
-      if current == [], do: blocks, else: blocks ++ [Enum.reverse(current)]
+      blocks =
+        if current == [], do: blocks, else: [Enum.reverse(current) | blocks]
+
+      Enum.reverse(blocks)
     end
 
     defp build_local_names(func) do
