@@ -241,6 +241,18 @@ defmodule Reach.Smell.Checks.CollectionIdioms do
   )
 
   smell(
+    from(~p[Regex.replace(_, _, _)]) |> where(piped()),
+    :suboptimal,
+    "Regex.replace/3 in a pipe receives the piped string as the regex argument; use String.replace/3"
+  )
+
+  smell(
+    from(~p[Regex.replace(_, _, _, _)]) |> where(piped()),
+    :suboptimal,
+    "Regex.replace/4 in a pipe receives the piped string as the regex argument; use String.replace/4"
+  )
+
+  smell(
     ~p[length(String.split(_, _)) - 1],
     :suboptimal,
     "length(String.split) - 1 allocates the full split list just to count; use :binary.matches/2 |> length/1"

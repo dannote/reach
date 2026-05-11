@@ -1009,6 +1009,28 @@ defmodule Reach.SmellTest do
       assert Enum.any?(findings, &(&1.message =~ "Integer.digits"))
     end
 
+    test "flags piped Regex.replace" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def slug(s), do: s |> Regex.replace(~r/[^a-z0-9]/, "")
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "use String.replace"))
+    end
+
+    test "does not flag direct Regex.replace" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def clean(s), do: Regex.replace(~r/[^a-z0-9]/, s, "")
+        end
+        """)
+
+      refute Enum.any?(findings, &(&1.message =~ "Regex.replace"))
+    end
+
     test "flags eager with_index before reduce" do
       findings =
         run_smell_task("""
