@@ -69,7 +69,7 @@ defmodule Reach.MixProject do
       {:volt, "~> 0.4", only: :dev, runtime: false},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
       {:quickbeam, "~> 0.10", optional: true},
-      {:ex_ast, "~> 0.10"},
+      {:ex_ast, "~> 0.11.1"},
       {:ex_dna, "~> 1.5", optional: true, runtime: false}
     ]
   end
