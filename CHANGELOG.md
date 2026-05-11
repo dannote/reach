@@ -1,5 +1,27 @@
 # Changelog
 
+## 2.3.0
+
+### New
+
+- **Repeated traversal detection** — flags the same variable traversed by 2+ different `Enum` functions (e.g. `Enum.max(list)` + `Enum.min(list)` + `Enum.count(list)`); suggests combining into a single `Enum.reduce/3`.
+- **Nested enum detection** — flags `Enum.member?/2` nested inside another `Enum` traversal of the same variable (O(n²)); suggests precomputing a `MapSet`.
+- **Multiple Enum.at detection** — flags 3+ `Enum.at/2` calls on the same variable with literal indices; suggests pattern matching.
+- **Append in recursion** — flags `++ [item]` in recursive tail calls (O(n²)); suggests prepend with `[item | acc]` and `Enum.reverse/1` in the base case.
+- **Piped Regex.replace** — flags `text |> Regex.replace(~r/.../, "")` where the pipe injects the string as the regex argument; suggests `String.replace/3`. Uses the new ExAST `piped()` predicate to avoid false positives on direct `Regex.replace/3` calls.
+- **More Map.keys/values patterns** — `Map.keys |> Enum.join`, `Map.keys |> Enum.uniq` (redundant), `Map.keys/values |> Enum.count/length` (use `map_size/1`), `Map.keys |> Enum.member?` (use `Map.has_key?/2`), `Map.values |> Enum.sum/max/min/join`.
+- **More pipeline waste** — `List.foldr/3`, `Enum.min_by/max_by/dedup_by` with identity function, `Enum.filter |> Enum.filter`, `Enum.map |> Enum.flat_map/List.flatten`, `Enum.sort/2 |> Enum.reverse`, `Enum.with_index |> Enum.reduce`, redundant `Enum.map_join` empty separator.
+- **More collection idioms** — `Integer.to_string |> String.graphemes` (use `Integer.digits`), `length(String.split) - 1` (Python count idiom), `Enum.at(list, -1)` (use `List.last/1`).
+- **Parser warning suppression** — `Code.string_to_quoted` calls now pass `emit_warnings: false` so reparsing dependency source files no longer emits tokenizer/parser warnings.
+
+### Changed
+
+- **ex_ast** bumped to `~> 0.11.1` for the `piped()` selector predicate.
+
+### Fixed
+
+- **Smell false positives** — IR-based checks (repeated traversal, multiple Enum.at) now scope per-clause to avoid false positives from multi-clause functions. Corpus-tested against 200 top Hex packages: 0 crashes, 0 false positives.
+
 ## 2.2.0
 
 ### New
