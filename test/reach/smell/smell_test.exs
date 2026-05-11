@@ -1178,4 +1178,146 @@ defmodule Reach.SmellTest do
       assert Enum.any?(findings, &(&1.message =~ "opposite sort direction"))
     end
   end
+
+  describe "repeated traversal detection" do
+    test "flags multiple Enum calls on same variable" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def stats(list) do
+            max = Enum.max(list)
+            min = Enum.min(list)
+            count = Enum.count(list)
+            {max, min, count}
+          end
+        end
+        """)
+
+      assert [%{kind: :suboptimal} = f] =
+               Enum.filter(findings, &(&1.message =~ "traversed"))
+
+      assert f.message =~ "list"
+      assert f.message =~ "Enum.reduce"
+    end
+
+    test "does not flag single traversal" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def biggest(list), do: Enum.max(list)
+        end
+        """)
+
+      refute Enum.any?(findings, &(&1.message =~ "traversed"))
+    end
+
+    test "does not flag same function called twice" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def check(list) do
+            a = Enum.member?(list, 1)
+            b = Enum.member?(list, 2)
+            {a, b}
+          end
+        end
+        """)
+
+      refute Enum.any?(findings, &(&1.message =~ "traversed"))
+    end
+  end
+
+  describe "nested enum detection" do
+    test "flags Enum.member? nested inside Enum.map on same variable" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def check(list) do
+            Enum.map(list, fn x ->
+              Enum.member?(list, x + 1)
+            end)
+          end
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "Enum.member?" and &1.message =~ "MapSet"))
+    end
+
+    test "does not flag Enum.member? on different variable" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def check(list, other) do
+            Enum.map(list, fn x ->
+              Enum.member?(other, x)
+            end)
+          end
+        end
+        """)
+
+      refute Enum.any?(findings, &(&1.message =~ "Enum.member?" and &1.message =~ "nested"))
+    end
+  end
+
+  describe "multiple Enum.at detection" do
+    test "flags 3+ Enum.at calls on same variable" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def extract(sorted) do
+            a = Enum.at(sorted, 0)
+            b = Enum.at(sorted, 1)
+            c = Enum.at(sorted, 2)
+            {a, b, c}
+          end
+        end
+        """)
+
+      assert [%{kind: :suboptimal} = f] =
+               Enum.filter(findings, &(&1.message =~ "Enum.at/2 called"))
+
+      assert f.message =~ "sorted"
+      assert f.message =~ "pattern matching"
+    end
+
+    test "does not flag 2 Enum.at calls" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def pair(list) do
+            a = Enum.at(list, 0)
+            b = Enum.at(list, 1)
+            {a, b}
+          end
+        end
+        """)
+
+      refute Enum.any?(findings, &(&1.message =~ "Enum.at/2 called"))
+    end
+  end
+
+  describe "append in recursion detection" do
+    test "flags ++ [item] in recursive tail call" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def build([h | t], acc), do: build(t, acc ++ [h * 2])
+          def build([], acc), do: acc
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "++ [item] in recursive call"))
+    end
+
+    test "does not flag ++ in non-recursive function" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def combine(a, b), do: a ++ [b]
+        end
+        """)
+
+      refute Enum.any?(findings, &(&1.message =~ "recursive call"))
+    end
+  end
 end
