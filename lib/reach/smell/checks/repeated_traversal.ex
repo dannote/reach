@@ -28,7 +28,7 @@ defmodule Reach.Smell.Checks.RepeatedTraversal do
       unique_fns = calls |> Enum.map(fn {_, n} -> n.meta[:function] end) |> Enum.uniq()
 
       if length(unique_fns) >= 2 do
-        fns = unique_fns |> Enum.map(&"Enum.#{&1}") |> Enum.join(", ")
+        fns = Enum.map_join(unique_fns, ", ", &"Enum.#{&1}")
 
         [
           finding(

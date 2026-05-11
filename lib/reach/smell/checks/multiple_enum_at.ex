@@ -24,18 +24,13 @@ defmodule Reach.Smell.Checks.MultipleEnumAt do
 
     enum_at_calls
     |> Enum.group_by(&elem(&1, 0))
-    |> Enum.flat_map(fn {var, calls} ->
-      if length(calls) >= @min_calls do
-        [
-          finding(
-            :suboptimal,
-            "Enum.at/2 called #{length(calls)} times on `#{var}` with literal indices; use pattern matching to destructure in one pass",
-            List.first(calls) |> elem(1)
-          )
-        ]
-      else
-        []
-      end
+    |> Enum.filter(fn {_var, calls} -> length(calls) >= @min_calls end)
+    |> Enum.map(fn {var, calls} ->
+      finding(
+        :suboptimal,
+        "Enum.at/2 called #{length(calls)} times on `#{var}` with literal indices; use pattern matching to destructure in one pass",
+        List.first(calls) |> elem(1)
+      )
     end)
   end
 

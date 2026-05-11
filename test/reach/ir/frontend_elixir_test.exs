@@ -1,6 +1,7 @@
 defmodule Reach.Frontend.ElixirTest do
   use ExUnit.Case, async: true
 
+  alias Reach.Frontend.Elixir, as: ElixirFrontend
   alias Reach.IR
   alias Reach.IR.Node
 
@@ -10,7 +11,7 @@ defmodule Reach.Frontend.ElixirTest do
     output =
       ExUnit.CaptureIO.capture_io(:stderr, fn ->
         assert {:ok, _nodes} =
-                 Reach.Frontend.Elixir.parse(source, file: "deps/old_hex/lib/old.ex")
+                 ElixirFrontend.parse(source, file: "deps/old_hex/lib/old.ex")
       end)
 
     assert output == ""

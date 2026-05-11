@@ -8,30 +8,34 @@ defmodule Reach.Smell.Checks.AppendInRecursion do
     arity = function.meta[:arity]
 
     if name && arity && Helpers.recursive?(function) do
-      all_nodes = IR.all_nodes(function)
-
-      self_calls =
-        Enum.filter(all_nodes, fn n ->
-          n.type == :call and n.meta[:function] == name and
-            n.meta[:arity] == arity and n.meta[:module] == nil
-        end)
-
-      Enum.flat_map(self_calls, fn call ->
-        call.children
-        |> Enum.filter(fn arg ->
-          arg.type == :binary_op and arg.meta[:operator] == :++ and
-            match?([_, %{type: :list}], arg.children)
-        end)
-        |> Enum.map(fn append_node ->
-          finding(
-            :suboptimal,
-            "++ [item] in recursive call is O(n²); prepend with [item | acc] and Enum.reverse/1 in the base case",
-            (append_node.source_span && append_node) || function
-          )
-        end)
-      end)
+      function
+      |> IR.all_nodes()
+      |> Enum.filter(&self_call?(&1, name, arity))
+      |> Enum.flat_map(&append_args(&1, function))
     else
       []
     end
   end
+
+  defp self_call?(node, name, arity) do
+    node.type == :call and node.meta[:function] == name and
+      node.meta[:arity] == arity and node.meta[:module] == nil
+  end
+
+  defp append_args(call, function) do
+    call.children
+    |> Enum.filter(&list_append?/1)
+    |> Enum.map(fn node ->
+      finding(
+        :suboptimal,
+        "++ [item] in recursive call is O(n²); prepend with [item | acc] and Enum.reverse/1 in the base case",
+        (node.source_span && node) || function
+      )
+    end)
+  end
+
+  defp list_append?(%{type: :binary_op, meta: %{operator: :++}, children: [_, %{type: :list}]}),
+    do: true
+
+  defp list_append?(_), do: false
 end
