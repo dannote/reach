@@ -43,7 +43,7 @@ defmodule Reach.MixProject do
         "js.check",
         "credo --strict",
         "ex_dna",
-        "reach.check --arch",
+        "reach.check --arch --smells",
         "dialyzer",
         "test"
       ],
