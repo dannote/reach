@@ -354,4 +354,40 @@ defmodule Reach.Smell.Checks.CollectionIdioms do
     :suboptimal,
     "if condition, do: false, else: true: use not/!/1 or negate the condition"
   )
+
+  smell(
+    ~p[Keyword.get(_, _, nil)],
+    :suboptimal,
+    "Keyword.get/3 with nil default is redundant; nil is already the default for Keyword.get/2"
+  )
+
+  smell(
+    ~p[Map.get(_, _, nil)],
+    :suboptimal,
+    "Map.get/3 with nil default is redundant; nil is already the default for Map.get/2"
+  )
+
+  smell(
+    ~p[String.split(_, _) |> hd()],
+    :suboptimal,
+    "String.split/2 |> hd/1 splits the entire string; use String.split/3 with parts: 2"
+  )
+
+  smell(
+    ~p[String.split(_, _) |> List.first()],
+    :suboptimal,
+    "String.split/2 |> List.first/1 splits the entire string; use String.split/3 with parts: 2"
+  )
+
+  smell(
+    ~p[Enum.filter(_, _) |> List.first()],
+    :suboptimal,
+    "Enum.filter/2 |> List.first/1: use Enum.find/2"
+  )
+
+  smell(
+    ~p[Enum.filter(_, _) |> hd()],
+    :suboptimal,
+    "Enum.filter/2 |> hd/1: use Enum.find/2"
+  )
 end

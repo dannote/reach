@@ -1619,4 +1619,63 @@ defmodule Reach.SmellTest do
       assert Enum.any?(findings, &(&1.message =~ "match?"))
     end
   end
+
+  describe "redundant defaults" do
+    test "flags Keyword.get with nil default" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def f(opts), do: Keyword.get(opts, :key, nil)
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "Keyword.get/3 with nil default"))
+    end
+
+    test "flags Map.get with nil default" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def f(m), do: Map.get(m, :key, nil)
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "Map.get/3 with nil default"))
+    end
+
+    test "does not flag Keyword.get with non-nil default" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def f(opts), do: Keyword.get(opts, :key, :default)
+        end
+        """)
+
+      refute Enum.any?(findings, &(&1.message =~ "nil default"))
+    end
+  end
+
+  describe "split then head" do
+    test "flags String.split |> hd" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def first_part(s), do: s |> String.split(".") |> hd()
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "parts: 2"))
+    end
+
+    test "flags Enum.filter |> List.first" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def first_match(list), do: list |> Enum.filter(&(&1 > 0)) |> List.first()
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "Enum.find"))
+    end
+  end
 end
