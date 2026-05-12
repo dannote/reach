@@ -1322,6 +1322,39 @@ defmodule Reach.SmellTest do
   end
 
   describe "control flow style detection" do
+    test "flags case true/false on boolean expression" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def f(x) do
+            case rem(x, 2) == 0 do
+              true -> :even
+              false -> :odd
+            end
+          end
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "case on boolean"))
+    end
+
+    test "does not flag case on non-boolean subject" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def f(x) do
+            case token(x) do
+              false -> :error
+              value -> value
+            end
+          end
+          defp token(_), do: false
+        end
+        """)
+
+      refute Enum.any?(findings, &(&1.message =~ "case on boolean"))
+    end
+
     test "flags cond with two clauses" do
       findings =
         run_smell_task("""

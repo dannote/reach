@@ -207,4 +207,34 @@ defmodule Reach.Smell.Checks.PipelineWaste do
     :suboptimal,
     "cond with two clauses where the second is `true` is just if/else"
   )
+
+  @boolean_ops [:==, :!=, :===, :!==, :>, :<, :>=, :<=, :and, :or, :not, :in]
+
+  smell(
+    from(~p[case subject do true -> _; false -> _ end])
+    |> where(match?({op, _, _} when op in @boolean_ops, ^subject)),
+    :suboptimal,
+    "case on boolean with true/false clauses; use if/else"
+  )
+
+  smell(
+    from(~p[case subject do false -> _; true -> _ end])
+    |> where(match?({op, _, _} when op in @boolean_ops, ^subject)),
+    :suboptimal,
+    "case on boolean with false/true clauses; use if/else"
+  )
+
+  smell(
+    from(~p[case subject do true -> _; _ -> _ end])
+    |> where(match?({op, _, _} when op in @boolean_ops, ^subject)),
+    :suboptimal,
+    "case on boolean with true/_ clauses; use if/else"
+  )
+
+  smell(
+    from(~p[case subject do false -> _; _ -> _ end])
+    |> where(match?({op, _, _} when op in @boolean_ops, ^subject)),
+    :suboptimal,
+    "case on boolean with false/_ clauses; use if/else"
+  )
 end
