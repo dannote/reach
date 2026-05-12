@@ -1,5 +1,34 @@
 # Changelog
 
+## 2.3.2
+
+### New
+
+- **Case-on-boolean** — flags `case expr do true -> ...; false -> ... end` when the subject is a comparison or boolean operator. Uses ExAST capture guards to avoid false positives on sentinel pattern matches.
+- **Case to match?** — flags `case _ do pat -> true; _ -> false end`; suggests `match?/2`.
+- **Needless bool** — flags `if cond, do: true, else: false` and the inverse.
+- **Manual max/min** — flags `if a > b, do: a, else: b` using ExAST repeated-variable matching; suggests `Kernel.max/2` or `Kernel.min/2`.
+- **`@doc false` on `defp`** — flags redundant `@doc false` before private functions.
+- **Sort then negative take** — flags `Enum.sort |> Enum.take(-n)`; suggests `Enum.sort(:desc) |> Enum.take(n)`.
+- **Cond two-clause** — flags `cond do ... true -> ... end` with exactly two clauses; suggests `if/else`.
+- **Unless/else** — flags `unless ... else ...`; suggests `if` with positive case first.
+- **Redundant assignment** — flags `result = expr; result` where the binding is immediately returned.
+- **Redundant nil default** — flags `Keyword.get(_, _, nil)` and `Map.get(_, _, nil)`.
+- **Split then head** — flags `String.split(s, sep) |> hd/List.first`; suggests `parts: 2`.
+- **Filter then first** — flags `Enum.filter |> List.first/hd`; suggests `Enum.find/2`.
+- **Map.new / MapSet.new** — flags `Enum.map |> Enum.into(%{})`, `Enum.into(_, %{})`, `Enum.into(_, MapSet.new())`, `Enum.map |> Enum.concat`.
+
+### Fixed
+
+- **`++` in reduce false positives** — the check now verifies that an operand of `++` actually references the reduce accumulator variable.
+- **Dogfooding** — fixed all actionable smell findings in Reach's own code across 15 files.
+- **CI** — `mix ci` now runs `reach.check --arch --smells`.
+- **Credo overlap documented** in README.
+
+### Changed
+
+- **ex_ast** bumped to `~> 0.11.2`.
+
 ## 2.3.1
 
 ### New
