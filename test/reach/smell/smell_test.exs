@@ -1512,4 +1512,111 @@ defmodule Reach.SmellTest do
       assert Enum.any?(findings, &(&1.message =~ "Enum.max"))
     end
   end
+
+  describe "collection conversion smells" do
+    test "flags Enum.map |> Enum.into(%{})" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def to_map(list), do: list |> Enum.map(&{&1.key, &1.val}) |> Enum.into(%{})
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "Map.new/2"))
+    end
+
+    test "flags Enum.into(enum, MapSet.new())" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def to_set(list), do: Enum.into(list, MapSet.new())
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "MapSet.new/1"))
+    end
+
+    test "flags bare Enum.into(enum, %{})" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def to_map(params), do: Enum.into(params, %{})
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "Map.new/1"))
+    end
+
+    test "does not flag Enum.into with non-empty target map" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def merge(opts), do: Enum.into(opts, %{a: 1, b: 2})
+        end
+        """)
+
+      refute Enum.any?(findings, &(&1.message =~ "Map.new/1"))
+    end
+  end
+
+  describe "needless bool" do
+    test "flags if cond, do: true, else: false" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def check?(x), do: if(valid?(x), do: true, else: false)
+          defp valid?(_), do: true
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "already a boolean"))
+    end
+
+    test "flags if cond, do: false, else: true" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def missing?(x), do: if(present?(x), do: false, else: true)
+          defp present?(_), do: true
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "negate"))
+    end
+  end
+
+  describe "case to match?" do
+    test "flags case returning true/false" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def valid?(x) do
+            case Regex.run(~r/ok/, x) do
+              {:match, _} -> true
+              _ -> false
+            end
+          end
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "match?"))
+    end
+
+    test "flags case returning false/true" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def invalid?(x) do
+            case check(x) do
+              {:error, _} -> false
+              _ -> true
+            end
+          end
+          defp check(_), do: :ok
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "match?"))
+    end
+  end
 end

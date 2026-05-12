@@ -317,4 +317,41 @@ defmodule Reach.Smell.Checks.CollectionIdioms do
     :suboptimal,
     "if a <= b, do: a, else: b reimplements min/2; use Kernel.min/2"
   )
+
+  smell(
+    ~p[Enum.map(_, _) |> Enum.into(%{})],
+    :suboptimal,
+    "Enum.map/2 |> Enum.into(%{}): use Map.new/2"
+  )
+
+  smell(
+    ~p[Enum.into(_, MapSet.new())],
+    :suboptimal,
+    "Enum.into(enum, MapSet.new()): use MapSet.new/1"
+  )
+
+  smell(
+    ~p[Enum.map(_, _) |> Enum.concat()],
+    :eager_pattern,
+    "Enum.map/2 |> Enum.concat/1: use Enum.flat_map/2"
+  )
+
+  smell(
+    from(~p[Enum.into(_, target)])
+    |> where(match?({:%{}, _, []}, ^target)),
+    :suboptimal,
+    "Enum.into(enum, %{}): use Map.new/1"
+  )
+
+  smell(
+    ~p[if _, do: true, else: false],
+    :suboptimal,
+    "if condition, do: true, else: false: the condition is already a boolean"
+  )
+
+  smell(
+    ~p[if _, do: false, else: true],
+    :suboptimal,
+    "if condition, do: false, else: true: use not/!/1 or negate the condition"
+  )
 end

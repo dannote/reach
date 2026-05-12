@@ -233,6 +233,28 @@ defmodule Reach.Smell.Checks.PipelineWaste do
     "@doc false on defp is redundant; private functions cannot have documentation"
   )
 
+  smell(
+    quote do
+      case _ do
+        _ -> true
+        _ -> false
+      end
+    end,
+    :suboptimal,
+    "case returning true/false: use match?/2"
+  )
+
+  smell(
+    quote do
+      case _ do
+        _ -> false
+        _ -> true
+      end
+    end,
+    :suboptimal,
+    "case returning false/true: use not match?/2"
+  )
+
   @boolean_ops [:==, :!=, :===, :!==, :>, :<, :>=, :<=, :and, :or, :not, :in]
 
   smell(
