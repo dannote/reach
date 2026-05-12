@@ -195,4 +195,16 @@ defmodule Reach.Smell.Checks.PipelineWaste do
     :eager_pattern,
     "Enum.sort/2 → Enum.reverse: pass the opposite sort direction instead"
   )
+
+  smell(
+    ~p[unless _ do _ else _ end],
+    :suboptimal,
+    "unless/else is non-idiomatic; use if with the positive case first"
+  )
+
+  smell(
+    ~p[cond do _ -> _; true -> _ end],
+    :suboptimal,
+    "cond with two clauses where the second is `true` is just if/else"
+  )
 end

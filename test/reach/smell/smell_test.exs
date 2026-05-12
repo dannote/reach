@@ -1320,4 +1320,89 @@ defmodule Reach.SmellTest do
       refute Enum.any?(findings, &(&1.message =~ "recursive call"))
     end
   end
+
+  describe "control flow style detection" do
+    test "flags cond with two clauses" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def f(x) do
+            cond do
+              x > 0 -> :pos
+              true -> :non_pos
+            end
+          end
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "cond with two clauses"))
+    end
+
+    test "flags unless/else" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def f(x) do
+            unless x > 0 do
+              :neg
+            else
+              :pos
+            end
+          end
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "unless/else"))
+    end
+
+    test "does not flag cond with 3+ clauses" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def f(x) do
+            cond do
+              x > 0 -> :pos
+              x < 0 -> :neg
+              true -> :zero
+            end
+          end
+        end
+        """)
+
+      refute Enum.any?(findings, &(&1.message =~ "cond with two clauses"))
+    end
+  end
+
+  describe "redundant assignment detection" do
+    test "flags variable assigned then immediately returned" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def f(x) do
+            result = compute(x)
+            result
+          end
+          defp compute(x), do: x + 1
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "assigned then immediately returned"))
+    end
+
+    test "does not flag variable used after assignment" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def f(x) do
+            result = compute(x)
+            IO.inspect(result)
+            result
+          end
+          defp compute(x), do: x + 1
+        end
+        """)
+
+      refute Enum.any?(findings, &(&1.message =~ "assigned then immediately returned"))
+    end
+  end
 end
