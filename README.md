@@ -177,9 +177,13 @@ mix hex.build
 
 `mix ci` includes formatting, JS checks, Credo/ExSlop, ExDNA duplication checks, architecture policy, Dialyzer, and tests.
 
+## Credo overlap
+
+A handful of Reach smell patterns overlap with Credo refactoring checks (`MapJoin`, `FilterCount`, `FilterFilter`, `MapInto`, `UnlessWithElse`, `CondStatements`, `ExpensiveEmptyEnumCheck`). Both tools can run together — Reach findings are advisory and never fail the build.
+
 ## Acknowledgements
 
-Some structural smell patterns were informed by public [Credence](https://github.com/Cinderella-Man/credence) rules. Reach implements them over its own IR/project model and keeps them advisory.
+Some structural smell patterns were informed by public [Credence](https://github.com/Cinderella-Man/credence) rules and [Clippy](https://rust-lang.github.io/rust-clippy/) lint categories. Reach implements them over its own IR/project model and keeps them advisory.
 
 ## License
 
