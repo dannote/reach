@@ -1,11 +1,26 @@
 # Changelog
 
-## Unreleased
+## 2.3.1
+
+### New
+
+- **Case-on-boolean detection** — flags `case expr do true -> ...; false -> ... end` when the subject is a comparison or boolean operator. Uses ExAST capture guards to avoid false positives on sentinel pattern matches like `case func() do false -> ... end`.
+- **Cond two-clause detection** — flags `cond do ... true -> ... end` with exactly two clauses; suggests `if/else`.
+- **Unless/else detection** — flags `unless ... else ...`; suggests `if` with the positive case first.
+- **Redundant assignment** — flags `result = expr; result` where the binding is immediately returned.
+- **Manual max/min** — flags `if a > b, do: a, else: b` using ExAST repeated-variable matching; suggests `Kernel.max/2` or `Kernel.min/2`.
+- **`@doc false` on `defp`** — flags redundant `@doc false` before private functions (uses ExAST 0.11.2 wildcard function name matching).
+- **Sort then negative take** — flags `Enum.sort |> Enum.take(-n)`; suggests `Enum.sort(:desc) |> Enum.take(n)`.
 
 ### Fixed
 
-- **Dogfooding** — ran `reach.check --smells` against Reach's own codebase and fixed all actionable findings across 15 files: `Enum.at(_, -1)` → `List.last`, `++` in reduce → prepend + reverse, `Enum.with_index |> Enum.reduce` → `Stream.with_index`, indexed loop access → tuple conversion, repeated traversals → single reduce, extracted helpers to reduce nesting.
+- **`++` in reduce false positives** — the check now verifies that an operand of `++` actually references the reduce accumulator variable. Previously any `++` inside a reduce callback was flagged, including one-shot concats of two derived lists. Eliminates 17 false positives across the top 200 Hex packages.
+- **Dogfooding** — ran `reach.check --smells` against Reach's own codebase and fixed all actionable findings across 15 files.
 - **CI** — `mix ci` now runs `reach.check --arch --smells` (was `--arch` only).
+
+### Changed
+
+- **ex_ast** bumped to `~> 0.11.2` for wildcard function name matching in `def`/`defp` patterns.
 
 ## 2.3.0
 

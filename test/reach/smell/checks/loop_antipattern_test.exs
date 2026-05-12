@@ -25,7 +25,10 @@ defmodule Reach.Smell.Checks.LoopAntipatternTest do
         end
         """)
 
-      assert Enum.any?(result, &(&1.kind == :suboptimal and &1.message =~ "++ growing accumulator"))
+      assert Enum.any?(
+               result,
+               &(&1.kind == :suboptimal and &1.message =~ "++ growing accumulator")
+             )
     end
 
     test "does not flag ++ in Enum.map (no accumulator)" do
