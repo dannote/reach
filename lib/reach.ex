@@ -907,19 +907,12 @@ defmodule Reach do
         |> List.wrap()
         |> Enum.flat_map(&Reach.IR.all_nodes/1)
 
-      var_names =
-        lhs_nodes
-        |> Enum.filter(fn n -> n.type == :var and n.meta[:binding_role] == :definition end)
-        |> Enum.map(& &1.meta[:name])
-
-      struct_var_names =
-        lhs_nodes
-        |> Enum.filter(fn n ->
-          n.type == :struct and match?({name, _, _} when is_atom(name), n.meta[:name])
+      bound_vars =
+        Enum.flat_map(lhs_nodes, fn
+          %{type: :var, meta: %{binding_role: :definition, name: name}} -> [name]
+          %{type: :struct, meta: %{name: {name, _, _}}} when is_atom(name) -> [name]
+          _ -> []
         end)
-        |> Enum.map(fn n -> elem(n.meta[:name], 0) end)
-
-      bound_vars = var_names ++ struct_var_names
 
       if Enum.any?(bound_vars, &MapSet.member?(alive_refs, &1)) do
         MapSet.put(ids, match.id)

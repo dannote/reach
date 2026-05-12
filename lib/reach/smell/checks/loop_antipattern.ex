@@ -21,10 +21,11 @@ defmodule Reach.Smell.Checks.LoopAntipattern do
         node.type == :binary_op,
         node.meta[:operator] == :++,
         node.source_span,
-        quadratic_concat?(node, function) do
+        quadratic_concat?(node, function),
+        accumulator_grows?(node, function) do
       finding(
         :suboptimal,
-        "++ inside reduce is O(n²); prepend with [item | acc] and Enum.reverse/1 after",
+        "++ growing accumulator inside reduce is O(n²); prepend with [item | acc] and Enum.reverse/1 after",
         node
       )
     end
@@ -74,6 +75,56 @@ defmodule Reach.Smell.Checks.LoopAntipattern do
     Helpers.inside_accumulator?(node, function) or
       recursive_operand?(node, function)
   end
+
+  defp accumulator_grows?(%{children: [left, _right]}, function) do
+    acc_names = accumulator_names(function)
+
+    if acc_names == MapSet.new() do
+      true
+    else
+      left
+      |> IR.all_nodes()
+      |> Enum.any?(fn n -> n.type == :var and MapSet.member?(acc_names, n.meta[:name]) end)
+    end
+  end
+
+  defp accumulator_grows?(_, _), do: true
+
+  defp accumulator_names(function) do
+    function
+    |> IR.all_nodes()
+    |> Enum.filter(fn n ->
+      n.type == :call and n.meta[:module] in [Enum, Stream] and
+        n.meta[:function] in [:reduce, :reduce_while, :scan, :flat_map_reduce, :map_reduce]
+    end)
+    |> Enum.flat_map(fn call ->
+      call.children
+      |> Enum.filter(&(&1.type == :fn))
+      |> Enum.flat_map(fn fn_node ->
+        fn_node.children
+        |> Enum.filter(&(&1.type == :clause))
+        |> Enum.flat_map(&extract_acc_params/1)
+      end)
+    end)
+    |> MapSet.new()
+  end
+
+  defp extract_acc_params(clause) do
+    clause.children
+    |> Enum.filter(&(&1.meta[:binding_role] == :definition))
+    |> Enum.drop(1)
+    |> Enum.flat_map(&collect_var_names/1)
+  end
+
+  defp collect_var_names(%{type: :var, meta: %{name: name}}), do: [name]
+
+  defp collect_var_names(%{type: :tuple, children: children}),
+    do: Enum.flat_map(children, &collect_var_names/1)
+
+  defp collect_var_names(%{type: :list, children: children}),
+    do: Enum.flat_map(children, &collect_var_names/1)
+
+  defp collect_var_names(_), do: []
 
   defp recursive_operand?(%{children: [left, right]}, function) do
     name = function.meta[:name]
