@@ -1438,4 +1438,78 @@ defmodule Reach.SmellTest do
       refute Enum.any?(findings, &(&1.message =~ "assigned then immediately returned"))
     end
   end
+
+  describe "manual min/max detection" do
+    test "flags if a > b, do: a, else: b as manual max" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def bigger(a, b), do: if(a > b, do: a, else: b)
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "max/2"))
+    end
+
+    test "flags if a < b, do: a, else: b as manual min" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def smaller(a, b), do: if(a < b, do: a, else: b)
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "min/2"))
+    end
+
+    test "does not flag if with different branches" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def f(a, b), do: if(a > b, do: :big, else: :small)
+        end
+        """)
+
+      refute Enum.any?(findings, &(&1.message =~ "max/2" or &1.message =~ "min/2"))
+    end
+  end
+
+  describe "@doc false on defp" do
+    test "flags @doc false before defp" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          @doc false
+          defp helper(x), do: x + 1
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "@doc false on defp"))
+    end
+
+    test "does not flag @doc false before def" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          @doc false
+          def hidden(x), do: x + 1
+        end
+        """)
+
+      refute Enum.any?(findings, &(&1.message =~ "@doc false on defp"))
+    end
+  end
+
+  describe "sort then negative take" do
+    test "flags Enum.sort |> Enum.take(-1)" do
+      findings =
+        run_smell_task("""
+        defmodule A do
+          def biggest(list), do: list |> Enum.sort() |> Enum.take(-1)
+        end
+        """)
+
+      assert Enum.any?(findings, &(&1.message =~ "Enum.max"))
+    end
+  end
 end

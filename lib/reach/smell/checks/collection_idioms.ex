@@ -293,4 +293,28 @@ defmodule Reach.Smell.Checks.CollectionIdioms do
     :suboptimal,
     "Enum.at(list, -1) traverses the list twice; use List.last/1"
   )
+
+  smell(
+    ~p[if left > right, do: left, else: right],
+    :suboptimal,
+    "if a > b, do: a, else: b reimplements max/2; use Kernel.max/2"
+  )
+
+  smell(
+    ~p[if left >= right, do: left, else: right],
+    :suboptimal,
+    "if a >= b, do: a, else: b reimplements max/2; use Kernel.max/2"
+  )
+
+  smell(
+    ~p[if left < right, do: left, else: right],
+    :suboptimal,
+    "if a < b, do: a, else: b reimplements min/2; use Kernel.min/2"
+  )
+
+  smell(
+    ~p[if left <= right, do: left, else: right],
+    :suboptimal,
+    "if a <= b, do: a, else: b reimplements min/2; use Kernel.min/2"
+  )
 end

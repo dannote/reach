@@ -208,6 +208,31 @@ defmodule Reach.Smell.Checks.PipelineWaste do
     "cond with two clauses where the second is `true` is just if/else"
   )
 
+  smell(
+    ~p[Enum.sort(_) |> Enum.take(-1)],
+    :eager_pattern,
+    "Enum.sort |> Enum.take(-1): use Enum.max/1"
+  )
+
+  smell(
+    ~p[Enum.sort(_) |> Enum.take(-2)],
+    :eager_pattern,
+    "Enum.sort |> Enum.take(-n): use Enum.sort(:desc) |> Enum.take(n)"
+  )
+
+  smell(
+    ~p[Enum.sort(_) |> Enum.take(-3)],
+    :eager_pattern,
+    "Enum.sort |> Enum.take(-n): use Enum.sort(:desc) |> Enum.take(n)"
+  )
+
+  smell(
+    ~p[@doc false
+    defp _(...) do ... end],
+    :suboptimal,
+    "@doc false on defp is redundant; private functions cannot have documentation"
+  )
+
   @boolean_ops [:==, :!=, :===, :!==, :>, :<, :>=, :<=, :and, :or, :not, :in]
 
   smell(
