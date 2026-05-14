@@ -100,8 +100,8 @@ Framework-specific semantics must stay in plugins. Generic modules such as `Reac
 ## Release and Docs
 
 - Keep `ex_doc` available in the `:docs` Mix environment (`only: [:dev, :docs]`).
-- Publish Hex package docs with `MIX_ENV=docs mix hex.publish docs`, not default/dev env.
-- Reason: dev-only `volt` may depend on `reach`; publishing docs in dev can load Hex `reach` alongside this repo and fail with a duplicate `Reach.MixProject` self-dependency.
+- `mix docs` and `mix hex.publish docs` must run in the `:docs` Mix environment via `cli.preferred_envs`.
+- Reason: dev-only `volt` may depend on `reach`; building docs in dev can load Hex `reach` alongside this repo and fail with a duplicate `Reach.MixProject` self-dependency.
 
 ## Tests and Refactors
 

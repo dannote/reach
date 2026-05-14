@@ -32,7 +32,7 @@ defmodule Reach.MixProject do
   end
 
   def cli do
-    [preferred_envs: [ci: :test]]
+    [preferred_envs: [ci: :test, docs: :docs, "hex.publish": :docs]]
   end
 
   defp aliases do
