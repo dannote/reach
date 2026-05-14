@@ -8,6 +8,7 @@ defmodule Reach.ProgramFactsStressScriptTest do
         "mix",
         ["run", "scripts/program_facts_stress.exs"],
         env: [
+          {"MIX_ENV", "test"},
           {"PROGRAM_FACTS_STRESS_ITERATIONS", "2"},
           {"PROGRAM_FACTS_STRESS_SEED", "8100"},
           {"PROGRAM_FACTS_FAILURE_ROOT", Path.join(System.tmp_dir!(), "reach-pf-stress-test")}

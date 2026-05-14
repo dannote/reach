@@ -4,12 +4,17 @@
 
 ### New
 
-- **Semantic idiom smells** — flags `Map.has_key?/2` followed by `Map.get/fetch` on the same key, sentinel `Map.get/3` defaults that are immediately compared, `length(list)` followed by `Enum.at(list, n - k)`, integer `Keyword` keys, and `Logger.*` calls without `require Logger`/`import Logger`.
-- **More collection idioms** — flags `Enum.sort |> Enum.reverse`, `Enum.sort |> Enum.at(0/-1)`, and `Enum.take_while |> length/Enum.count`.
+- **Semantic idiom smells** — detects double map lookups, sentinel `Map.get/3` defaults, length-based list indexing, invalid integer `Keyword` keys, and missing `Logger` imports.
+- **More collection idioms** — detects sort-then-reverse, sort-then-index, and `Enum.take_while/2` followed by counting.
+
+### Changed
+
+- **Dependencies** — refreshed Hex dependencies, including Volt 0.10.x.
 
 ### Fixed
 
-- **False-positive hardening** — new smell rules were checked against Hex packages; integer `Keyword.get/3` detection now avoids piped default-value forms, Logger checks accept `import Logger`, and noisy inconsistent clause-parameter detection was left out.
+- **Smell false positives** — tightened keyword-default and Logger detection based on Hex package scans.
+- **Nested Mix tests** — run the ProgramFacts stress script under `MIX_ENV=test` to avoid dev-only dependency self-conflicts.
 
 ## 2.3.2
 

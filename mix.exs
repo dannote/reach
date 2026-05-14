@@ -1,7 +1,7 @@
 defmodule Reach.MixProject do
   use Mix.Project
 
-  @version "2.3.2"
+  @version "2.3.3"
   @source_url "https://github.com/elixir-vibe/reach"
 
   def project do
@@ -66,7 +66,7 @@ defmodule Reach.MixProject do
       {:makeup, "~> 1.0", optional: true},
       {:makeup_elixir, "~> 1.0", optional: true},
       {:makeup_js, "~> 0.1", optional: true},
-      {:volt, "~> 0.4", only: :dev, runtime: false},
+      {:volt, "~> 0.10.5", only: :dev, runtime: false},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
       {:quickbeam, "~> 0.10", optional: true},
       {:ex_ast, "~> 0.11.2"},
