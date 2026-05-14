@@ -540,8 +540,6 @@ defmodule Reach.Smell.Checks.IdiomMismatch do
       Macro.prewalk(ast, [], fn node, acc ->
         case fun.(node) do
           nil -> {node, acc}
-          [] -> {node, acc}
-          values when is_list(values) -> {node, values ++ acc}
           value -> {node, [value | acc]}
         end
       end)

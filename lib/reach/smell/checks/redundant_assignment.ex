@@ -31,23 +31,9 @@ defmodule Reach.Smell.Checks.RedundantAssignment do
   defp same_var_return?(_, _), do: false
 
   defp last_statement?(node, function) do
-    statements = body_statements(function)
-    List.last(statements) == node
+    function
+    |> Helpers.body_statements()
+    |> List.last()
+    |> Kernel.==(node)
   end
-
-  defp body_statements(function) do
-    case function.children do
-      [%{type: :clause, children: children} | _] ->
-        children
-        |> Enum.reject(&(&1.type in [:guard]))
-        |> Enum.drop(function.meta[:arity] || 0)
-        |> Enum.flat_map(&unwrap_block/1)
-
-      children ->
-        children
-    end
-  end
-
-  defp unwrap_block(%{type: :block, children: children}), do: children
-  defp unwrap_block(node), do: [node]
 end

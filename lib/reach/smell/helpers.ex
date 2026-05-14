@@ -111,7 +111,8 @@ defmodule Reach.Smell.Helpers do
     end
   end
 
-  defp body_statements(function) do
+  @doc "Returns top-level statements from a function body."
+  def body_statements(function) do
     case function.children do
       [%{type: :clause, children: children} | _] ->
         children
