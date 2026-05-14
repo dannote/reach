@@ -67,7 +67,7 @@ defmodule Reach.MixProject do
       {:makeup_elixir, "~> 1.0", optional: true},
       {:makeup_js, "~> 0.1", optional: true},
       {:volt, "~> 0.10.5", only: :dev, runtime: false},
-      {:ex_doc, "~> 0.34", only: :dev, runtime: false},
+      {:ex_doc, "~> 0.34", only: [:dev, :docs], runtime: false},
       {:quickbeam, "~> 0.10", optional: true},
       {:ex_ast, "~> 0.11.2"},
       {:ex_dna, "~> 1.5", optional: true, runtime: false}
