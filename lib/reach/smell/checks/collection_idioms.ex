@@ -390,4 +390,64 @@ defmodule Reach.Smell.Checks.CollectionIdioms do
     :suboptimal,
     "Enum.filter/2 |> hd/1: use Enum.find/2"
   )
+
+  smell(
+    ~p[Enum.sort(_) |> Enum.reverse()],
+    :suboptimal,
+    "Enum.sort/1 |> Enum.reverse/1 sorts ascending then reverses; use Enum.sort(enum, :desc)"
+  )
+
+  smell(
+    ~p[Enum.sort(_, _) |> Enum.reverse()],
+    :suboptimal,
+    "Enum.sort/2 |> Enum.reverse/1 sorts then reverses; choose the desired sort direction directly"
+  )
+
+  smell(
+    ~p[Enum.sort(_) |> Enum.at(0)],
+    :suboptimal,
+    "Enum.sort/1 |> Enum.at(0) sorts the whole collection to get the minimum; use Enum.min/1"
+  )
+
+  smell(
+    ~p[Enum.sort(_) |> Enum.at(-1)],
+    :suboptimal,
+    "Enum.sort/1 |> Enum.at(-1) sorts the whole collection to get the maximum; use Enum.max/1"
+  )
+
+  smell(
+    ~p[Enum.sort(_, :asc) |> Enum.at(0)],
+    :suboptimal,
+    "Enum.sort(enum, :asc) |> Enum.at(0) sorts the whole collection to get the minimum; use Enum.min/1"
+  )
+
+  smell(
+    ~p[Enum.sort(_, :asc) |> Enum.at(-1)],
+    :suboptimal,
+    "Enum.sort(enum, :asc) |> Enum.at(-1) sorts the whole collection to get the maximum; use Enum.max/1"
+  )
+
+  smell(
+    ~p[Enum.sort(_, :desc) |> Enum.at(0)],
+    :suboptimal,
+    "Enum.sort(enum, :desc) |> Enum.at(0) sorts the whole collection to get the maximum; use Enum.max/1"
+  )
+
+  smell(
+    ~p[Enum.sort(_, :desc) |> Enum.at(-1)],
+    :suboptimal,
+    "Enum.sort(enum, :desc) |> Enum.at(-1) sorts the whole collection to get the minimum; use Enum.min/1"
+  )
+
+  smell(
+    ~p[Enum.take_while(_, _) |> length()],
+    :suboptimal,
+    "Enum.take_while/2 |> length/1 materializes a prefix just to count it; use Enum.reduce_while/3"
+  )
+
+  smell(
+    ~p[Enum.take_while(_, _) |> Enum.count()],
+    :suboptimal,
+    "Enum.take_while/2 |> Enum.count/1 materializes a prefix just to count it; use Enum.reduce_while/3"
+  )
 end
