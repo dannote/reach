@@ -97,6 +97,12 @@ Framework-specific semantics must stay in plugins. Generic modules such as `Reac
 - `mix reach.check --smells` may call the smell engine, but smell rules themselves must live under `Reach.Smell.*`, not `Reach.CLI.*`.
 - `Reach.CloneAnalysis.*` is an evidence provider, not a smell namespace. ExDNA integration must emit Reach-owned clone evidence consumed by semantic checks; ExDNA must not appear as a user-facing smell kind.
 
+## Release and Docs
+
+- Keep `ex_doc` available in the `:docs` Mix environment (`only: [:dev, :docs]`).
+- Publish Hex package docs with `MIX_ENV=docs mix hex.publish docs`, not default/dev env.
+- Reason: dev-only `volt` may depend on `reach`; publishing docs in dev can load Hex `reach` alongside this repo and fail with a duplicate `Reach.MixProject` self-dependency.
+
 ## Tests and Refactors
 
 Before reorganizing tests, preserve the full inventory:
