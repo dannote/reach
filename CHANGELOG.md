@@ -4,12 +4,12 @@
 
 ### New
 
-- **Credence-inspired semantic smells** — flags `Map.has_key?/2` followed by `Map.get/fetch` on the same key, sentinel `Map.get/3` defaults that are immediately compared, `length(list)` followed by `Enum.at(list, n - k)`, integer `Keyword` keys, and `Logger.*` calls without `require Logger`/`import Logger`.
+- **Semantic idiom smells** — flags `Map.has_key?/2` followed by `Map.get/fetch` on the same key, sentinel `Map.get/3` defaults that are immediately compared, `length(list)` followed by `Enum.at(list, n - k)`, integer `Keyword` keys, and `Logger.*` calls without `require Logger`/`import Logger`.
 - **More collection idioms** — flags `Enum.sort |> Enum.reverse`, `Enum.sort |> Enum.at(0/-1)`, and `Enum.take_while |> length/Enum.count`.
 
 ### Fixed
 
-- **False-positive hardening** — Credence ports were checked against Hex packages; integer `Keyword.get/3` detection now avoids piped default-value forms, Logger checks accept `import Logger`, and noisy inconsistent clause-parameter detection was left out.
+- **False-positive hardening** — new smell rules were checked against Hex packages; integer `Keyword.get/3` detection now avoids piped default-value forms, Logger checks accept `import Logger`, and noisy inconsistent clause-parameter detection was left out.
 
 ## 2.3.2
 

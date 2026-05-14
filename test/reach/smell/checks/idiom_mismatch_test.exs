@@ -167,4 +167,109 @@ defmodule Reach.Smell.Checks.IdiomMismatchTest do
       assert Enum.filter(result, &(&1.message =~ "reassembled")) == []
     end
   end
+
+  describe "semantic idiom mismatches" do
+    test "detects Map.has_key?/2 followed by reading the same key" do
+      assert findings("""
+             defmodule Sample do
+               def lookup(map, key) do
+                 if Map.has_key?(map, key) do
+                   Map.get(map, key)
+                 end
+               end
+             end
+             """)
+             |> Enum.any?(&String.contains?(&1.message, "two lookups"))
+    end
+
+    test "does not flag Map.has_key?/2 when reading a different key" do
+      refute findings("""
+             defmodule Sample do
+               def lookup(map, key, other) do
+                 if Map.has_key?(map, key) do
+                   Map.get(map, other)
+                 end
+               end
+             end
+             """)
+             |> Enum.any?(&String.contains?(&1.message, "two lookups"))
+    end
+
+    test "detects sentinel Map.get/3 followed by sentinel comparison" do
+      assert findings("""
+             defmodule Sample do
+               def lookup(map, key) do
+                 value = Map.get(map, key, -1)
+
+                 if value == -1 do
+                   :missing
+                 else
+                   value
+                 end
+               end
+             end
+             """)
+             |> Enum.any?(&String.contains?(&1.message, "sentinel default"))
+    end
+
+    test "does not flag Map.get/3 sentinel defaults unless the sentinel is compared immediately" do
+      refute findings("""
+             defmodule Sample do
+               def lookup(map, key) do
+                 value = Map.get(map, key, -1)
+                 {:ok, value}
+               end
+             end
+             """)
+             |> Enum.any?(&String.contains?(&1.message, "sentinel default"))
+    end
+
+    test "detects length-based indexing" do
+      assert findings("""
+             defmodule Sample do
+               def last(list) do
+                 n = length(list)
+                 Enum.at(list, n - 1)
+               end
+             end
+             """)
+             |> Enum.any?(&String.contains?(&1.message, "length - n"))
+    end
+
+    test "detects missing require Logger" do
+      assert findings("""
+             defmodule Sample do
+               def log do
+                 Logger.info("hello")
+               end
+             end
+             """)
+             |> Enum.any?(&String.contains?(&1.message, "require Logger"))
+    end
+
+    test "does not flag Logger calls when Logger is required" do
+      refute findings("""
+             defmodule Sample do
+               require Logger
+
+               def log do
+                 Logger.info("hello")
+               end
+             end
+             """)
+             |> Enum.any?(&String.contains?(&1.message, "require Logger"))
+    end
+
+    test "detects integer Keyword keys without flagging integer defaults" do
+      result =
+        findings("""
+        defmodule Sample do
+          def bad(opts), do: Keyword.get(opts, 1, :default)
+          def ok(opts, key), do: opts |> Keyword.get(key, 0)
+        end
+        """)
+
+      assert Enum.count(result, &String.contains?(&1.message, "Keyword keys must be atoms")) == 1
+    end
+  end
 end
