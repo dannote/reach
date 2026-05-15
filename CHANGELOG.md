@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.4
+
+### Fixed
+
+- **Docs publishing** — `mix docs` and `mix hex.publish docs` now run in the `:docs` Mix environment, avoiding dev-only dependency self-conflicts during Hex docs publishing.
+
 ## 2.3.3
 
 ### New
