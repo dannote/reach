@@ -43,7 +43,7 @@ defmodule Reach do
       Reach.pure?(node)  #=> true
   """
 
-  alias Reach.{Effects, Frontend, IR, SystemDependence}
+  alias Reach.{Effects, Frontend, IR, Plugin, SystemDependence}
   alias Reach.IR.{Counter, Node}
   import Reach.IR.Helpers, only: [module_from_path: 1]
 
@@ -103,8 +103,8 @@ defmodule Reach do
     case language do
       :gleam -> parse_file_and_build(&Frontend.Gleam.parse_file/2, path, opts)
       :erlang -> parse_file_and_build(&Frontend.Erlang.parse_file/2, path, opts)
-      :javascript -> parse_js_and_build(path, opts)
-      _elixir -> read_and_build_elixir(path, opts)
+      :elixir -> read_and_build_elixir(path, opts)
+      _plugin_language -> parse_plugin_file_and_build(path, opts)
     end
   end
 
@@ -1143,11 +1143,11 @@ defmodule Reach do
     end
   end
 
-  defp parse_js_and_build(path, opts) do
-    if Code.ensure_loaded?(Frontend.JavaScript) do
-      parse_file_and_build(&Frontend.JavaScript.parse_file/2, path, opts)
-    else
-      {:error, :quickbeam_not_available}
+  defp parse_plugin_file_and_build(path, opts) do
+    case Plugin.parse_file(Plugin.resolve(opts), path, opts) do
+      {:ok, nodes} -> {:ok, SystemDependence.build(nodes, opts)}
+      {:error, _} = err -> err
+      :error -> {:error, {:frontend_not_available, Path.extname(path)}}
     end
   end
 
@@ -1155,8 +1155,7 @@ defmodule Reach do
     case Path.extname(path) do
       ext when ext in [".erl", ".hrl"] -> :erlang
       ".gleam" -> :gleam
-      ext when ext in [".js", ".ts", ".tsx", ".jsx"] -> :javascript
-      _ -> :elixir
+      ext -> Plugin.source_language(Plugin.detect(), ext) || :elixir
     end
   end
 end

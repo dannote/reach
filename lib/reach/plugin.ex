@@ -11,11 +11,14 @@ defmodule Reach.Plugin do
      classifier about framework-specific calls (Ecto queries are pure,
      Repo writes are `:write`, etc.)
 
-  3. **Embedded IR** — `analyze_embedded/2` extracts code from string
+  3. **Source frontends** — optional `source_extensions/0` and `parse_file/2`
+     callbacks let plugins own language frontends for optional ecosystems.
+
+  4. **Embedded IR** — `analyze_embedded/2` extracts code from string
      literals (e.g. JS inside QuickBEAM.eval) and returns additional IR
      nodes plus cross-language edges.
 
-  4. **Framework presentation/patterns** — optional callbacks provide
+  5. **Framework presentation/patterns** — optional callbacks provide
      framework-specific trace presets, behaviour labels, and visualization
      edge filtering.
 
@@ -81,6 +84,10 @@ defmodule Reach.Plugin do
   connecting them to the host graph.
   """
   @callback analyze_embedded(all_nodes :: [Node.t()], opts :: keyword()) :: embedded_result()
+  @callback source_extensions() :: [String.t()]
+  @callback source_language(extension :: String.t()) :: atom() | nil
+  @callback parse_file(path :: Path.t(), opts :: keyword()) ::
+              {:ok, [Node.t()]} | {:error, term()}
 
   @callback trace_pattern(pattern :: String.t()) :: (Node.t() -> boolean()) | nil
   @callback behaviour_label(callbacks :: [atom()]) :: String.t() | nil
@@ -89,6 +96,9 @@ defmodule Reach.Plugin do
   @optional_callbacks analyze_project: 3,
                       classify_effect: 1,
                       analyze_embedded: 2,
+                      source_extensions: 0,
+                      source_language: 1,
+                      parse_file: 2,
                       trace_pattern: 1,
                       behaviour_label: 1,
                       ignore_call_edge?: 1
@@ -142,6 +152,35 @@ defmodule Reach.Plugin do
   def run_analyze(plugins, all_nodes, opts) do
     Enum.flat_map(plugins, fn plugin ->
       plugin.analyze(all_nodes, opts)
+    end)
+  end
+
+  @doc "Returns source extensions handled by plugins."
+  def source_extensions(plugins) do
+    plugins
+    |> Enum.flat_map(fn plugin ->
+      if exports?(plugin, :source_extensions, 0), do: plugin.source_extensions(), else: []
+    end)
+    |> Enum.uniq()
+  end
+
+  @doc "Returns the source language for an extension handled by a plugin."
+  def source_language(plugins, extension) do
+    Enum.find_value(plugins, fn plugin ->
+      if exports?(plugin, :source_language, 1) and extension in plugin.source_extensions() do
+        plugin.source_language(extension)
+      end
+    end)
+  end
+
+  @doc "Parses a source file with the first plugin frontend that accepts its extension."
+  def parse_file(plugins, path, opts) do
+    ext = Path.extname(path)
+
+    Enum.find_value(plugins, :error, fn plugin ->
+      if exports?(plugin, :parse_file, 2) and ext in plugin.source_extensions() do
+        plugin.parse_file(path, opts)
+      end
     end)
   end
 

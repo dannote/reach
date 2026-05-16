@@ -1,7 +1,7 @@
 if Code.ensure_loaded?(QuickBEAM) do
-  defmodule Reach.Frontend.JavaScript do
+  defmodule Reach.Plugins.QuickBEAM.JavaScriptFrontend do
     @moduledoc """
-    JavaScript source frontend — parses `.js` files into Reach IR.
+    QuickBEAM JavaScript source frontend — parses `.js` files into Reach IR.
 
     Uses QuickBEAM to compile JavaScript to QuickJS bytecode, then
     translates the decoded bytecode into Reach IR nodes.

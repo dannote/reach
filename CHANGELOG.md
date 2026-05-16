@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **Optional JavaScript support** — compiling Reach without QuickBEAM no longer emits warnings about the unavailable JavaScript frontend.
+
 ## 2.3.4
 
 ### Fixed

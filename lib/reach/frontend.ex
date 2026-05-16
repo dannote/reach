@@ -12,8 +12,7 @@ defmodule Reach.Frontend do
   }
 
   @optional_frontends [
-    Reach.Frontend.Gleam,
-    Reach.Frontend.JavaScript
+    Reach.Frontend.Gleam
   ]
 
   def language_from_path(path) do
@@ -71,6 +70,5 @@ defmodule Reach.Frontend do
   end
 
   defp language_atom(Reach.Frontend.Gleam), do: :gleam
-  defp language_atom(Reach.Frontend.JavaScript), do: :javascript
   defp language_atom(_), do: nil
 end

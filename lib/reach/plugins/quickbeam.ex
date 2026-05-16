@@ -13,11 +13,23 @@ if Code.ensure_loaded?(QuickBEAM) do
     """
     @behaviour Reach.Plugin
 
-    alias Reach.{Frontend, IR}
+    alias Reach.IR
     alias Reach.IR.Node
+    alias Reach.Plugins.QuickBEAM.JavaScriptFrontend
 
     @impl true
     def analyze(_all_nodes, _opts), do: []
+
+    @impl true
+    def source_extensions, do: JavaScriptFrontend.extensions()
+
+    @impl true
+    def source_language(extension) do
+      if extension in source_extensions(), do: :javascript
+    end
+
+    @impl true
+    def parse_file(path, opts \\ []), do: JavaScriptFrontend.parse_file(path, opts)
 
     @impl true
     def classify_effect(%Node{type: :call, meta: %{module: QuickBEAM, function: f}})
@@ -110,7 +122,7 @@ if Code.ensure_loaded?(QuickBEAM) do
 
     defp process_eval(call_node, _counter) do
       with js_source when is_binary(js_source) <- extract_js_source(call_node),
-           {:ok, js_nodes} <- Frontend.JavaScript.parse(js_source) do
+           {:ok, js_nodes} <- JavaScriptFrontend.parse(js_source) do
         edges = Enum.map(js_nodes, fn js_fn -> {call_node.id, js_fn.id, :js_eval} end)
         [{js_nodes, edges}]
       else
